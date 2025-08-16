@@ -43,7 +43,7 @@ import lombok.RequiredArgsConstructor;
  */
 
 @RestController
-@RequestMapping("/api/v1/Usuario")
+@RequestMapping("/api/v1/usuario")
 @Tag(name = "Usuario - Controller", description = "Controller encargado de gestionar las operaciones de los usuarios")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
@@ -66,7 +66,7 @@ public class UsuarioController {
 	        @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 	})
-	@PostMapping("/Autentication")
+	@PostMapping("/validar")
 	public ResponseEntity<ResponseDTO> validarUsuario(@RequestBody UsuarioDTO usuario) {
 	    return this.autenticacionServiceImpl.autenticar(usuario);
 	}

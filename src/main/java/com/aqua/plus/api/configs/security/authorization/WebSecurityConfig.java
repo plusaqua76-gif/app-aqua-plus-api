@@ -32,7 +32,7 @@ public class WebSecurityConfig {
 	private final JwtAuthenticationFilter jwtRequestFilter;
 	
 	private static final String[] WHITELIST = {
-	        "/api/v1/Usuario/Autentication",
+	        "/api/v1/usuario/validar",
 	        "/api/v1/Usuario/**",
 	        "/v3/api-docs",
 	        "/v3/api-docs/**",

@@ -45,7 +45,7 @@ public class JwtUtil {
      * @return Devuelve el parametro
      */
 	public ParametrosSistemaEntity getParameter(final String key) {
-		return this.parametrosSistemaRepository.findByLlave(key).orElseThrow(() -> new ProcessGenericException(""));
+		return this.parametrosSistemaRepository.findByLlave(key).orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
 	}
 	
 	private final Set<String> blacklistedTokens = new HashSet<>();

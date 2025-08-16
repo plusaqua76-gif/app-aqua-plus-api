@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://bd-aqua-plus.postgres.database.azure.com:5432/aquaplus
     username: aquaPlus
-    password: #PASSWORD
+    password: PSQLQA2025*.
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false

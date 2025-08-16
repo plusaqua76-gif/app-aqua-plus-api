@@ -12,10 +12,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
 @EnableAutoConfiguration(exclude = { JpaRepositoriesAutoConfiguration.class })
-@EntityScan(basePackages = { "com.codemakers.commons.entities" })
-@EnableJpaRepositories(basePackages = { "com.codemakers.commons.repositories" })
+@EntityScan(basePackages = { "com.aqua.plus.commons.entities" })
+@EnableJpaRepositories(basePackages = { "com.aqua.plus.commons.repositories" })
 @EnableJpaAuditing
-@ComponentScan(basePackages = {"com.codemakers.api", "com.codemakers.commons"})
+@ComponentScan(basePackages = {"com.aqua.plus.api", "com.aqua.plus.commons"})
 public class AquaPlusApiApplication {
 
 	public static void main(String[] args) {

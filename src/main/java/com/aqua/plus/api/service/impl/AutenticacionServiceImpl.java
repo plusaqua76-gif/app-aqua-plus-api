@@ -37,70 +37,55 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AutenticacionServiceImpl implements UserDetailsService {
 
-    private final UsuarioRepository usuarioRepository;
-    private final EncriptarDesencriptar serviceEncriptacion;
-    private final JwtUtil jwtTokenUtil;
+	private final UsuarioRepository usuarioRepository;
+	private final EncriptarDesencriptar serviceEncriptacion;
+	private final JwtUtil jwtTokenUtil;
 
-    /**
+	/**
 	 *
 	 * @author npeñafiel
 	 * @version 1.0
 	 */
-	@Transactional
+	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> autenticar(UsuarioDTO usuario) {
-	    if (Objects.isNull(usuario) || Objects.isNull(usuario.getNombre()) || Objects.isNull(usuario.getContrasena())
-	            || usuario.getNombre().isEmpty() || usuario.getContrasena().isEmpty()) {
+		log.info("Inicio metodo autenticar:{} ", usuario.getNombre());
+		if (Objects.isNull(usuario) || Objects.isNull(usuario.getNombre()) || Objects.isNull(usuario.getContrasena())
+				|| usuario.getNombre().isEmpty() || usuario.getContrasena().isEmpty()) {
 
-	        ResponseDTO errorResponse = ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.DATA_VALIDATION_MESSAGE)
-	                .code(HttpStatus.BAD_REQUEST.value())
-	                .response(null)
-	                .build();
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.DATA_VALIDATION_MESSAGE)
+					.code(HttpStatus.BAD_REQUEST.value()).response(null).build();
 
-	        return ResponseEntity.badRequest().body(errorResponse);
-	    }
+			return ResponseEntity.badRequest().body(errorResponse);
+		}
 
-	    Optional<UsuarioEntity> responseUsuario = usuarioRepository.findByNombreAndContrasena(
-	            usuario.getNombre(),
-	            serviceEncriptacion.encriptar(usuario.getContrasena())
-	    );
+		Optional<UsuarioEntity> responseUsuario = usuarioRepository.findByNombreAndContrasena(usuario.getNombre(),
+				serviceEncriptacion.encriptar(usuario.getContrasena()));
 
-	    if (responseUsuario.isPresent()) {
-	        UsuarioEntity user = responseUsuario.get();
+		if (responseUsuario.isPresent()) {
+			UsuarioEntity user = responseUsuario.get();
 
-	        final String token = jwtTokenUtil.generateToken(user.getNombre());
+			final String token = jwtTokenUtil.generateToken(user.getNombre());
 
-	        AutenticacionDTO authData = AutenticacionDTO.builder()
-	                .id(user.getId())
-	                .nombre(user.getNombre())
-	                .token(Constantes.BEARER + token)
-	                .rolId(user.getRol() != null ? user.getRol().getId() : null)
-	                .personaId(user.getPersona() != null ? user.getPersona().getId() : null)
-	                .build();
+			AutenticacionDTO authData = AutenticacionDTO.builder().id(user.getId()).nombre(user.getNombre())
+					.token(Constantes.BEARER + token).rolId(user.getRol() != null ? user.getRol().getId() : null)
+					.personaId(user.getPersona() != null ? user.getPersona().getId() : null).build();
 
-	        ResponseDTO successResponse = ResponseDTO.builder()
-	                .success(true)
-	                .message(Constantes.AUTHENTICATION_SUCCESSFUL)
-	                .code(HttpStatus.OK.value())
-	                .response(authData)
-	                .build();
+			ResponseDTO successResponse = ResponseDTO.builder().success(true)
+					.message(Constantes.AUTHENTICATION_SUCCESSFUL).code(HttpStatus.OK.value()).response(authData)
+					.build();
+			log.info("Fin metodo autenticar:{} ", usuario.getNombre());
+			return ResponseEntity.ok(successResponse);
 
-	        return ResponseEntity.ok(successResponse);
+		} else {
+			log.info("Fin metodo autenticar:{} ", Constantes.PLEASE_VERIFY_INCORRECT_DATA);
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false)
+					.message(Constantes.PLEASE_VERIFY_INCORRECT_DATA).code(HttpStatus.BAD_REQUEST.value())
+					.response(null).build();
 
-	    } else {
-	        ResponseDTO errorResponse = ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.PLEASE_VERIFY_INCORRECT_DATA)
-	                .code(HttpStatus.BAD_REQUEST.value())
-	                .response(null)
-	                .build();
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+		}
 
-	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-	    }
 	}
-
-
 
 	@Override
 	public UserDetails loadUserByUsername(String nombre) throws UsernameNotFoundException {
