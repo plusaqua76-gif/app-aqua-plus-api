@@ -112,4 +112,12 @@
 		</plugins>
 	</build>
 
+	<repositories>
+		<repository>
+			<id>github</id>
+			<name>GitHub Packages</name>
+			<url>https://maven.pkg.github.com/CodeMakers-dev/aqua-plus-commons</url>
+		</repository>
+	</repositories>
+
 </project>
