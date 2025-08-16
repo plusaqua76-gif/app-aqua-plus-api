@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: multi-acueductos-api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/db_acueductos
+    username: postgres
+    password: admin
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      auto-commit: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+      show-sql: true
+      format-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  mail:
+    host: smtp.gmail.com 
+    port: 587             
+    username: admongestionplus360@gmail.com 
+    password: rpvz npbk xklr zzsa
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true  
+seguridad:
+  llave: keyacuaplus
+jwt:
+  secret: uQ1b9c@#4BvG!8rS2xYpLk7ZtQwEoM5nHfTgVnXz
