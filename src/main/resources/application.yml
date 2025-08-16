@@ -1,10 +1,10 @@
 spring:
   application:
-    name: multi-acueductos-api
+    name: app-aqua-plus-api
   datasource:
-    url: jdbc:postgresql://localhost:5432/db_acueductos
-    username: postgres
-    password: admin
+    url: jdbc:postgresql://bd-aqua-plus.postgres.database.azure.com:5432/aquaplus
+    username: aquaPlus
+    password: #PASSWORD
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
@@ -27,6 +27,4 @@ spring:
             enable: true
             required: true  
 seguridad:
-  llave: keyacuaplus
-jwt:
-  secret: uQ1b9c@#4BvG!8rS2xYpLk7ZtQwEoM5nHfTgVnXz
+  llave: keyaquaplus

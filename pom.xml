@@ -9,10 +9,10 @@
 		<version>3.5.0</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.acua.plus</groupId>
+	<groupId>com.aqua.plus</groupId>
 	<artifactId>api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>acua-plus-api</name>
+	<name>app-aqua-plus-api</name>
 	<description>App for aqueducts</description>
 	<properties>
 		<java.version>21</java.version>
@@ -45,8 +45,8 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.acua.plus.commons</groupId>
-			<artifactId>acua-plus-commons</artifactId>
+			<groupId>com.aqua.plus.commons</groupId>
+			<artifactId>aqua-plus-commons</artifactId>
 			<version>0.0.1</version>
 		</dependency>
 
@@ -80,6 +80,7 @@
 	</dependencies>
 
 	<build>
+		<finalName>app-aqua-plus-api</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
