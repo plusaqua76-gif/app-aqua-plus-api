@@ -32,4 +32,4 @@ mail:
 seguridad:
   llave: keyaquaplus
 link:
-  recover: https://nice-ground-01172540f.2.azurestaticapps.net/auth/recover-password?token=
+  recover: https://nice-ground-01172540f.2.azurestaticapps.net/auth/recover-password?token= 
