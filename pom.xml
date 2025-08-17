@@ -119,11 +119,22 @@
 	</build>
 
 	<repositories>
+		<!-- Repositorio de GitHub Packages para aqua-plus-commons -->
 		<repository>
 			<id>github</id>
 			<name>GitHub Packages</name>
 			<url>https://maven.pkg.github.com/CodeMakers-dev/aqua-plus-commons</url>
 		</repository>
+
+		<!-- Maven Central -->
+		<repository>
+			<id>central</id>
+			<name>Maven Central</name>
+			<url>https://repo.maven.apache.org/maven2</url>
+		</repository>
 	</repositories>
+
+
+
 
 </project>
