@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class UsuarioServiceImpl implements IUsuarioService {
 
+	@Value("${link.recover}")
+	private String linkRecover;
+	
 	private final UsuarioRepository usuarioRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final RolRepository rolRepository;
@@ -183,7 +187,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			}
 			UsuarioEntity usuario = usuarioOpt.get();
 			String token = jwtUtil.generateToken(usuario.getNombre());
-			String recoveryLink = "http://localhost:4200/auth/recover-password?token=" + token;
+			String recoveryLink =  this.linkRecover + token;
 
 			String subject = "🔐 Recuperación de contraseña";
 			String body = """
@@ -254,7 +258,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 					</head>
 					<body>
 					  <div class="container">
-					    <div class="header">MultiAcueductos</div>
+					    <div class="header">Aqua plus</div>
 					    <div class="content">
 					      <p>Hola <strong>%s</strong>,</p>
 					      <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>

@@ -65,7 +65,7 @@ public class EncriptarDesencriptar {
 	 * @throws Exception
 	 */
 	public String desencriptar(String textoEncriptado) {
-		log.info("Ingreso desencriptar:  " );
+		log.info("Ingreso desencriptar:  {}", textoEncriptado );
 		secretKey ="keyacuaplus";//this.llave; llave para desenciptar datos
 		String base64EncryptedString = "";
 
@@ -93,7 +93,7 @@ public class EncriptarDesencriptar {
 	
 	public static void main(String[] args) throws Exception {
 		EncriptarDesencriptar ed = new EncriptarDesencriptar();
-		System.out.println("clave " + ed.desencriptar("eLJnIO8nNtqtl+NgvhFAXw=="));
-		System.out.println("clave " + ed.encriptar("jerson123"));
+		//System.out.println("clave " + ed.desencriptar("eLJnIO8nNtqtl+NgvhFAXw=="));
+		System.out.println("clave " + ed.encriptar("PSQLQA2025*."));
 	}
 }
