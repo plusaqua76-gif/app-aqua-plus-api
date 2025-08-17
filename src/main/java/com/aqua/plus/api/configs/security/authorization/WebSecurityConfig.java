@@ -31,7 +31,7 @@ public class WebSecurityConfig {
 	private final AuthenticationEntryPointCustom authenticationEntryPoint;
 	private final JwtAuthenticationFilter jwtRequestFilter;
 	
-	private static final String[] WHITELIST = {
+	private static final String[] WHITELIST ={
 	        "/api/v1/usuario/validar",
 	        "/api/v1/Departamento/all",
 	        "/api/v1/Ciudad/all",
