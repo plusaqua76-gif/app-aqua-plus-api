@@ -33,6 +33,10 @@ public class WebSecurityConfig {
 	
 	private static final String[] WHITELIST = {
 	        "/api/v1/usuario/validar",
+	        "/api/v1/Departamento/all",
+	        "/api/v1/Ciudad/all",
+	        "/api/v1/Corregimiento/all",
+	        "/api/v1/Empresa/registrarEmpresa",
 	        "/api/v1/Usuario/**",
 	        "/v3/api-docs",
 	        "/v3/api-docs/**",
