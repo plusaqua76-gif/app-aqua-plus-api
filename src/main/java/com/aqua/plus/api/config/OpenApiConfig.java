@@ -26,9 +26,9 @@ private static final String SPRING_APPLICATION_NAME = "spring.application.name";
             .title(appName + " Service API")
             .version("1.0")
             .description(appName + " API Description")
-            .termsOfService("https://multi-acueductos.com.co")
+            .termsOfService("https://acua-plus.com.co")
             .contact(new Contact()
-                .name("MULTI ACUEDUCTOS")
+                .name("ACUA PLUS")
                 .email("admongestionplus360@gmail.com"))
             .license(new License()
                 .name("LICENSE")
@@ -39,8 +39,8 @@ private static final String SPRING_APPLICATION_NAME = "spring.application.name";
     GroupedOpenApi groupPermitted() {
         return GroupedOpenApi.builder()
             .group(env.getProperty(SPRING_APPLICATION_NAME))
-            .packagesToScan("com.codemakers.api.controller")
-            .packagesToExclude("com.codemakers.commons.dtos", "com.codemakers.commons.entities")
+            .packagesToScan("com.aqua.plus.api.controller")
+            .packagesToExclude("com.aqua.plus.commons.dtos", "com.aqua.plus.commons.entities")
             .build();
     }
 }

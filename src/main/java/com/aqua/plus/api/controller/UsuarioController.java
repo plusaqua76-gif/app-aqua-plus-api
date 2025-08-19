@@ -148,7 +148,7 @@ public class UsuarioController {
             @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PutMapping("/Password/{id}")
+    @PutMapping("/actualiza-contra/{id}")
     public ResponseEntity<ResponseDTO> actualizarContrasena(
             @PathVariable Integer id,
             @RequestBody UpdatePasswordDTO dto) {

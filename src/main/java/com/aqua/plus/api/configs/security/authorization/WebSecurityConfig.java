@@ -33,16 +33,15 @@ public class WebSecurityConfig {
 	
 	private static final String[] WHITELIST ={
 	        "/api/v1/usuario/validar",
-	        "/api/v1/Departamento/all",
-	        "/api/v1/Ciudad/all",
-	        "/api/v1/Corregimiento/all",
-	        "/api/v1/Empresa/registrarEmpresa",
-	        "/api/v1/Usuario/**",
+	        "/api/v1/departamento/all",
+	        "/api/v1/ciudad/all",
+	        "/api/v1/corregimiento/all",
+	        "/api/v1/empresa/registrar",
+	        "/api/v1/usuario/**",
 	        "/v3/api-docs",
 	        "/v3/api-docs/**",
 	        "/swagger-ui/**",
 	        "/swagger-ui.html"
-	        
 	 };
 
     /**

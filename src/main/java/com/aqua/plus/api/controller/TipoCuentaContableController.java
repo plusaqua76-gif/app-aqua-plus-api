@@ -32,7 +32,7 @@ import lombok.RequiredArgsConstructor;
  */
 
 @RestController
-@RequestMapping("/api/v1/TipoCuentaContable")
+@RequestMapping("/api/v1/tipo-cuenta-contable")
 @Tag(name = "TipoCuentaContable - Controller", description = "Controller encargado de gestionar las operaciones de los tipos de cuentas contables")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })

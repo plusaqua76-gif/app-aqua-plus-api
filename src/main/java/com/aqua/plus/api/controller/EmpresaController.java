@@ -28,7 +28,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/Empresa")
+@RequestMapping("/api/v1/empresa")
 @Tag(name = "Empresa - Controller", description = "Controller encargado de gestionar las operaciones de la empresa")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
@@ -67,7 +67,7 @@ public class EmpresaController {
             @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PostMapping("/registrarEmpresa")
+    @PostMapping("/registrar")
     public ResponseEntity<Map<String, Object>> registrarEmpresa(
             @RequestBody Map<String, Object> jsonParams) {
 
@@ -207,7 +207,7 @@ public class EmpresaController {
             @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))
         }),
     })
-    @PostMapping("/updateEmpresa")
+    @PostMapping("/actualizar-direccion")
     public ResponseEntity<Map<String, Object>> actualizarEmpresaDireccion(
         @RequestBody Map<String, Object> jsonParams) {
 
@@ -246,7 +246,7 @@ public class EmpresaController {
                     @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
                                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PostMapping("/update")
+    @PostMapping("/actualizar")
     public ResponseEntity<Map<String, Object>> updateEnterpiseStatus(@RequestBody Map<String, Object> enterpriseData) {
         Map<String, Object> resultado = empresaServiceImpl.updateEnterpise(enterpriseData);
 

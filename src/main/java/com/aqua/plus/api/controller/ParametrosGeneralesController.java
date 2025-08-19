@@ -24,7 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/ParametrosGenerales")
+@RequestMapping("/api/v1/parametros-generales")
 @Tag(name = "ParametrosGenerales - Controller", description = "Controller encargado de gestionar las operaciones de los Parametros Generales")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })

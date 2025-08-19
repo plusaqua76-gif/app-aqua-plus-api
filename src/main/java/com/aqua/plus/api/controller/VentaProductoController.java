@@ -32,7 +32,7 @@ import lombok.RequiredArgsConstructor;
  */
 
 @RestController
-@RequestMapping("/api/v1/VentaProducto")
+@RequestMapping("/api/v1/venta-producto")
 @Tag(name = "VentaProducto - Controller", description = "Controller encargado de gestionar las operaciones de las Ventas Productos")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })

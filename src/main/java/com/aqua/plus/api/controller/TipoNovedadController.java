@@ -24,7 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/TipoNovedad")
+@RequestMapping("/api/v1/tipo-novedad")
 @Tag(name = "TipoNovedad - Controller", description = "Controller encargado de gestionar las operaciones de los tipos de Novedad")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })

@@ -24,14 +24,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/TipoDeuda")
+@RequestMapping("/api/v1/tipo-deuda")
 @Tag(name = "TipoDeuda - Controller", description = "Controller encargado de gestionar las operaciones de los tipos de pago")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
 @RequiredArgsConstructor
 public class TipoDeudaController {
 
-private final TipoDeudaServiceImpl tipoDeudaServiceImpl;
+	private final TipoDeudaServiceImpl tipoDeudaServiceImpl;
 	
 	@Operation(summary = "Guardar o actualizar tipo de Deuda")
 	@ApiResponses(value = {

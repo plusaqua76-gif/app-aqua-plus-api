@@ -106,6 +106,7 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService{
     }
 
 	@Override
+	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
 	    log.info("Buscar Ruta Empleado por id: {}", id);
 	    try {
