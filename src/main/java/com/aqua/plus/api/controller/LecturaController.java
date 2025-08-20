@@ -62,7 +62,7 @@ public class LecturaController {
         return lecturaServiceImpl.save(lecturaDTO);
     }
 	
-	@Operation(summary = "Guardar Lectura SP")
+	@Operation(summary = "Guardar Lectura y Ruta Empleado")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
@@ -71,8 +71,8 @@ public class LecturaController {
             @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PostMapping("/saveLecturaSp")
-    public ResponseEntity<Map<String, Object>> generarFactura(
+    @PostMapping("/registrar")
+    public ResponseEntity<Map<String, Object>> guardarLectura(
             @RequestBody Map<String, Object> jsonParams) {
 
         try {

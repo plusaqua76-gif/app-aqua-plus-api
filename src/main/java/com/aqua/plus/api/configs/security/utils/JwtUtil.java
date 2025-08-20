@@ -1,11 +1,14 @@
 package com.aqua.plus.api.configs.security.utils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import javax.crypto.SecretKey;
 
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -19,6 +22,7 @@ import com.aqua.plus.commons.utils.Constantes;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -103,7 +107,9 @@ public class JwtUtil {
 	 * @return Devuelve los datos  del token en Reclamos
 	 */
 	private Claims getAllClaimsFromToken(String token) {
-		return Jwts.parser().setSigningKey(encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro())).parseClaimsJws(token).getBody();
+		String secret = encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro());
+		SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+		return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
 	}
 
 	/**
@@ -134,11 +140,17 @@ public class JwtUtil {
 	 * @return Devuelve el token generado
 	 */
 	private String doGenerateToken(Map<String, Object> claims, String clientId) {
-
-		return Jwts.builder().setClaims(claims).setSubject(clientId).setIssuedAt(new Date(System.currentTimeMillis()))
-				.setExpiration(new Date(System.currentTimeMillis() + Long.valueOf(this.getParameter(Constantes.TIEMPO_VIGENCIA_TOKEN).getValorParametro())))
-				.signWith(SignatureAlgorithm.HS512, encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro())).compact();
+		
+	    String secret = encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro());
+	    SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+	    
+	    long expirationTime = Long.parseLong(this.getParameter(Constantes.TIEMPO_VIGENCIA_TOKEN).getValorParametro());
+	    
+	    return Jwts.builder().setClaims(claims).setSubject(clientId).setIssuedAt(new Date(System.currentTimeMillis()))
+	    		.setExpiration(new Date(System.currentTimeMillis() + expirationTime))
+	    		.signWith(key, SignatureAlgorithm.HS512).compact();
 	}
+
 	
 	public Date getIssuedAtDateFromToken(String token) {
 	    return getClaimFromToken(token, Claims::getIssuedAt);
