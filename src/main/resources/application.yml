@@ -5,12 +5,19 @@ spring:
   application:
     name: app-aqua-plus-api
   datasource:
+    type: com.zaxxer.hikari.HikariDataSource
     url: jdbc:postgresql://bd-aqua-plus.postgres.database.azure.com:5432/aquaplus
     username: aquaPlus
     password: ji62inmB2Ps5L4zcJE84lw==
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      pool-name: HikariPoolAquaPlus
   jpa:
     hibernate:
       ddl-auto: none
@@ -32,4 +39,4 @@ mail:
 seguridad:
   llave: keyaquaplus
 link:
-  recover: https://nice-ground-01172540f.2.azurestaticapps.net/auth/recover-password?token= 
+  recover: https://aquaplus.dev/auth/recover-password?token= 

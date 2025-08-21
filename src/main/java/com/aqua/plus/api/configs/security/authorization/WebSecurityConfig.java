@@ -1,5 +1,7 @@
 package com.aqua.plus.api.configs.security.authorization;
 
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -13,6 +15,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import com.aqua.plus.api.configs.security.filter.JwtAuthenticationFilter;
 import com.aqua.plus.api.configs.security.handler.AuthenticationEntryPointCustom;
+import com.aqua.plus.commons.entities.ParametrosSistemaEntity;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
+import com.aqua.plus.commons.repositories.ParametrosSistemaRepository;
+import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,19 +36,34 @@ public class WebSecurityConfig {
 
 	private final AuthenticationEntryPointCustom authenticationEntryPoint;
 	private final JwtAuthenticationFilter jwtRequestFilter;
+	private final ParametrosSistemaRepository parametrosSistemaRepository;
 	
-	private static final String[] WHITELIST ={
-	        "/api/v1/usuario/validar",
-	        "/api/v1/departamento/all",
-	        "/api/v1/ciudad/all",
-	        "/api/v1/corregimiento/all",
-	        "/api/v1/empresa/registrar",
-	        "/api/v1/usuario/**",
-	        "/v3/api-docs",
-	        "/v3/api-docs/**",
-	        "/swagger-ui/**",
-	        "/swagger-ui.html"
-	 };
+	public ParametrosSistemaEntity getParameter(final String key) {
+	    return parametrosSistemaRepository.findByLlave(key)
+	        .orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
+	}
+	
+	/**
+	 * Carga las rutas públicas permitidas desde base de datos (whitelist) usando el parámetro {@code SECURITY_ROUTES}.
+	 * Elimina comillas y espacios innecesarios.
+	 *
+	 * @author nicope
+	 * @version 1.0
+	 * @return String[] con las rutas públicas; vacío si ocurre error.
+	 */
+	String[] loadWhitelistFromDB() {
+	    try {
+	        ParametrosSistemaEntity parametro = getParameter(Constantes.SECURITY_ROUTES);
+	        String rutas = parametro.getValorParametro();
+
+	        return Arrays.stream(rutas.split("\\s*,\\s*"))
+	                .map(ruta -> ruta.replace("\"", "").trim())
+	                .toArray(String[]::new);
+	    } catch (Exception e) {
+	        log.error("Error al cargar rutas públicas desde BD", e);
+	        return new String[0];
+	    }
+	}
 
     /**
      * Metodo encargado de configurar la seguridad requerida para el microservicio
@@ -57,7 +78,7 @@ public class WebSecurityConfig {
 	            .csrf(AbstractHttpConfigurer::disable)
 	            .authorizeHttpRequests( auth -> auth
 	                    .requestMatchers(getOperationAllow()).permitAll()
-	                    .requestMatchers(WHITELIST).permitAll()
+	                    .requestMatchers(loadWhitelistFromDB()).permitAll()
 	                    .anyRequest().authenticated()
 	            )
 	            .exceptionHandling(exception -> exception

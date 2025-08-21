@@ -1,12 +1,11 @@
 package com.aqua.plus.api.service.impl;
 
-import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -17,9 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IUsuarioService;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
-import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.RolDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
@@ -55,10 +52,9 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final RolRepository rolRepository;
 	private final PersonaRepository personaRepository;
 	private final UsuarioMapper usuarioMapper;
-	private final EmailServiceImpl emailService;
 	private final JwtUtil jwtUtil;
 	private final EncriptarDesencriptar serviceEncriptacion;
-	private static final Random RANDOM = new Random();
+	private final NotificacionServiceImpl notificacionServiceImpl;
 
 	@Override
 	@Transactional
@@ -170,7 +166,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		}
 	}
 
-	public ResponseEntity<ResponseDTO> recoverPassword(String correo) {
+	public ResponseEntity<ResponseDTO> recoverPassword(String correo, String codigoPlantilla) {
 		log.info("Recuperación de contraseña solicitada para: {}", correo);
 
 		try {
@@ -186,95 +182,16 @@ public class UsuarioServiceImpl implements IUsuarioService {
 				return buildErrorResponse(Constantes.USER_NOT_ASCIATED, HttpStatus.NOT_FOUND);
 			}
 			UsuarioEntity usuario = usuarioOpt.get();
-			String token = jwtUtil.generateToken(usuario.getNombre());
+			String token = jwtUtil.generateToken(usuario.getNombre(), Constantes.KEY_TOKEN_EXTERNO, Constantes.TIEMPO_VIGENCIA_EXTERNO);
 			String recoveryLink =  this.linkRecover + token;
+			
+			String tiempoLegible = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-			String subject = "🔐 Recuperación de contraseña";
-			String body = """
-					<!DOCTYPE html>
-					<html lang="es">
-					<head>
-					  <meta charset="UTF-8">
-					  <style>
-					    body {
-					      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-					      background: #f4f7ff;
-					      margin: 0;
-					      padding: 0;
-					    }
-
-					    .container {
-					      max-width: 600px;
-					      margin: 40px auto;
-					      background: white;
-					      border-radius: 12px;
-					      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-					      overflow: hidden;
-					    }
-
-					    .header {
-					      background: linear-gradient(135deg, #3b82f6, #60a5fa);
-					      color: white;
-					      padding: 24px;
-					      text-align: center;
-					      font-size: 1.8em;
-					      font-weight: bold;
-					      border-top-left-radius: 12px;
-					      border-top-right-radius: 12px;
-					    }
-
-					    .content {
-					      padding: 30px;
-					      text-align: center;
-					    }
-
-					    .btn {
-					      display: inline-block;
-					      padding: 12px 24px;
-					      margin-top: 20px;
-					      background-color: #3b82f6;
-					      color: white;
-					      border-radius: 8px;
-					      text-decoration: none;
-					      font-weight: bold;
-					    }
-
-					    .btn:hover {
-					      background-color: #2563eb;
-					    }
-
-					    .footer {
-					      font-size: 0.85em;
-					      color: #666;
-					      padding: 0 30px 30px;
-					      text-align: center;
-					    }
-
-					    a {
-					      color: #3b82f6;
-					      text-decoration: none;
-					    }
-					  </style>
-					</head>
-					<body>
-					  <div class="container">
-					    <div class="header">Aqua plus</div>
-					    <div class="content">
-					      <p>Hola <strong>%s</strong>,</p>
-					      <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
-					      <p>Haz clic en el siguiente botón para continuar:</p>
-					      <a href="%s" class="btn">Restablecer contraseña</a>
-					    </div>
-					    <div class="footer">
-					      <p>Este enlace expirará en 10 horas.<br>
-					      Si no hiciste esta solicitud, puedes ignorar este mensaje.</p>
-					    </div>
-					  </div>
-					</body>
-					</html>
-					""".formatted(usuario.getNombre(), recoveryLink);
-
-			emailService.sendEmail(correo, subject, body);
+			Map<String,Object> data = new HashMap<>();
+			data.put(Constantes.PARAMETRO_LINK_RECOVER, recoveryLink);
+			data.put(Constantes.PARAMETRO_NAME_USER, correoGeneralOpt.get().getPersona().getNombre());
+			data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+			this.notificacionServiceImpl.enviarNotificacion(correo, Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty() ? codigoPlantilla: Constantes.RECOVER_PASSWORD, data);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.EMAIL_SEND)
 					.code(HttpStatus.OK.value()).build());
@@ -293,7 +210,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 					.message("Token requerido").code(HttpStatus.UNAUTHORIZED.value()).build());
 		}
 
-		if (jwtUtil.isTokenInvalidated(token)) {
+		if (jwtUtil.isTokenExpired(token,Constantes.KEY_TOKEN_EXTERNO)) {
 		    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder()
 		            .success(false)
 		            .message("Token inválido o expirado")
@@ -301,7 +218,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		            .build());
 		}
 
-		String username = jwtUtil.getUsernameFromToken(token);
+		String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
 		if (username == null) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
 					.message("Token expirado o sin usuario válido").code(HttpStatus.UNAUTHORIZED.value()).build());
@@ -330,7 +247,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 
 			usuarioRepository.save(usuario);
 
-			jwtUtil.invalidateToken(token);
+			jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN);
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Contraseña actualizada exitosamente")
 					.code(HttpStatus.OK.value()).build());
 		}).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
@@ -435,7 +352,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		}
 	}
 
-	public ResponseEntity<ResponseDTO> crearUsuarioYEnviarCorreo(PersonaDTO personaDTO) {
+	/*public ResponseEntity<ResponseDTO> crearUsuarioEnviarCorreo(PersonaDTO personaDTO) {
 	    try {
 	        String username = generarNombreUsuario(personaDTO);
 	        String password = generarPasswordAleatoria();
@@ -461,7 +378,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	        if (!response.getBody().getSuccess()) {
 	            return response;
 	        }
-	        String token = jwtUtil.generateToken(username);
+	        String token = jwtUtil.generateToken(username, Constantes.KEY_TOKEN_VIGENCIA_USUARIO, Constantes.TIEMPO_VIGENCIA_TOKEN_USUARIO);
 	        String urlRecuperacion = "http://localhost:4200/auth/recover-password?token=" + token;
 
 	        String asunto = "Activa tu cuenta - Crea tu contraseña";
@@ -500,6 +417,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
 	    }
 	}
+	
 	private String generarNombreUsuario(PersonaDTO persona) {
 	    String nombre = persona.getNombre() != null ? persona.getNombre().toLowerCase() : "user";
 	    String apellido = persona.getApellido() != null ? persona.getApellido().toLowerCase() : "anon";
@@ -516,6 +434,6 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	        password.append(chars.charAt(random.nextInt(chars.length())));
 	    }
 	    return password.toString();
-	}
+	}*/
 
 }

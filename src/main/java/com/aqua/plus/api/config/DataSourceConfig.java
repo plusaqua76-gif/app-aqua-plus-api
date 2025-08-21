@@ -5,9 +5,10 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,17 +28,38 @@ public class DataSourceConfig {
 	@Value("${spring.datasource.driver-class-name}") 
 	private String driver;
 	
+	@Value("${spring.datasource.hikari.maximum-pool-size}")
+    private int maxPoolSize;
+
+    @Value("${spring.datasource.hikari.minimum-idle}")
+    private int minIdle;
+
+    @Value("${spring.datasource.hikari.idle-timeout}")
+    private long idleTimeout;
+
+    @Value("${spring.datasource.hikari.max-lifetime}")
+    private long maxLifetime;
+
+    @Value("${spring.datasource.hikari.connection-timeout}")
+    private long connectionTimeout;
+	
 	private final EncriptarDesencriptar encriptarDesencriptar;
 	
 	@Bean
-    public DataSource dataSource() {
+	public DataSource dataSource() {
+	    HikariConfig config = new HikariConfig();
+	    config.setDriverClassName(driver);
+	    config.setJdbcUrl(url);
+	    config.setUsername(username);
+	    config.setPassword(encriptarDesencriptar.desencriptar(password));
+	    
+	    config.setMaximumPoolSize(maxPoolSize);
+	    config.setMinimumIdle(minIdle);
+	    config.setIdleTimeout(idleTimeout);
+	    config.setMaxLifetime(maxLifetime);
+	    config.setConnectionTimeout(connectionTimeout);
+	    config.setPoolName("HikariPoolAquaPlus");
 
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(this.driver);
-        dataSource.setUrl(url);
-        dataSource.setUsername(username);
-        dataSource.setPassword(this.encriptarDesencriptar.desencriptar(password));
-
-        return dataSource;
-    }
+	    return new HikariDataSource(config);
+	}
 }

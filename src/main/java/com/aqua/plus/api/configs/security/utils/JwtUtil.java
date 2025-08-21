@@ -3,9 +3,7 @@ package com.aqua.plus.api.configs.security.utils;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import javax.crypto.SecretKey;
@@ -52,23 +50,13 @@ public class JwtUtil {
 		return this.parametrosSistemaRepository.findByLlave(key).orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
 	}
 	
-	private final Set<String> blacklistedTokens = new HashSet<>();
-
-    public void invalidateToken(String token) {
-        blacklistedTokens.add(token);
-    }
-
-    public boolean isTokenInvalidated(String token) {
-        return blacklistedTokens.contains(token);
-    }
-	
 	/**
 	 * 
 	 * @param token
 	 * @return
 	 */
-	public String getUsernameFromToken(String token) {
-		return getClaimFromToken(token, Claims::getSubject);
+	public String getUsernameFromToken(String token, String key) {
+		return getClaimFromToken(token, Claims::getSubject, key);
 	}
 
 	/**
@@ -79,8 +67,8 @@ public class JwtUtil {
 	 * @param token
 	 * @return Devuelve la fecha de vencimiento del token
 	 */
-	public Date getExpirationDateFromToken(String token) {
-		return getClaimFromToken(token, Claims::getExpiration);
+	public Date getExpirationDateFromToken(String token, String key) {
+		return getClaimFromToken(token, Claims::getExpiration, key);
 	}
 
 	/**
@@ -93,8 +81,8 @@ public class JwtUtil {
 	 * @param claimsResolver
 	 * @return Devuelve los datos  del token
 	 */
-	public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
-		final Claims claims = getAllClaimsFromToken(token);
+	public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver, String key) {
+		final Claims claims = getAllClaimsFromToken(token, key);
 		return claimsResolver.apply(claims);
 	}
 	
@@ -106,8 +94,8 @@ public class JwtUtil {
 	 * @param token
 	 * @return Devuelve los datos  del token en Reclamos
 	 */
-	private Claims getAllClaimsFromToken(String token) {
-		String secret = encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro());
+	private Claims getAllClaimsFromToken(String token, String keyToken) {
+		String secret = encriptarDesencriptar.desencriptar(this.getParameter(keyToken).getValorParametro());
 		SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 		return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
 	}
@@ -120,14 +108,14 @@ public class JwtUtil {
 	 * @param token
 	 * @return Devuelve true si expiro y false si no
 	 */
-	private Boolean isTokenExpired(String token) {
-		final Date expiration = getExpirationDateFromToken(token);
+	public Boolean isTokenExpired(String token, String key) {
+		final Date expiration = getExpirationDateFromToken(token, key);
 		return expiration.before(new Date());
 	}
 
-	public String generateToken(String clientId) {
+	public String generateToken(String clientId, String key, String keyVigencia) {
 		Map<String, Object> claims = new HashMap<>();
-		return doGenerateToken(claims, clientId);
+		return doGenerateToken(claims, clientId, key, keyVigencia);
 	}
 
 	/**
@@ -139,12 +127,12 @@ public class JwtUtil {
 	 * @param clientId
 	 * @return Devuelve el token generado
 	 */
-	private String doGenerateToken(Map<String, Object> claims, String clientId) {
+	private String doGenerateToken(Map<String, Object> claims, String clientId, String keyToken, String keyVigencia) {
 		
-	    String secret = encriptarDesencriptar.desencriptar(this.getParameter(Constantes.KEY_TOKEN).getValorParametro());
+	    String secret = encriptarDesencriptar.desencriptar(this.getParameter(keyToken).getValorParametro());
 	    SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 	    
-	    long expirationTime = Long.parseLong(this.getParameter(Constantes.TIEMPO_VIGENCIA_TOKEN).getValorParametro());
+	    long expirationTime = Long.parseLong(this.getParameter(keyVigencia).getValorParametro());
 	    
 	    return Jwts.builder().setClaims(claims).setSubject(clientId).setIssuedAt(new Date(System.currentTimeMillis()))
 	    		.setExpiration(new Date(System.currentTimeMillis() + expirationTime))
@@ -152,8 +140,8 @@ public class JwtUtil {
 	}
 
 	
-	public Date getIssuedAtDateFromToken(String token) {
-	    return getClaimFromToken(token, Claims::getIssuedAt);
+	public Date getIssuedAtDateFromToken(String token, String key) {
+	    return getClaimFromToken(token, Claims::getIssuedAt, key);
 	}
 	
 	/**
@@ -165,11 +153,10 @@ public class JwtUtil {
 	 * @param clientId
 	 * @return Devuelve true si es valido de lo contrario false
 	 */
-	public boolean validateToken(String token, UserDetails userDetails) {
-	    final String usuario = getUsernameFromToken(token);
-	    final Date issuedAt = getIssuedAtDateFromToken(token);
+	public boolean validateToken(String token, UserDetails userDetails, String key) {
+	    final String usuario = getUsernameFromToken(token, key);
 
 	    return usuario.equals(userDetails.getUsername())
-	            && !isTokenExpired(token);
+	            && !isTokenExpired(token, key);
 	}
 }

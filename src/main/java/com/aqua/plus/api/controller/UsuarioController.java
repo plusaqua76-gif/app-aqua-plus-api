@@ -21,7 +21,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.aqua.plus.api.service.impl.AutenticacionServiceImpl;
 import com.aqua.plus.api.service.impl.UsuarioServiceImpl;
-import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UpdatePasswordDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
@@ -167,8 +166,8 @@ public class UsuarioController {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
     @PostMapping("/recoverPassword")
-    public ResponseEntity<ResponseDTO> recoverPassword(@RequestParam String correo) {
-        return usuarioServiceImpl.recoverPassword(correo);
+    public ResponseEntity<ResponseDTO> recoverPassword(@RequestParam(required = true) String correo, @RequestParam(required = false) String codigoPlantilla) {
+        return usuarioServiceImpl.recoverPassword(correo, codigoPlantilla);
     }
     
     
@@ -190,6 +189,7 @@ public class UsuarioController {
     ) {
         return usuarioServiceImpl.updatePasswordByToken(token, usuarioDTO);
     }
+    
     @Operation(summary = "Actualizar imagen del usuario")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Imagen actualizada exitosamente", content = {
@@ -199,6 +199,7 @@ public class UsuarioController {
             @ApiResponse(responseCode = "500", description = "Error actualizando la imagen", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) })
     })
+    
     @PutMapping("/imagen/{id}")
     public ResponseEntity<ResponseDTO> actualizarImagenUsuario(
             @PathVariable Integer id,
@@ -215,20 +216,6 @@ public class UsuarioController {
                             .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
                             .build());
         }
-    }
-    @Operation(summary = "Crear usuario y enviar correo")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Usuario creado y correo enviado", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-        @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) })
-    })
-    @PostMapping("/sendEmail")
-    public ResponseEntity<ResponseDTO> crearUsuarioYEnviarCorreo(
-            @RequestBody PersonaDTO personaDTO){
-        return usuarioServiceImpl.crearUsuarioYEnviarCorreo(personaDTO);
     }
 
 }
