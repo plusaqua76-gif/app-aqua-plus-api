@@ -93,7 +93,7 @@ public class EncriptarDesencriptar {
 	
 	public static void main(String[] args) throws Exception {
 		EncriptarDesencriptar ed = new EncriptarDesencriptar();
-		//System.out.println("clave " + ed.desencriptar("c1RRHpoyHT/GeO3x+5tQBgBCKaeYKb/EuqBg6gE8GBKVQN0S7/pQOmLLUjHnAfe2XigogilUij6vJyX/eB4Pqj85kfa3iTaI9xTFm0AsqUiu9ZFUPZe+rr763Z+WoqgyXSsv/yDIkBGkz9X7GHl5rTscX4F7At2+sCcCyFrVefrhWqD9t/82Ffc6PnpotBM8ElFq9WLyRTf1+LfwlnaqZNd6fPQ3UDb9EkU="));
-		System.out.println("clave " + ed.encriptar("S2V5LXRva2VuLWV4dGVybmFsLXRoaXMtaXMtYS1zZWNyZXQta2V5LXRoYXQtaXMtYXQtbGVhc3QtNjQtYnl0ZXMtbG9uZy1jb2RlLW1ha2Vycy1hY3VhLXBsdXM="));
+		//System.out.println("clave " + ed.desencriptar("ji62inmB2Ps5L4zcJE84lw=="));
+		//System.out.println("clave " + ed.encriptar("f3K7ipsBmYA30vhXYFsGJaGc5Bd+gymC9DkNT9RLTO2/r0HTNMp0gV45FDT65ASCnM6zOFnNy19qPeIfoNU6mA=="));
 	}
 }

@@ -187,10 +187,18 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			
 			String tiempoLegible = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
+			String nombreCompleto = String.join(" ",
+				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getNombre()).orElse(""),
+				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoNombre()).orElse(""),
+				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getApellido()).orElse(""),
+				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoApellido()).orElse("")
+				).replaceAll("\\s+", " ").trim();
+			
 			Map<String,Object> data = new HashMap<>();
 			data.put(Constantes.PARAMETRO_LINK_RECOVER, recoveryLink);
-			data.put(Constantes.PARAMETRO_NAME_USER, correoGeneralOpt.get().getPersona().getNombre());
+			data.put(Constantes.PARAMETRO_NAME_USER, nombreCompleto);
 			data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+			data.put(Constantes.PARAMETRO_USER, usuario.getNombre());
 			this.notificacionServiceImpl.enviarNotificacion(correo, Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty() ? codigoPlantilla: Constantes.RECOVER_PASSWORD, data);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.EMAIL_SEND)
@@ -351,89 +359,5 @@ public class UsuarioServiceImpl implements IUsuarioService {
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
-
-	/*public ResponseEntity<ResponseDTO> crearUsuarioEnviarCorreo(PersonaDTO personaDTO) {
-	    try {
-	        String username = generarNombreUsuario(personaDTO);
-	        String password = generarPasswordAleatoria();
-	        String passwordEncriptada = serviceEncriptacion.encriptar(password); 
-
-	        Optional<CorreoGeneralEntity> correoOpt = correoGeneralRepository
-	                .findByPersonaIdAndActivoTrue(personaDTO.getId());
-	        if (correoOpt.isEmpty() || correoOpt.get().getCorreo() == null || correoOpt.get().getCorreo().isBlank()) {
-	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-	        }
-
-	        String correo = correoOpt.get().getCorreo();
-
-	        UsuarioDTO usuarioDTO = UsuarioDTO.builder()
-	                .nombre(username)
-	                .contrasena(passwordEncriptada) 
-	                .persona(personaDTO)
-	                .rol(RolDTO.builder().id(5).build())
-	                .usuarioCreacion("sistema")
-	                .build();
-
-	        ResponseEntity<ResponseDTO> response = save(usuarioDTO);
-	        if (!response.getBody().getSuccess()) {
-	            return response;
-	        }
-	        String token = jwtUtil.generateToken(username, Constantes.KEY_TOKEN_VIGENCIA_USUARIO, Constantes.TIEMPO_VIGENCIA_TOKEN_USUARIO);
-	        String urlRecuperacion = "http://localhost:4200/auth/recover-password?token=" + token;
-
-	        String asunto = "Activa tu cuenta - Crea tu contraseña";
-	        String cuerpoHtml = String.format(
-	                "<html><head><style>"
-	                        + "body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }"
-	                        + ".container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9; }"
-	                        + ".header { text-align: center; margin-bottom: 20px; }"
-	                        + ".header h1 { color: #0056b3; }"
-	                        + ".footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }"
-	                        + "strong { color: #0056b3; }"
-	                        + "a.boton { display: inline-block; padding: 10px 15px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px; }"
-	                        + "</style></head><body>"
-	                        + "<div class='container'>"
-	                        + "<div class='header'><h1>¡Bienvenido!</h1></div>"
-	                        + "<p>Hola <strong>%s %s</strong>,</p>"
-	                        + "<p>Tu usuario de acceso es: <strong>%s</strong></p>"
-	                        + "<p>Para crear tu contraseña y activar tu cuenta, haz clic en el siguiente enlace:</p>"
-	                        + "<p><a href='%s' class='boton'>Crear contraseña</a></p>"
-	                        + "<p>Este enlace estará activo durante los próximos 5 días.</p>"
-	                        + "<div class='footer'><p>Saludos cordiales,<br>Equipo de Soporte</p></div>"
-	                        + "</div></body></html>",
-	                personaDTO.getNombre(), personaDTO.getApellido(), username, urlRecuperacion);
-
-	        emailService.sendEmail(correo, asunto, cuerpoHtml);
-
-	        return ResponseEntity.ok(ResponseDTO.builder()
-	                .success(true)
-	                .message("Usuario creado y correo enviado con éxito.")
-	                .code(HttpStatus.OK.value())
-	                .response(response.getBody().getResponse())
-	                .build());
-
-	    } catch (Exception e) {
-	        log.error("Error creando usuario y enviando correo", e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-	    }
-	}
-	
-	private String generarNombreUsuario(PersonaDTO persona) {
-	    String nombre = persona.getNombre() != null ? persona.getNombre().toLowerCase() : "user";
-	    String apellido = persona.getApellido() != null ? persona.getApellido().toLowerCase() : "anon";
-	    int numero = RANDOM.nextInt(1000);
-	    return nombre.charAt(0) + apellido + numero;
-	}
-
-	private String generarPasswordAleatoria() {
-	    int length = 10;
-	    String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*";
-	    SecureRandom random = new SecureRandom();
-	    StringBuilder password = new StringBuilder(length);
-	    for (int i = 0; i < length; i++) {
-	        password.append(chars.charAt(random.nextInt(chars.length())));
-	    }
-	    return password.toString();
-	}*/
 
 }

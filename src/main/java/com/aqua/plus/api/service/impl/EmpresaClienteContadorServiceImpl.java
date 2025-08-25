@@ -1,11 +1,13 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.postgresql.util.PGobject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -32,10 +34,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContadorService{
 	
+	@Value("${link.recover}")
+	private String linkRecover;
+	
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final EmpresaClienteContadorMapper empresaClienteContadorMapper;
     private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+	private final NotificacionServiceImpl notificacionServiceImpl;
 	
 	
 	@Override
@@ -86,6 +92,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	        );
 	    }
 	}
+	
     @Transactional
 	public Map<String, Object> saveClient(Map<String, Object> jsonParams) {
 		try {
@@ -99,11 +106,45 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
 			Object wrappedValue = rawResult.get("guardar_cliente_completo");
+			
 			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-				String jsonValue = pgObject.getValue();
-				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
-				});
-			}
+	            String jsonValue = pgObject.getValue();
+	            Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {});
+
+	            Object statusCode = response.get("statusCode");
+	            if ("200".equals(String.valueOf(statusCode))) {
+	            	String primerNombre = (String) jsonParams.get("primer_nombre");
+	            	String segundoNombre = (String) jsonParams.get("segundo_nombre");
+	            	String primerApellido = (String) jsonParams.get("primer_apellido");
+	            	String segundoApellido = (String) jsonParams.get("segundo_apellido");
+	            	
+	                String correo = (String) jsonParams.get("correo");
+	                String nombre = String.join(" ",
+	                	    Optional.ofNullable(primerNombre).orElse(""),
+	                	    Optional.ofNullable(segundoNombre).orElse(""),
+	                	    Optional.ofNullable(primerApellido).orElse(""),
+	                	    Optional.ofNullable(segundoApellido).orElse("")
+	                	).replaceAll("\\s+", " ").trim();
+	                String usuario = (String) jsonParams.get("usuario");
+	                String tiempoLegible = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+	                if (correo != null && !correo.isBlank()) {
+	                    Map<String, Object> data = new HashMap<>();
+	                    data.put(Constantes.PARAMETRO_NAME_USER, nombre);
+	                    data.put(Constantes.PARAMETRO_USER, usuario);
+	                    data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
+	                    data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+	                    
+	                    log.info("Info data notificacion {}", data);
+
+	                    String codigoPlantilla = Constantes.CREATE_PASSWORD;
+
+	                    notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
+	                }
+	            }
+
+	            return response;
+	        }
 
 			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
 

@@ -34,9 +34,6 @@ public class NotificacionServiceImpl {
 	private final PlantillaRepository plantillaRepository;
 	private final EmailServiceImpl emailServiceImpl;
 	private final ParametrosSistemaRepository parametrosSistemaRepository;
-	
-	
-	
     
     public ResponseEntity<ResponseDTO> enviarNotificacion(String correo,String codigo, Map<String, Object> valores) {
     	ResponseDTO response = ResponseDTO.builder().build();
@@ -78,10 +75,11 @@ public class NotificacionServiceImpl {
 	}
 	
 	/**
-	 * Obtiene el valor de vigencia en segundos desde la base de datos y lo convierte en una cadena legible (ej: "10 horas").
+	 * Convierte un tiempo en milisegundos obtenido por llave desde la base de datos
+	 * a un formato legible como "2 horas", "15 minutos", etc.
 	 *
-	 * @param key Clave del parámetro en BD (ej: "TIEMPO_VIGENCIA_EXTERNO")
-	 * @return Cadena con tiempo legible, ej. "1 hora", "2 horas"
+	 * @param key llave del parámetro en la base de datos
+	 * @return tiempo formateado como string legible
 	 * @author nicope
 	 * @version 1.0
 	 */
@@ -90,21 +88,23 @@ public class NotificacionServiceImpl {
 	        ParametrosSistemaEntity param = parametrosSistemaRepository.findByLlave(key)
 	                .orElseThrow(() -> new ProcessGenericException("Parámetro no encontrado: " + key));
 
-	        int segundos = Integer.parseInt(param.getValorParametro());
+	        long milisegundos = Long.parseLong(param.getValorParametro());
+	        long segundos = milisegundos / 1000;
 
-	        int horas = segundos / 3600;
-	        int minutos = (segundos % 3600) / 60;
+	        long horas = segundos / 3600;
+	        long minutos = (segundos % 3600) / 60;
 
-	        if (horas > 0) {
+	        if (horas >= 1) {
 	            return horas + (horas == 1 ? " hora" : " horas");
-	        } else if (minutos > 0) {
+	        } else if (minutos >= 1) {
 	            return minutos + (minutos == 1 ? " minuto" : " minutos");
 	        } else {
 	            return "menos de 1 minuto";
 	        }
 	    } catch (Exception e) {
-	        log.error("Error al obtener y convertir el tiempo de vigencia", e);
+	        log.error("Error al obtener y convertir el tiempo de vigencia para la llave: {}", key, e);
 	        return "N/A";
 	    }
 	}
+
 }
