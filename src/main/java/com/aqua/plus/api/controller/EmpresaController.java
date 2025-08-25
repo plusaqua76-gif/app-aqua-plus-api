@@ -233,7 +233,7 @@ public class EmpresaController {
     }
 
 
-    @Operation(summary = "Actualizar cliente empresa contador")
+    @Operation(summary = "Activar empresa completa")
     @ApiResponses(value = {
                     @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
                                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),

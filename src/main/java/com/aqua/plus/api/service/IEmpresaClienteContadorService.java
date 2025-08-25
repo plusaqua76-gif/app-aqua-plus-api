@@ -20,4 +20,7 @@ public interface IEmpresaClienteContadorService {
     ResponseEntity<ResponseDTO> findAll();
     
     ResponseEntity<ResponseDTO> deleteById(Integer id);
+    
+    ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa);
+    ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa);
 }

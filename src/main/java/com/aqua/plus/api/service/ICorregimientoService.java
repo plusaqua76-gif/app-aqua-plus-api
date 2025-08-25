@@ -19,6 +19,7 @@ public interface ICorregimientoService {
 
 	ResponseEntity<ResponseDTO> save(CorregimientoDTO corregimientoDTO);
     ResponseEntity<ResponseDTO> findById(Integer id);
+    ResponseEntity<ResponseDTO> findByCiudadId(Integer id);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> deleteById(Integer id);
     
