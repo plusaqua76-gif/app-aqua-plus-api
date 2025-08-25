@@ -19,6 +19,7 @@ public interface ICiudadService {
 
 	ResponseEntity<ResponseDTO> save(CiudadDTO ciudadDTO);
     ResponseEntity<ResponseDTO> findById(Integer id);
+    ResponseEntity<ResponseDTO> findByDepartamentoId(Integer id);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> deleteById(Integer id);
     

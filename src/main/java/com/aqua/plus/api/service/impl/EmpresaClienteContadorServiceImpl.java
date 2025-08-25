@@ -16,10 +16,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
+import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
+import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
+import com.aqua.plus.commons.entities.PersonaEntity;
+import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
+import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -42,6 +48,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
     private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final NotificacionServiceImpl notificacionServiceImpl;
+	private final PersonaMapper personaMapper;
+	private final ContadorMapper contadorMapper;
 	
 	
 	@Override
@@ -307,6 +315,64 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
         }
     }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa) {
+        log.info("Buscar clientes por id de empresa: {}", idEmpresa);
+        try {
+            List<PersonaEntity> clientes = empresaClienteContadorRepository.findAllClientesByEmpresaId(idEmpresa);
+            List<PersonaDTO> dtoList = personaMapper.listEntityToDtoList(clientes);
+
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(true)
+                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+                    .code(HttpStatus.OK.value())
+                    .response(dtoList)
+                    .build();
+
+            return ResponseEntity.ok(responseDTO);
+        } catch (Exception e) {
+            log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(false)
+                    .message(Constantes.CONSULTING_ERROR)
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .response(null)
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa) {
+        log.info("Buscar contadores por id de empresa: {}", idEmpresa);
+        try {
+            List<ContadorEntity> contadores = empresaClienteContadorRepository.findAllContadoresByEmpresaId(idEmpresa);
+            List<ContadorDTO> dtoList = contadorMapper.listEntityToDtoList(contadores);
+
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(true)
+                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+                    .code(HttpStatus.OK.value())
+                    .response(dtoList)
+                    .build();
+
+            return ResponseEntity.ok(responseDTO);
+        } catch (Exception e) {
+            log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(false)
+                    .message(Constantes.CONSULTING_ERROR)
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .response(null)
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+        }
+    }
+
+
     
     @Override
     @Transactional(readOnly = true)

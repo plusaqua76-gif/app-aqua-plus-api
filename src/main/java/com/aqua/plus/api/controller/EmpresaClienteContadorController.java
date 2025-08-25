@@ -174,6 +174,32 @@ public class EmpresaClienteContadorController {
 		}
 	}
 
+	@Operation(summary = "Buscar clientes por id de la empresa")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "No se encontraron clientes", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@GetMapping("/clientes/{idEmpresa}")
+	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(@PathVariable Integer idEmpresa) {
+		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa);
+	}
+
+	@Operation(summary = "Buscar contadores por id de la empresa")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "No se encontraron contadores", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@GetMapping("/contadores/{idEmpresa}")
+	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa) {
+		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa);
+	}
+
 	@Operation(summary = "Buscar Empresa Cliente Contador por id de la empresa")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {

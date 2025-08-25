@@ -1,6 +1,7 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -106,6 +107,40 @@ public class CiudadServiceImpl implements ICiudadService {
 	        }
 	    } catch (Exception e) {
 	        log.error("Error al buscar ciudad por id: {}", id, e);
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+	    }
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByDepartamentoId(Integer id) {
+	    log.info("Buscar ciudad por id de departamento: {}", id);
+	    try {
+	        List<CiudadEntity> ciudades = ciudadRepository.findByDepartamento_Id(id);
+	        if (!ciudades.isEmpty()) {
+	        	List<CiudadDTO> dtoList = ciudadMapper.listEntityToDtoList(ciudades);
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                    .success(true)
+	                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                    .code(HttpStatus.OK.value())
+	                    .response(dtoList)
+	                    .build();
+	            return ResponseEntity.ok(responseDTO);
+	        } else {
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                    .success(false)
+	                    .message(Constantes.CONSULTING_ERROR)
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build();
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+	        }
+	    } catch (Exception e) {
+	        log.error("Error al buscar ciudad por id de departamento: {}", id, e);
 	        ResponseDTO responseDTO = ResponseDTO.builder()
 	                .success(false)
 	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)

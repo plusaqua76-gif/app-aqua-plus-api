@@ -80,7 +80,7 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 			final String token = jwtTokenUtil.generateToken(user.getNombre(), Constantes.KEY_TOKEN, Constantes.TIEMPO_VIGENCIA_TOKEN);
 
 			AutenticacionDTO authData = AutenticacionDTO.builder().id(user.getId()).nombre(user.getNombre())
-					.token(Constantes.BEARER + token).rolId(user.getRol() != null ? user.getRol().getId() : null)
+					.token(Constantes.BEARER + token).rol(user.getRol() != null ? user.getRol().getNombre() : null)
 					.personaId(user.getPersona() != null ? user.getPersona().getId() : null).build();
 
 			ResponseDTO successResponse = ResponseDTO.builder().success(true)
