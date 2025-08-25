@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.RutaEmpleadoServiceImpl;
@@ -125,11 +126,11 @@ public class RutaEmpleadoController {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
             @ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
     })
-    @GetMapping("/sync/{idPersona}/{offset}/{limit}")
-    public ResponseEntity<Map<String, Object>> sincronizarRuta(@PathVariable Integer idPersona, @PathVariable Integer offset, @PathVariable Integer limit) {
+    @GetMapping("/sync/{idPersona}")
+    public ResponseEntity<Map<String, Object>> sincronizarRuta(@PathVariable Integer idPersona, @RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
         try {
             Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncLectorData(idPersona, offset, limit);
 
