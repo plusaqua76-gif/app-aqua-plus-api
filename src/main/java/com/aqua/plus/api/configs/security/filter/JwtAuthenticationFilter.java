@@ -11,6 +11,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.impl.AutenticacionServiceImpl;
+import com.aqua.plus.commons.utils.Constantes;
 
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
@@ -37,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
 			jwtToken = requestTokenHeader.substring(7);
 			try {
-				username = jwtTokenUtil.getUsernameFromToken(jwtToken);
+				username = jwtTokenUtil.getUsernameFromToken(jwtToken, Constantes.KEY_TOKEN);
 			} catch (IllegalArgumentException e) {
 				log.error(e.getLocalizedMessage());
 			} catch (ExpiredJwtException e) {
@@ -51,7 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 			UserDetails userDetails = usuarioService.loadUserByUsername(username);
 
-			if (jwtTokenUtil.validateToken(jwtToken, userDetails)) {
+			if (jwtTokenUtil.validateToken(jwtToken, userDetails, Constantes.KEY_TOKEN)) {
 
 				UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
 						userDetails, null, userDetails.getAuthorities());

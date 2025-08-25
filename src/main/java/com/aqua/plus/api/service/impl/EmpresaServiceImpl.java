@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.postgresql.util.PGobject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -20,8 +21,12 @@ import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.EmpresaResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.CiudadEntity;
+import com.aqua.plus.commons.entities.DepartamentoEntity;
 import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.maps.EmpresaMapper;
+import com.aqua.plus.commons.repositories.CiudadRepository;
+import com.aqua.plus.commons.repositories.DepartamentoRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,6 +46,12 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final ObjectMapper objectMapper;
     private final EncriptarDesencriptar encriptarDesencriptar;
+    private final NotificacionServiceImpl notificacionServiceImpl;
+    private final DepartamentoRepository departamentoRepository;
+    private final CiudadRepository ciudadRepository;
+    
+    @Value("${mail.username}")
+    private String correoAquaPlus;
 	
 	@Override
 	@Transactional
@@ -118,8 +129,45 @@ public class EmpresaServiceImpl implements IEmpresaService {
 
             Object wrappedValue = rawResult.get("crear_o_actualizar_empresa"); 
             if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-                String jsonValue = pgObject.getValue();
-                return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {});
+            	String jsonValue = pgObject.getValue();
+                Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {});
+            
+	            Object statusCode = response.get("statusCode");
+	            if("201".equals(String.valueOf(statusCode))) {
+	            	
+	            	Integer idDepartamento = Integer.valueOf(jsonParams.get("idDepartamento").toString());
+	            	Integer idCiudad = Integer.valueOf(jsonParams.get("idCiudad").toString());
+	            	
+	            	String nombreDepartamento = departamentoRepository.findById(idDepartamento)
+	            			.map(DepartamentoEntity::getNombre)
+	            			.orElse("Desconocido");
+	            	
+	            	String nombreCiudad = ciudadRepository.findById(idCiudad)
+	            			.map(CiudadEntity::getNombre)
+	            			.orElse("Desconocido");
+	            			
+	            	String nombreEmpresa = (String) jsonParams.get("nombreEmpresa");
+	            	String nit = (String) jsonParams.get("nit");
+	            	String correoEmpresa = (String) jsonParams.get("correo");
+	            	String telefono = (String) jsonParams.get("telefono");
+	            	
+	            	if (correoAquaPlus != null && !correoAquaPlus.isBlank()) {
+	                    Map<String, Object> data = new HashMap<>();
+	                    data.put(Constantes.PARAMETRO_NAME_ENTERPRISE, nombreEmpresa);
+	                    data.put(Constantes.PARAMETRO_NIT, nit);
+	                    data.put(Constantes.PARAMETRO_EMAIL, correoEmpresa);
+	                    data.put(Constantes.PARAMETRO_PHONE, telefono);
+	                    data.put(Constantes.PARAMETRO_DEPARTAMENT, nombreDepartamento);
+	                    data.put(Constantes.PARAMETRO_CITY, nombreCiudad);
+	                    
+	                    log.info("Info data notificacion {}", data);
+
+	                    String codigoPlantilla = Constantes.INFO_ACTIVATE;
+
+	                    notificacionServiceImpl.enviarNotificacion(correoAquaPlus, codigoPlantilla, data);
+	                }
+
+	            }
             }
 
             return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");

@@ -63,8 +63,21 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 
 		if (responseUsuario.isPresent()) {
 			UsuarioEntity user = responseUsuario.get();
+			
+			if (!Boolean.TRUE.equals(user.getActivo())) {
+	            log.info("Usuario {} encontrado pero no está activo", user.getNombre());
 
-			final String token = jwtTokenUtil.generateToken(user.getNombre());
+	            ResponseDTO errorResponse = ResponseDTO.builder()
+	                    .success(false)
+	                    .message("El usuario no está activo.")
+	                    .code(HttpStatus.UNAUTHORIZED.value())
+	                    .response(null)
+	                    .build();
+
+	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+	        }
+
+			final String token = jwtTokenUtil.generateToken(user.getNombre(), Constantes.KEY_TOKEN, Constantes.TIEMPO_VIGENCIA_TOKEN);
 
 			AutenticacionDTO authData = AutenticacionDTO.builder().id(user.getId()).nombre(user.getNombre())
 					.token(Constantes.BEARER + token).rolId(user.getRol() != null ? user.getRol().getId() : null)

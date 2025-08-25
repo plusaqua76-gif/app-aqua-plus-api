@@ -93,7 +93,7 @@ public class EncriptarDesencriptar {
 	
 	public static void main(String[] args) throws Exception {
 		EncriptarDesencriptar ed = new EncriptarDesencriptar();
-		//System.out.println("clave " + ed.desencriptar("eLJnIO8nNtqtl+NgvhFAXw=="));
-		System.out.println("clave " + ed.encriptar("PSQLQA2025*."));
+		//System.out.println("clave " + ed.desencriptar("ji62inmB2Ps5L4zcJE84lw=="));
+		//System.out.println("clave " + ed.encriptar("f3K7ipsBmYA30vhXYFsGJaGc5Bd+gymC9DkNT9RLTO2/r0HTNMp0gV45FDT65ASCnM6zOFnNy19qPeIfoNU6mA=="));
 	}
 }
