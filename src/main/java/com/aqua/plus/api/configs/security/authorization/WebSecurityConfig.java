@@ -85,6 +85,7 @@ public class WebSecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
 		return httpSecurity
 	            .csrf(AbstractHttpConfigurer::disable)
+	            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 	            .authorizeHttpRequests( auth -> auth
 	                    .requestMatchers(getOperationAllow()).permitAll()
 	                    .requestMatchers(loadWhitelistFromDB()).permitAll()
@@ -114,15 +115,21 @@ public class WebSecurityConfig {
 	public CorsConfigurationSource corsConfigurationSource() {
 	    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 	    CorsConfiguration config = new CorsConfiguration();
+	    
 	    if (!aquaPlusCors.isEmpty()) {
 	    	List<String> cors = new ArrayList<String>();
 	    	cors.add(aquaPlusCors);
 	        config.setAllowedOrigins(cors);
+	    } else {
+	        config.setAllowedOrigins(Arrays.asList("http://localhost:4200"));
 	    }
+	    
 	    config.setAllowCredentials(true);
-	    config.addAllowedHeader("*");
-	    config.addAllowedMethod("*");
-	    config.addExposedHeader("Content-Disposition");
+	    config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+	    config.setAllowedHeaders(Arrays.asList("*"));
+	    config.setExposedHeaders(Arrays.asList("Content-Disposition", "Authorization"));
+	    config.setMaxAge(3600L);
+	    
 	    source.registerCorsConfiguration("/**", config);
 	    return source;
 	}
