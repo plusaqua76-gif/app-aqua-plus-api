@@ -206,7 +206,7 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService{
     @Transactional(readOnly = true)
     public Map<String, Object> syncLectorData(Integer idPersona, Integer offset, Integer limit) {
         try {
-            StringBuilder sql = new StringBuilder("SELECT * FROM public.sync_lector_data(:idPersona");
+            StringBuilder sql = new StringBuilder("SELECT * FROM public.sync_data_lecturas(:idPersona");
 
             MapSqlParameterSource parameters = new MapSqlParameterSource();
             parameters.addValue("idPersona", idPersona);
@@ -221,7 +221,7 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService{
 
             Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql.toString(), parameters);
 
-            Object wrappedValue = rawResult.get("sync_lector_data");
+            Object wrappedValue = rawResult.get("sync_data_lecturas");
 
             if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
                 String jsonValue = pgObject.getValue();

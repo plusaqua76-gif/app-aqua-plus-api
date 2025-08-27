@@ -24,10 +24,12 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.CiudadEntity;
 import com.aqua.plus.commons.entities.DepartamentoEntity;
 import com.aqua.plus.commons.entities.EmpresaEntity;
+import com.aqua.plus.commons.entities.ImagenEmpresaEntity;
 import com.aqua.plus.commons.maps.EmpresaMapper;
 import com.aqua.plus.commons.repositories.CiudadRepository;
 import com.aqua.plus.commons.repositories.DepartamentoRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
+import com.aqua.plus.commons.repositories.ImagenEmpresaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -49,6 +51,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
     private final NotificacionServiceImpl notificacionServiceImpl;
     private final DepartamentoRepository departamentoRepository;
     private final CiudadRepository ciudadRepository;
+    private final ImagenEmpresaRepository imagenEmpresaRepository;
     
     @Value("${mail.username}")
     private String correoAquaPlus;
@@ -320,44 +323,54 @@ public class EmpresaServiceImpl implements IEmpresaService {
 
 
 	
-	@Override
-	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario) {
-	    log.info("Buscar Empresa por id de usuario: {}", idUsuario);
-	    try {
-	        Optional<EmpresaEntity> empresa = empresaRepository.findByUsuario_Id(idUsuario);
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario) {
+        log.info("Buscar Empresa por id de usuario: {}", idUsuario);
+        try {
+            Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
 
-	        if (empresa.isPresent()) {
-	            Map<String, Object> responseMap = new HashMap<>();
-	            responseMap.put("idEmpresa", empresa.get().getId());
+            if (empresaOpt.isEmpty()) {
+                ResponseDTO responseDTO = ResponseDTO.builder()
+                        .success(false)
+                        .message("No se encontró una empresa asociada al usuario")
+                        .code(HttpStatus.NOT_FOUND.value())
+                        .build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+            }
 
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(true)
-	                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                    .code(HttpStatus.OK.value())
-	                    .response(responseMap)
-	                    .build();
+            EmpresaEntity empresa = empresaOpt.get();
+            Integer idEmpresa = empresa.getId();
 
-	            return ResponseEntity.ok(responseDTO);
-	        } else {
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(false)
-	                    .message("No se encontró una empresa asociada al usuario")
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build();
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-	        }
+            Map<String, Object> responseMap = new HashMap<>();
+            responseMap.put("idEmpresa", idEmpresa);
+            responseMap.put("nombre", empresa.getNombre());
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-	    }
-	}
+            imagenEmpresaRepository.findByEmpresa_Id(idEmpresa)
+                    .map(ImagenEmpresaEntity::getImagen)
+                    .ifPresent(bytes -> responseMap.put("imagenEmpresa", bytes));
+
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(true)
+                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+                    .code(HttpStatus.OK.value())
+                    .response(responseMap)
+                    .build();
+
+            return ResponseEntity.ok(responseDTO);
+
+        } catch (Exception e) {
+            log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(false)
+                    .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+        }
+    }
+
+
 	
 	@Override
 	@Transactional(readOnly = true)
