@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.postgresql.util.PGobject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -173,6 +175,46 @@ public class LecturaServiceImpl implements ILecturaService {
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 	    }
 	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, Pageable pageable) {
+	    log.info("Listar lecturas por ID de empresa: {}", empresaId);
+	    try {
+	        Page<LecturaEntity> lecturas = lecturaRepository.findByEmpresaId(empresaId, pageable);
+
+	        if (lecturas.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+	                ResponseDTO.builder()
+	                    .success(false)
+	                    .message("No se encontraron lecturas para la empresa con id " + empresaId)
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build()
+	            );
+	        }
+
+	        var dtoList = lecturaMapper.listEntityToDtoList(lecturas.getContent());
+
+	        return ResponseEntity.ok(
+	            ResponseDTO.builder()
+	                .success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .response(dtoList)
+	                .build()
+	        );
+	    } catch (Exception e) {
+	        log.error("Error al listar lecturas por empresa", e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+	            ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.CONSULTING_ERROR)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build()
+	        );
+	    }
+	}
+
 
     @Override
     @Transactional(readOnly = true)

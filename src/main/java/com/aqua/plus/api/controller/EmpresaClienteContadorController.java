@@ -2,6 +2,8 @@ package com.aqua.plus.api.controller;
 
 import java.util.Map;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -183,8 +185,9 @@ public class EmpresaClienteContadorController {
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@GetMapping("/clientes/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(@PathVariable Integer idEmpresa) {
-		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa);
+	public ResponseEntity<ResponseDTO> getClientes(@PathVariable Integer idEmpresa,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa, pageable);
 	}
 
 	@Operation(summary = "Buscar contadores por id de la empresa")
@@ -196,8 +199,9 @@ public class EmpresaClienteContadorController {
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@GetMapping("/contadores/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa) {
-		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa);
+	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa,
+			@PageableDefault(size = 20) Pageable pageable) {
+		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa, pageable);
 	}
 
 	@Operation(summary = "Buscar Empresa Cliente Contador por id de la empresa")

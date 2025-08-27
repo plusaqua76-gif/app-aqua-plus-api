@@ -1,5 +1,8 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -71,9 +74,11 @@ private final InventarioServiceImpl inventarioServiceImpl;
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
     @GetMapping("/empresa/{id}")
-    public ResponseEntity<ResponseDTO> getByEnterpriseId(@PathVariable Integer id) {
-        return inventarioServiceImpl.findByEnterpriseId(id);
-    }
+	public ResponseEntity<ResponseDTO> getInventarioByEmpresaId(
+	        @PathVariable("id") Integer idEmpresa,
+	        @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+	    return inventarioServiceImpl.findByEnterpriseId(idEmpresa, pageable);
+	}
 
     @Operation(summary = "Buscar inventario por id")
     @ApiResponses(value = {

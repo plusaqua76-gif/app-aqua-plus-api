@@ -1,9 +1,12 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.postgresql.util.PGobject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -165,6 +168,36 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable) {
+		log.info("Buscando empleados empresa por Id de empresa: {}", empresaId);
+		try {
+			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findByEmpresa_Id(empresaId, pageable);
+
+			List<EmpleadoEmpresaResponseDTO> dtoList = empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
+
+			ResponseDTO responseDTO = ResponseDTO.builder()
+					.success(true)
+					.message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value())
+					.response(dtoList)
+					.build();
+
+			return ResponseEntity.ok(responseDTO);
+
+		} catch (Exception e) {
+			log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
+			ResponseDTO responseDTO = ResponseDTO.builder()
+					.success(false)
+					.message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+					.build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
+
 
 	@Override
 	@Transactional(readOnly = true)

@@ -1,5 +1,7 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -75,20 +77,22 @@ public class ProductoController {
         return productoServiceImpl.findById(id);
     }
     
-    @Operation(summary = "Buscar producto por id de Empresa")
+    @Operation(summary = "Buscar productos por ID de empresa (con paginación opcional)",
+            description = "Este endpoint permite obtener los productos asociados a una empresa específica. " +
+                          "Se puede usar paginación opcionalmente a través de los parámetros: `page`, `size` y `sort`.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+            @ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+            @ApiResponse(responseCode = "400", description = "Solicitud mal formada", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+            @ApiResponse(responseCode = "404", description = "No se encontraron productos para la empresa", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
     @GetMapping("/empresa/{id}")
-    public ResponseEntity<ResponseDTO> getByEnterpriseId(@PathVariable Integer id) {
-        return productoServiceImpl.findByEnterpriseId(id);
+    public ResponseEntity<ResponseDTO> getByEnterpriseId(@PathVariable Integer id, @PageableDefault(size = 20) Pageable pageable) {
+        return productoServiceImpl.findByEnterpriseId(id, pageable);
     }
 
     @Operation(summary = "Listar todos los productos")

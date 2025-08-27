@@ -8,6 +8,8 @@ import java.util.Optional;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -318,25 +320,31 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
     
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa) {
-        log.info("Buscar clientes por id de empresa: {}", idEmpresa);
+    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable) {
+    	log.info("Ingresa método buscar Cliente por id de empresa: {}", idEmpresa);
         try {
-            List<PersonaEntity> clientes = empresaClienteContadorRepository.findAllClientesByEmpresaId(idEmpresa);
-            List<PersonaDTO> dtoList = personaMapper.listEntityToDtoList(clientes);
+            List<PersonaEntity> clientes;
+            if (pageable.isPaged()) {
+                Page<PersonaEntity> page = empresaClienteContadorRepository.findAllClientesByEmpresaIdPaged(idEmpresa, pageable);
+                clientes = page.getContent();
+            } else {
+                clientes = empresaClienteContadorRepository.findAllClientesByEmpresaId(idEmpresa);
+            }
 
+            List<PersonaDTO> dtoList = personaMapper.listEntityToDtoList(clientes);
             ResponseDTO responseDTO = ResponseDTO.builder()
                     .success(true)
-                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+                    .message("Consulta exitosa")
                     .code(HttpStatus.OK.value())
                     .response(dtoList)
                     .build();
-
             return ResponseEntity.ok(responseDTO);
+
         } catch (Exception e) {
             log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
             ResponseDTO responseDTO = ResponseDTO.builder()
                     .success(false)
-                    .message(Constantes.CONSULTING_ERROR)
+                    .message("Error consultando")
                     .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .response(null)
                     .build();
@@ -344,12 +352,22 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
         }
     }
 
+
+
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa) {
+    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable) {
         log.info("Buscar contadores por id de empresa: {}", idEmpresa);
         try {
-            List<ContadorEntity> contadores = empresaClienteContadorRepository.findAllContadoresByEmpresaId(idEmpresa);
+        	List<ContadorEntity> contadores;
+            if(pageable.isPaged()) {
+            	Page<ContadorEntity> page = empresaClienteContadorRepository.findAllContadoresByEmpresaIdPaged(idEmpresa, pageable);
+                contadores = page.getContent();
+            } else {
+            	contadores = empresaClienteContadorRepository.findAllContadoresByEmpresaId(idEmpresa);
+            }
+            
+            
             List<ContadorDTO> dtoList = contadorMapper.listEntityToDtoList(contadores);
 
             ResponseDTO responseDTO = ResponseDTO.builder()

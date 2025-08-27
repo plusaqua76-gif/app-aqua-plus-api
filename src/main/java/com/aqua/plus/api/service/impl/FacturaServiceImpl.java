@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.postgresql.util.PGobject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IFacturaService;
 import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.commons.dtos.FacturaResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.FacturaEntity;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
@@ -182,10 +185,10 @@ public class FacturaServiceImpl implements IFacturaService{
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa) {
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable) {
 	    log.info("Buscar facturas por id de empresa: {}", idEmpresa);
 	    try {
-	        List<FacturaEntity> facturas = facturaRepository.findByEmpresaClienteContador_Empresa_Id(idEmpresa);
+	        Page<FacturaEntity> facturas = facturaRepository.findByEmpresaClienteContador_Empresa_Id(idEmpresa, pageable);
 
 	        if (facturas.isEmpty()) {
 	            ResponseDTO responseDTO = ResponseDTO.builder()
@@ -196,7 +199,7 @@ public class FacturaServiceImpl implements IFacturaService{
 	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
 	        }
 
-	        List<FacturaDTO> dtoList = facturaMapper.listEntityToDtoList(facturas);
+	        List<FacturaResponseDTO> dtoList = facturaMapper.listEntityToResumenDtoList(facturas.getContent());
 
 	        ResponseDTO responseDTO = ResponseDTO.builder()
 	                .success(true)
@@ -216,7 +219,6 @@ public class FacturaServiceImpl implements IFacturaService{
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 	    }
 	}
-
 
 
 	@Override

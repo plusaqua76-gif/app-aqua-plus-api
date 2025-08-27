@@ -2,6 +2,9 @@ package com.aqua.plus.api.controller;
 
 import java.util.Map;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -67,8 +70,9 @@ public class FacturaController {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
     @GetMapping("/empresa/{id}")
-    public ResponseEntity<ResponseDTO> getByEmpresaId(@PathVariable Integer id) {
-        return facturaServiceImpl.findByEnterpriseId(id);
+    public ResponseEntity<ResponseDTO> getByEmpresaId(@PathVariable Integer id,
+    		@PageableDefault(size = 20, sort = "fechaEmision", direction = Sort.Direction.DESC) Pageable pageable) {
+        return facturaServiceImpl.findByEnterpriseId(id, pageable);
     }
 
     @Operation(summary = "Buscar Factura por id")

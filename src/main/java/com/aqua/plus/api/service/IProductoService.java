@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.ProductoDTO;
@@ -19,7 +20,7 @@ public interface IProductoService {
 
 	ResponseEntity<ResponseDTO> save(ProductoDTO productoDTO);
     ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa);
+    ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> deleteById(Integer id);
 }
