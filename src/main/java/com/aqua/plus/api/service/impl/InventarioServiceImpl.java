@@ -4,6 +4,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -85,10 +87,10 @@ public class InventarioServiceImpl implements IInventarioService{
 	
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa) {
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable) {
 	    log.info("Buscar inventario por id de empresa: {}", idEmpresa);
 	    try {
-	        List<InventarioEntity> inventario = inventarioRepository.findByProducto_Empresa_Id(idEmpresa);
+	        Page<InventarioEntity> inventario = inventarioRepository.findByProducto_Empresa_Id(idEmpresa, pageable);
 
 	        if (inventario.isEmpty()) {
 	            ResponseDTO responseDTO = ResponseDTO.builder()

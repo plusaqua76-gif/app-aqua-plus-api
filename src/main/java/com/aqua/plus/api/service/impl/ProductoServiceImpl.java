@@ -4,6 +4,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -84,10 +86,10 @@ public class ProductoServiceImpl implements IProductoService {
 	
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa) {
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable) {
 	    log.info("Buscar producto por id de empresa: {}", idEmpresa);
 	    try {
-	        List<ProductoEntity> producto= productoRepository.findByEmpresa_Id(idEmpresa);
+	        Page<ProductoEntity> producto= productoRepository.findByEmpresa_Id(idEmpresa, pageable);
 
 	        if (producto.isEmpty()) {
 	            ResponseDTO responseDTO = ResponseDTO.builder()
@@ -98,7 +100,7 @@ public class ProductoServiceImpl implements IProductoService {
 	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
 	        }
 
-	        List<ProductoDTO> dtoList = productoMapper.listEntityToDtoList(producto);
+	        List<ProductoDTO> dtoList = productoMapper.listEntityToDtoList(producto.getContent());
 
 	        ResponseDTO responseDTO = ResponseDTO.builder()
 	                .success(true)

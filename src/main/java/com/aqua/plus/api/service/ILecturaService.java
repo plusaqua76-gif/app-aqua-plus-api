@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.LecturaDTO;
@@ -19,6 +20,7 @@ public interface ILecturaService {
 
 	ResponseEntity<ResponseDTO> save(LecturaDTO lecturaDTO);
     ResponseEntity<ResponseDTO> findById(Integer id);
+    ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, Pageable pageable);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> deleteById(Integer id);
     

@@ -2,6 +2,8 @@ azure:
   application-insights: 
     instrumentation-key: 3b5bd424-f2d9-4011-a34b-279b06833155
 spring:
+  main:
+    banner-mode: "console"
   application:
     name: app-aqua-plus-api
   datasource:
