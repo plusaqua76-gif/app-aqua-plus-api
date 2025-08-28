@@ -1,5 +1,6 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -102,6 +103,22 @@ public class UsuarioController {
     @GetMapping("/{id}")
     public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
         return usuarioServiceImpl.findById(id);
+    }
+    
+    @Operation(summary = "Buscar todos los usuarios inactivos")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @GetMapping("/inactivos")
+    public ResponseEntity<ResponseDTO> listarInactivos(Pageable pageable) {
+        return usuarioServiceImpl.findActivosEInactivos(pageable);
     }
 
     @Operation(summary = "Listar todas las usuario")

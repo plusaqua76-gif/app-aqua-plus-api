@@ -1,13 +1,17 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,7 @@ import com.aqua.plus.commons.entities.RolEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.UsuarioMapper;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
+import com.aqua.plus.commons.repositories.EstadoRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.RolRepository;
 import com.aqua.plus.commons.repositories.UsuarioRepository;
@@ -55,6 +60,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final JwtUtil jwtUtil;
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final NotificacionServiceImpl notificacionServiceImpl;
+	private final EstadoRepository estadoRepository;
 
 	@Override
 	@Transactional
@@ -285,6 +291,66 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+	
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findActivosEInactivos(Pageable pageable) {
+	    log.info("Listar usuarios con estado ACTIVO o INACTIVO (lite)");
+	    try {
+	        var activoOpt    = estadoRepository.findByNombreIgnoreCase(Constantes.ACTIVE);
+	        var inactivoOpt  = estadoRepository.findByNombreIgnoreCase(Constantes.IDLE);
+
+	        List<Integer> estadoIds = new ArrayList<>(2);
+	        activoOpt.ifPresent(e -> estadoIds.add(e.getId()));
+	        inactivoOpt.ifPresent(e -> estadoIds.add(e.getId()));
+
+	        if (estadoIds.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+	                ResponseDTO.builder()
+	                    .success(false)
+	                    .message("No existen los estados 'ACTIVO' ni 'INACTIVO' en la tabla estado")
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build()
+	            );
+	        }
+
+	        Page<UsuarioEntity> page = usuarioRepository.findByEstado_IdIn(estadoIds, pageable);
+
+	        if (page.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+	                ResponseDTO.builder()
+	                    .success(false)
+	                    .message("No se encontraron usuarios con estado ACTIVO o INACTIVO")
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build()
+	            );
+	        }
+
+	        List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
+
+	        return ResponseEntity.ok(
+	            ResponseDTO.builder()
+	                .success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .response(content)
+	                .build()
+	        );
+
+	    } catch (Exception e) {
+	        log.error("Error al listar usuarios con estado ACTIVO o INACTIVO (lite)", e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+	            ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.CONSULTING_ERROR)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build()
+	        );
+	    }
+	}
+
+
 
 	@Override
 	@Transactional(readOnly = true)

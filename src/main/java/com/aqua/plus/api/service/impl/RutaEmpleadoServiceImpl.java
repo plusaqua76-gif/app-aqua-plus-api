@@ -238,5 +238,48 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService{
             return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
         }
     }
+    
+    /**
+     * Sincroniza datos de rutas asignadas a un lector usando su ID.
+     * Llama un SP en PostgreSQL que retorna estructura JSON con empresas, clientes y lecturas.
+     * 
+     * @author nicope
+     * @version 1.0
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> syncConfigEnterprise(Integer idPersona, Integer offset, Integer limit) {
+        try {
+            StringBuilder sql = new StringBuilder("SELECT * FROM public.sync_config_empresa(:idPersona");
+
+            MapSqlParameterSource parameters = new MapSqlParameterSource();
+            parameters.addValue("idPersona", idPersona);
+
+            if (offset != null && limit != null) {
+                sql.append(", :offset, :limit)");
+                parameters.addValue("offset", offset);
+                parameters.addValue("limit", limit);
+            } else {
+                sql.append(")");
+            }
+
+            Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql.toString(), parameters);
+
+            Object wrappedValue = rawResult.get("sync_config_empresa");
+
+            if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+                String jsonValue = pgObject.getValue();
+                return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {});
+            }
+
+            return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+        }
+    }
 
 }
