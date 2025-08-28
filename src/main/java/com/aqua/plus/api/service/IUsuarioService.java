@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.ResponseDTO;
@@ -20,6 +21,7 @@ public interface IUsuarioService {
 	ResponseEntity<ResponseDTO> save(UsuarioDTO usuarioDTO);
 	ResponseEntity<ResponseDTO> updateImage(Integer id, byte[] nuevaImagen, String usuarioModificacion);
     ResponseEntity<ResponseDTO> findById(Integer id);
+    ResponseEntity<ResponseDTO> findActivosEInactivos(Pageable pageable);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> deleteById(Integer id);
     ResponseEntity<ResponseDTO> updatePassword(Integer idUsuario, String nuevaContrasena, String usuarioModificacion);

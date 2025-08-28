@@ -152,4 +152,37 @@ public class RutaEmpleadoController {
                     ));
         }
     }
+    
+    @Operation(summary = "Sincronizar datos configuración empresa")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+            @ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+    })
+    @GetMapping("/config/{idPersona}")
+    public ResponseEntity<Map<String, Object>> sincronizarConfig(@PathVariable Integer idPersona, @RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
+        try {
+            Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncLectorData(idPersona, offset, limit);
+
+            String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
+            HttpStatus httpStatus = switch (status) {
+                case "403" -> HttpStatus.FORBIDDEN;
+                case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+                default -> HttpStatus.OK;
+            };
+
+            return ResponseEntity.status(httpStatus).body(resultFromService);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "message", "Error en la operación del controlador",
+                            "statusCode", "500",
+                            "error", e.getMessage()
+                    ));
+        }
+    }
 }
