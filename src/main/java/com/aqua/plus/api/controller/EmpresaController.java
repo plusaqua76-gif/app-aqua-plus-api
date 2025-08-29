@@ -68,32 +68,19 @@ public class EmpresaController {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
     @PostMapping("/registrar")
-    public ResponseEntity<Map<String, Object>> registrarEmpresa(
-            @RequestBody Map<String, Object> jsonParams) {
+	public ResponseEntity<Map<String, Object>> registrarEmpresa(@RequestBody Map<String, Object> body) {
+	    Map<String, Object> resp = empresaServiceImpl.registrarEmpresa(body);
+	    Integer code = null;
+	    Object c = resp.get("code");
+	    if (c != null) {
+	        code = Integer.valueOf(String.valueOf(c));
+	    }
 
-        try {
-            Map<String, Object> resultFromService = empresaServiceImpl.registrarEmpresa(jsonParams);
-
-            String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
-            HttpStatus httpStatus = switch (status) {
-                case "201" -> HttpStatus.CREATED;
-                case "400" -> HttpStatus.BAD_REQUEST;
-                case "409" -> HttpStatus.CONFLICT;
-                case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-                default -> HttpStatus.OK;
-            };
-
-            return ResponseEntity.status(httpStatus).body(resultFromService);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of(
-                            "message", "Error en la operación del controlador al registrar la empresa",
-                            "statusCode", "500",
-                            "error", e.getMessage()
-                    ));
-        }
-    }
+	    if (code != null) {
+	        return ResponseEntity.status(code).body(resp);
+	    }
+	    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(resp);
+	}
 
     @Operation(summary = "Buscar Empresa por id de usuario")
     @ApiResponses(value = {

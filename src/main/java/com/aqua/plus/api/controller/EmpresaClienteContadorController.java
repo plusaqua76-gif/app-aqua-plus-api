@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.EmpresaClienteContadorServiceImpl;
@@ -185,10 +186,25 @@ public class EmpresaClienteContadorController {
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@GetMapping("/clientes/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> getClientes(@PathVariable Integer idEmpresa,
-			@PageableDefault(size = 20) Pageable pageable) {
-		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa, pageable);
-	}
+    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
+            @PathVariable Integer idEmpresa,
+            @RequestParam(required = false) String nombreCompleto,
+            @RequestParam(required = false) String cedula,
+            @RequestParam(required = false) String codigo,
+            @RequestParam(required = false) String departamento,
+            @RequestParam(required = false) String ciudad,
+            @RequestParam(required = false) String corregimiento,
+            @RequestParam(required = false) String telefono,
+            @RequestParam(required = false) String correo,
+            Pageable pageable
+    ) {
+        return empresaClienteContadorServiceImpl.findClientesByEmpresaId(
+                idEmpresa, pageable,
+                nombreCompleto, cedula, codigo,
+                departamento, ciudad, corregimiento,
+                telefono, correo
+        );
+    }
 
 	@Operation(summary = "Buscar contadores por id de la empresa")
 	@ApiResponses(value = {
