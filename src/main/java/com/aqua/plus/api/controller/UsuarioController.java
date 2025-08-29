@@ -71,6 +71,22 @@ public class UsuarioController {
 	    return this.autenticacionServiceImpl.autenticar(usuario);
 	}
 	
+	@Operation(summary = "Refrescar token Usuario Autenticación")
+	@ApiResponses(value = {
+	        @ApiResponse(responseCode = "200", description = "Autenticación exitosa", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	})
+	@PostMapping("/auth/refresh")
+	public ResponseEntity<ResponseDTO> refresh(@RequestHeader(value = "Authorization", required = false) String authorization) {
+	    return autenticacionServiceImpl.refreshToken(authorization);
+	}
+	
 	@Operation(summary = "Guardar o actualizar usuario")
 	@ApiResponses(value = {
 	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
