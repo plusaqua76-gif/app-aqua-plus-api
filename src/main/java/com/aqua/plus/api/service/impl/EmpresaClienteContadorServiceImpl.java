@@ -1,7 +1,9 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -10,6 +12,7 @@ import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -18,17 +21,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
+import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
 import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
+import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
+import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
+import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
+import com.aqua.plus.commons.repositories.PersonaRepository;
+import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -52,6 +61,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final PersonaMapper personaMapper;
 	private final ContadorMapper contadorMapper;
+	private final PersonaRepository personaRepository;
+	private final TelefonoGeneralRepository telefonoGeneralRepository;
+	private final CorreoGeneralRepository correoGeneralRepository;
 	
 	
 	@Override
@@ -320,35 +332,90 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
     
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable) {
-    	log.info("Ingresa método buscar Cliente por id de empresa: {}", idEmpresa);
+    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
+            Integer idEmpresa,
+            Pageable pageable,
+            String nombreLike,
+            String cedula,
+            String codigo,
+            String departamento,
+            String ciudad,
+            String corregimiento,
+            String telefono,
+            String correo
+    ) {
+        log.info("Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
+                idEmpresa, nombreLike, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
         try {
-            List<PersonaEntity> clientes;
-            if (pageable.isPaged()) {
-                Page<PersonaEntity> page = empresaClienteContadorRepository.findAllClientesByEmpresaIdPaged(idEmpresa, pageable);
-                clientes = page.getContent();
-            } else {
-                clientes = empresaClienteContadorRepository.findAllClientesByEmpresaId(idEmpresa);
+            Specification<PersonaEntity> spec = Specification
+                    .where(PersonaSpecification.belongsToEmpresa(idEmpresa))
+                    .and(PersonaSpecification.nameLike(nombreLike))
+                    .and(PersonaSpecification.hasNumeroCedula(cedula))
+                    .and(PersonaSpecification.hasCodigo(codigo))
+                    .and(PersonaSpecification.byDepartamentoNombre(departamento))
+                    .and(PersonaSpecification.byCiudadNombre(ciudad))
+                    .and(PersonaSpecification.byCorregimientoNombre(corregimiento))
+                    .and(PersonaSpecification.hasTelefonoLike(telefono))
+                    .and(PersonaSpecification.hasCorreoLike(correo));
+
+            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+            Page<PersonaEntity> page = personaRepository.findAll(spec, pageToUse);
+
+            if (page.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        ResponseDTO.builder()
+                                .success(false)
+                                .message("No se encontraron clientes para los filtros dados")
+                                .code(HttpStatus.NOT_FOUND.value())
+                                .build()
+                );
             }
 
-            List<PersonaDTO> dtoList = personaMapper.listEntityToDtoList(clientes);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message("Consulta exitosa")
-                    .code(HttpStatus.OK.value())
-                    .response(dtoList)
-                    .build();
-            return ResponseEntity.ok(responseDTO);
+            List<PersonaDTO> personasDto = personaMapper.listEntityToDtoList(page.getContent());
+
+            List<Map<String, Object>> respuesta = new ArrayList<>(personasDto.size());
+
+            for (PersonaDTO p : personasDto) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", p.getId());
+                row.put("direccion", p.getDireccion());
+                row.put("tipoDocumento", p.getTipoDocumento());
+                row.put("numeroCedula", p.getNumeroCedula());
+                row.put("nombre", p.getNombre());
+                row.put("segundoNombre", p.getSegundoNombre());
+                row.put("apellido", p.getApellido());
+                row.put("segundoApellido", p.getSegundoApellido());
+                row.put("codigo", p.getCodigo());
+
+                Optional<CorreoGeneralEntity> cOpt =
+                    correoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
+                Optional<TelefonoGeneralEntity> tOpt =
+                    telefonoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
+
+                row.put("correo", cOpt.map(CorreoGeneralEntity::getCorreo).orElse(null));
+                row.put("telefono", tOpt.map(TelefonoGeneralEntity::getNumero).orElse(null));
+
+                respuesta.add(row);
+            }
+
+            return ResponseEntity.ok(
+                    ResponseDTO.builder()
+                            .success(true)
+                            .message("Consulta exitosa")
+                            .code(HttpStatus.OK.value())
+                            .response(respuesta)
+                            .build()
+            );
 
         } catch (Exception e) {
             log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message("Error consultando")
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .response(null)
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseDTO.builder()
+                            .success(false)
+                            .message("Error consultando")
+                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .build()
+            );
         }
     }
 

@@ -112,49 +112,49 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	}
 
 	@Transactional
-    public Map<String, Object> registrarEmpresa(Map<String, Object> jsonParams) {
-        try {
-            String plainPassword = (String) jsonParams.get("password");
+	public Map<String, Object> registrarEmpresa(Map<String, Object> jsonParams) {
+	    try {
+	        String plainPassword = (String) jsonParams.get("password");
+	        if (plainPassword != null) {
+	            String encodedPassword = encriptarDesencriptar.encriptar(plainPassword);
+	            jsonParams.put("password", encodedPassword);
+	        }
 
-            if (plainPassword != null) {
-                String encodedPassword = encriptarDesencriptar.encriptar(plainPassword);
-                jsonParams.put("password", encodedPassword);
-            }
+	        String jsonString = objectMapper.writeValueAsString(jsonParams);
 
-            String jsonString = objectMapper.writeValueAsString(jsonParams);
+	        String sql = "SELECT public.crear_o_actualizar_empresa(CAST(:jsonData AS jsonb)) AS result";
+	        MapSqlParameterSource parameters = new MapSqlParameterSource()
+	                .addValue("jsonData", jsonString);
 
-            String sql = "SELECT * FROM public.crear_o_actualizar_empresa(CAST(:jsonData AS jsonb))"; 
-            
-            MapSqlParameterSource parameters = new MapSqlParameterSource();
-            parameters.addValue("jsonData", jsonString);
+	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
-            Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+	        Object wrapped = row.get("result");
+	        if (wrapped instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+	            String jsonValue = pg.getValue();
+	            Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {});
 
-            Object wrappedValue = rawResult.get("crear_o_actualizar_empresa"); 
-            if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-            	String jsonValue = pgObject.getValue();
-                Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {});
-            
-	            Object statusCode = response.get("statusCode");
-	            if("201".equals(String.valueOf(statusCode))) {
-	            	
-	            	Integer idDepartamento = Integer.valueOf(jsonParams.get("idDepartamento").toString());
-	            	Integer idCiudad = Integer.valueOf(jsonParams.get("idCiudad").toString());
-	            	
-	            	String nombreDepartamento = departamentoRepository.findById(idDepartamento)
-	            			.map(DepartamentoEntity::getNombre)
-	            			.orElse("Desconocido");
-	            	
-	            	String nombreCiudad = ciudadRepository.findById(idCiudad)
-	            			.map(CiudadEntity::getNombre)
-	            			.orElse("Desconocido");
-	            			
-	            	String nombreEmpresa = (String) jsonParams.get("nombreEmpresa");
-	            	String nit = (String) jsonParams.get("nit");
-	            	String correoEmpresa = (String) jsonParams.get("correo");
-	            	String telefono = (String) jsonParams.get("telefono");
-	            	
-	            	if (correoAquaPlus != null && !correoAquaPlus.isBlank()) {
+	            Object codeObj = response.get("code");
+	            Integer code = codeObj != null ? Integer.valueOf(String.valueOf(codeObj)) : null;
+	            boolean success = Boolean.TRUE.equals(response.get("success"));
+
+	            if (success && Integer.valueOf(201).equals(code)) {
+	                Integer idDepartamento = Integer.valueOf(String.valueOf(jsonParams.get("idDepartamento")));
+	                Integer idCiudad = Integer.valueOf(String.valueOf(jsonParams.get("idCiudad")));
+
+	                String nombreDepartamento = departamentoRepository.findById(idDepartamento)
+	                        .map(DepartamentoEntity::getNombre)
+	                        .orElse("Desconocido");
+
+	                String nombreCiudad = ciudadRepository.findById(idCiudad)
+	                        .map(CiudadEntity::getNombre)
+	                        .orElse("Desconocido");
+
+	                String nombreEmpresa = (String) jsonParams.get("nombreEmpresa");
+	                String nit = (String) jsonParams.get("nit");
+	                String correoEmpresa = (String) jsonParams.get("correo");
+	                String telefono = (String) jsonParams.get("telefono");
+
+	                if (correoAquaPlus != null && !correoAquaPlus.isBlank()) {
 	                    Map<String, Object> data = new HashMap<>();
 	                    data.put(Constantes.PARAMETRO_NAME_ENTERPRISE, nombreEmpresa);
 	                    data.put(Constantes.PARAMETRO_NIT, nit);
@@ -162,27 +162,27 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	                    data.put(Constantes.PARAMETRO_PHONE, telefono);
 	                    data.put(Constantes.PARAMETRO_DEPARTAMENT, nombreDepartamento);
 	                    data.put(Constantes.PARAMETRO_CITY, nombreCiudad);
-	                    
+
 	                    log.info("Info data notificacion {}", data);
-
-	                    String codigoPlantilla = Constantes.INFO_ACTIVATE;
-
-	                    notificacionServiceImpl.enviarNotificacion(correoAquaPlus, codigoPlantilla, data);
+	                    notificacionServiceImpl.enviarNotificacion(correoAquaPlus, Constantes.INFO_ACTIVATE, data);
 	                }
-
+	                return response;
 	            }
-            }
 
-            return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");
+	            return response;
+	        }
 
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-            return Collections.singletonMap(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Collections.singletonMap(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
-        }
-    }
+	        return Map.of(Constantes.ERROR_KEY, "No se pudo leer la respuesta JSON del SP.");
+
+	    } catch (JsonProcessingException e) {
+	        log.error("Error JSON", e);
+	        return Collections.singletonMap(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
+	    } catch (Exception e) {
+	        log.error("Error inesperado", e);
+	        return Collections.singletonMap(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
+	    }
+	}
+
 	
 	@Transactional
     public Map<String, Object> updateEnterpise(Map<String, Object> jsonParams) {
