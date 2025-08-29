@@ -18,6 +18,8 @@ import com.aqua.plus.commons.repositories.ParametrosSistemaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -159,4 +161,60 @@ public class JwtUtil {
 	    return usuario.equals(userDetails.getUsername())
 	            && !isTokenExpired(token, key);
 	}
+	
+	
+	/**
+	 * Valida la FIRMA del token con la llave de BD (KEY_TOKEN).
+	 * Devuelve true si la firma es válida, incluso si el token está EXPIRADO.
+	 */
+	public boolean isSignatureValid(String token, String keyParam) {
+	    try {
+	        parseClaimsAllowExpired(token, keyParam); // si firma no coincide, lanzará JwtException
+	        return true;
+	    } catch (JwtException | IllegalArgumentException e) {
+	        // firma inválida, token corrupto, etc.
+	        return false;
+	    }
+	}
+
+	/**
+	 * Obtiene el username (subject) permitiendo token EXPIRADO (pero con firma válida).
+	 */
+	public String getUsernameFromTokenAllowExpired(String token, String keyParam) {
+	    try {
+	        Claims claims = parseClaimsAllowExpired(token, keyParam);
+	        return claims.getSubject();
+	    } catch (Exception e) {
+	        return null;
+	    }
+	}
+
+	/**
+	 * Parser que valida firma y retorna Claims.
+	 * - Si el token está expirado, captura ExpiredJwtException y retorna sus Claims.
+	 * - Si la firma es inválida, lanza JwtException.
+	 */
+	private Claims parseClaimsAllowExpired(String token, String keyParam) {
+	    String secret = encriptarDesencriptar.desencriptar(this.getParameter(keyParam).getValorParametro());
+	    SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+	    try {
+	        return Jwts.parserBuilder()
+	            .setSigningKey(key)
+	            .build()
+	            .parseClaimsJws(token)
+	            .getBody();
+	    } catch (ExpiredJwtException eje) {
+	        return eje.getClaims();
+	    }
+	}
+	
+	// En JwtUtil
+
+	public String generateRefreshToken(String clientId, String keyParam, String keyVigenciaRefreshParam) {
+	    Map<String, Object> claims = new HashMap<>();
+	    claims.put("typ", "refresh");
+	    return doGenerateToken(claims, clientId, keyParam, keyVigenciaRefreshParam);
+	}
+
+
 }
