@@ -17,7 +17,9 @@ import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.AutenticacionDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
+import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
+import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.UsuarioRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -37,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AutenticacionServiceImpl implements UserDetailsService {
 
 	private final UsuarioRepository usuarioRepository;
+	private final EmpresaRepository empresaRepository;
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final JwtUtil jwtTokenUtil;
 
@@ -83,6 +86,11 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 	                .build()
 	        );
 	    }
+	    
+	    Integer empresaId = empresaRepository
+	            .findByUsuario_Id(user.getId())
+	            .map(EmpresaEntity::getId)
+	            .orElse(null);
 
 	    final String accessToken = jwtTokenUtil.generateToken(
 	        user.getNombre(),
@@ -103,6 +111,7 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 	        .refreshToken(Constantes.BEARER + refreshToken) // refresh
 	        .rol(user.getRol() != null ? user.getRol().getNombre() : null)
 	        .personaId(user.getPersona() != null ? user.getPersona().getId() : null)
+	        .empresaId(empresaId)
 	        .build();
 
 	    ResponseDTO successResponse = ResponseDTO.builder()
