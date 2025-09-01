@@ -3,7 +3,6 @@ package com.aqua.plus.api.controller;
 import java.util.Map;
 
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -186,25 +185,15 @@ public class EmpresaClienteContadorController {
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@GetMapping("/clientes/{idEmpresa}")
-    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
-            @PathVariable Integer idEmpresa,
-            @RequestParam(required = false) String nombreCompleto,
-            @RequestParam(required = false) String cedula,
-            @RequestParam(required = false) String codigo,
-            @RequestParam(required = false) String departamento,
-            @RequestParam(required = false) String ciudad,
-            @RequestParam(required = false) String corregimiento,
-            @RequestParam(required = false) String telefono,
-            @RequestParam(required = false) String correo,
-            Pageable pageable
-    ) {
-        return empresaClienteContadorServiceImpl.findClientesByEmpresaId(
-                idEmpresa, pageable,
-                nombreCompleto, cedula, codigo,
-                departamento, ciudad, corregimiento,
-                telefono, correo
-        );
-    }
+	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(@PathVariable Integer idEmpresa,
+			@RequestParam(required = false) String nombreCompleto, @RequestParam(required = false) String cedula,
+			@RequestParam(required = false) String codigo, @RequestParam(required = false) String departamento,
+			@RequestParam(required = false) String ciudad, @RequestParam(required = false) String corregimiento,
+			@RequestParam(required = false) String telefono, @RequestParam(required = false) String correo,
+			Pageable pageable) {
+		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa, pageable, nombreCompleto, cedula,
+				codigo, departamento, ciudad, corregimiento, telefono, correo);
+	}
 
 	@Operation(summary = "Buscar contadores por id de la empresa")
 	@ApiResponses(value = {
@@ -216,8 +205,12 @@ public class EmpresaClienteContadorController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@GetMapping("/contadores/{idEmpresa}")
 	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa,
-			@PageableDefault(size = 20) Pageable pageable) {
-		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa, pageable);
+			@RequestParam(required = false) String serial, @RequestParam(required = false) String tipoContadorNombre,
+			@RequestParam(required = false) String direccionDescripcion,
+			@RequestParam(required = false) String nombre, @RequestParam(required = false) String cedula,
+			Pageable pageable) {
+		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa, pageable, serial,
+				tipoContadorNombre, direccionDescripcion, nombre, cedula);
 	}
 
 	@Operation(summary = "Buscar Empresa Cliente Contador por id de la empresa")

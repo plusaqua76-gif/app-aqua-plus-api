@@ -28,6 +28,7 @@ import com.aqua.plus.commons.entities.RolEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.UsuarioMapper;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
+import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.EstadoRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.RolRepository;
@@ -61,6 +62,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final EstadoRepository estadoRepository;
+	private final EmpresaRepository empresaRepository;
 
 	@Override
 	@Transactional
@@ -362,7 +364,22 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	            );
 	        }
 
+	        List<Integer> userIds = page.getContent()
+	                                    .stream()
+	                                    .map(UsuarioEntity::getId)
+	                                    .toList();
+
+	        Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository
+	                .findNombresByUsuarioIds(userIds)
+	                .stream()
+	                .collect(java.util.stream.Collectors.toMap(
+	                        EmpresaRepository.NombrePorUsuario::getUsuarioId,
+	                        EmpresaRepository.NombrePorUsuario::getNombre,
+	                        (a, b) -> a
+	                ));
+
 	        List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
+	        content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
 
 	        return ResponseEntity.ok(
 	            ResponseDTO.builder()
@@ -384,7 +401,6 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	        );
 	    }
 	}
-
 
 
 
