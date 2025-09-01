@@ -26,5 +26,6 @@ public interface IEmpresaClienteContadorService {
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
 			String correo);
 
-	ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable);
+	ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable, String serial,
+			String tipoContadorNombre, String direccionDescripcion, String nombre, String cedula);
 }

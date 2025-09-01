@@ -198,7 +198,7 @@ public class UsuarioController {
             @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PostMapping("/recoverPassword")
+    @PostMapping("/recover-password")
     public ResponseEntity<ResponseDTO> recoverPassword(@RequestParam(required = true) String correo, @RequestParam(required = false) String codigoPlantilla) {
         return usuarioServiceImpl.recoverPassword(correo, codigoPlantilla);
     }

@@ -9,6 +9,13 @@ import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 
 import jakarta.persistence.criteria.JoinType;
 
+/**
+ * @author nicope
+ * @version 1.0
+ *
+ * Especificaciones JPA reutilizables para filtrar Personas en consultas; combinables dinámicamente.
+ */
+
 public final class PersonaSpecification {
 
 	private PersonaSpecification() {}

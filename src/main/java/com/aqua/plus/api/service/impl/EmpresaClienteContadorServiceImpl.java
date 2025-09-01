@@ -21,12 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
+import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
-import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
@@ -34,6 +33,7 @@ import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
+import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
@@ -61,6 +61,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final PersonaMapper personaMapper;
 	private final ContadorMapper contadorMapper;
+	private final ContadorRepository contadorRepository;
 	private final PersonaRepository personaRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
@@ -330,12 +331,18 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
         }
     }
     
+    /**
+     * @author nicope
+     * @version 1.0
+     *
+     * Busca clientes de una empresa con filtros dinámicos y paginación; retorna DTO.
+     */
     @Override
     @Transactional(readOnly = true)
     public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
             Integer idEmpresa,
             Pageable pageable,
-            String nombreLike,
+            String nombre,
             String cedula,
             String codigo,
             String departamento,
@@ -345,18 +352,19 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
             String correo
     ) {
         log.info("Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
-                idEmpresa, nombreLike, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
+                idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
         try {
-            Specification<PersonaEntity> spec = Specification
-                    .where(PersonaSpecification.belongsToEmpresa(idEmpresa))
-                    .and(PersonaSpecification.nameLike(nombreLike))
-                    .and(PersonaSpecification.hasNumeroCedula(cedula))
-                    .and(PersonaSpecification.hasCodigo(codigo))
-                    .and(PersonaSpecification.byDepartamentoNombre(departamento))
-                    .and(PersonaSpecification.byCiudadNombre(ciudad))
-                    .and(PersonaSpecification.byCorregimientoNombre(corregimiento))
-                    .and(PersonaSpecification.hasTelefonoLike(telefono))
-                    .and(PersonaSpecification.hasCorreoLike(correo));
+        	Specification<PersonaEntity> spec = Specification.allOf(
+        		    PersonaSpecification.belongsToEmpresa(idEmpresa),
+        		    PersonaSpecification.nameLike(nombre),
+        		    PersonaSpecification.hasNumeroCedula(cedula),
+        		    PersonaSpecification.hasCodigo(codigo),
+        		    PersonaSpecification.byDepartamentoNombre(departamento),
+        		    PersonaSpecification.byCiudadNombre(ciudad),
+        		    PersonaSpecification.byCorregimientoNombre(corregimiento),
+        		    PersonaSpecification.hasTelefonoLike(telefono),
+        		    PersonaSpecification.hasCorreoLike(correo)
+        		);
 
             Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
             Page<PersonaEntity> page = personaRepository.findAll(spec, pageToUse);
@@ -423,39 +431,55 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
     @Override
     @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable) {
-        log.info("Buscar contadores por id de empresa: {}", idEmpresa);
-        try {
-        	List<ContadorEntity> contadores;
-            if(pageable.isPaged()) {
-            	Page<ContadorEntity> page = empresaClienteContadorRepository.findAllContadoresByEmpresaIdPaged(idEmpresa, pageable);
-                contadores = page.getContent();
-            } else {
-            	contadores = empresaClienteContadorRepository.findAllContadoresByEmpresaId(idEmpresa);
-            }
-            
-            
-            List<ContadorDTO> dtoList = contadorMapper.listEntityToDtoList(contadores);
+    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(
+            Integer idEmpresa,
+            Pageable pageable,
+            String serial,
+            String tipoContadorNombre,
+            String direccionDescripcion,
+            String nombreLike,
+            String cedula) {
 
-            ResponseDTO responseDTO = ResponseDTO.builder()
+        log.info("Buscar contadores por empresa: {}, filtros: [serial={}, tipoContador={}, dir={}, nombreLike={}, cedula={}]",
+                idEmpresa, serial, tipoContadorNombre, direccionDescripcion, nombreLike, cedula);
+
+        try {
+            var spec = Specification.allOf(
+                ContadorSpecification.belongsToEmpresa(idEmpresa),
+                ContadorSpecification.serialLike(serial),
+                ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
+                ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
+                ContadorSpecification.personaNombreLike(nombreLike),
+                ContadorSpecification.personaCedulaEquals(cedula)
+            );
+
+            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+            var page = contadorRepository.findAll(spec, pageToUse);
+
+            var contadores = pageToUse.isPaged() ? page.getContent() : page.getContent();
+            var dtoList = contadorMapper.listEntityToDtoList(contadores);
+
+            return ResponseEntity.ok(
+                ResponseDTO.builder()
                     .success(true)
                     .message(Constantes.CONSULTED_SUCCESSFULLY)
                     .code(HttpStatus.OK.value())
                     .response(dtoList)
-                    .build();
-
-            return ResponseEntity.ok(responseDTO);
+                    .build()
+            );
         } catch (Exception e) {
             log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                ResponseDTO.builder()
                     .success(false)
                     .message(Constantes.CONSULTING_ERROR)
                     .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .response(null)
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+                    .build()
+            );
         }
     }
+
 
 
     
