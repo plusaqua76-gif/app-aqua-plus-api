@@ -271,26 +271,52 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
-		log.info("Buscar usuario por id: {}", id);
-		try {
-			Optional<UsuarioEntity> usuario = usuarioRepository.findById(id);
-			if (usuario.isPresent()) {
-				UsuarioDTO dto = usuarioMapper.entityToDto(usuario.get());
-				ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-						.code(HttpStatus.OK.value()).response(dto).build();
-				return ResponseEntity.ok(responseDTO);
-			} else {
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
-						.code(HttpStatus.NOT_FOUND.value()).build();
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-			}
-		} catch (Exception e) {
-			log.error("Error al buscar el usuario por id: {}", id, e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-		}
+	    log.info("Buscar usuario por id: {}", id);
+	    try {
+	        Optional<UsuarioEntity> usuarioOpt = usuarioRepository.findById(id);
+
+	        if (usuarioOpt.isEmpty()) {
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                    .success(false)
+	                    .message(Constantes.CONSULTING_ERROR)
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build();
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+	        }
+
+	        UsuarioEntity usuario = usuarioOpt.get();
+	        UsuarioDTO dto = usuarioMapper.entityToDto(usuario);
+
+	        Integer personaId = (usuario.getPersona() != null) ? usuario.getPersona().getId() : null;
+	        if (personaId != null) {
+	            String correo = correoGeneralRepository
+	                    .findTopByPersona_IdAndActivoTrueOrderByFechaCreacionDesc(personaId)
+	                    .map(CorreoGeneralEntity::getCorreo)
+	                    .orElse(null);
+
+	            dto.setCorreo(correo);
+	        }
+
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	                .success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .response(dto)
+	                .build();
+
+	        return ResponseEntity.ok(responseDTO);
+
+	    } catch (Exception e) {
+	        log.error("Error al buscar el usuario por id: {}", id, e);
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+	    }
 	}
+
 	
 	
 	@Override
@@ -298,8 +324,8 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	public ResponseEntity<ResponseDTO> findActivosEInactivos(Pageable pageable) {
 	    log.info("Listar usuarios con estado ACTIVO o INACTIVO (lite)");
 	    try {
-	        var activoOpt    = estadoRepository.findByNombreIgnoreCase(Constantes.ACTIVE);
-	        var inactivoOpt  = estadoRepository.findByNombreIgnoreCase(Constantes.IDLE);
+	        var activoOpt   = estadoRepository.findByNombreIgnoreCase(Constantes.ACTIVE);
+	        var inactivoOpt = estadoRepository.findByNombreIgnoreCase(Constantes.IDLE);
 
 	        List<Integer> estadoIds = new ArrayList<>(2);
 	        activoOpt.ifPresent(e -> estadoIds.add(e.getId()));
@@ -315,7 +341,16 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	            );
 	        }
 
-	        Page<UsuarioEntity> page = usuarioRepository.findByEstado_IdIn(estadoIds, pageable);
+	        Page<UsuarioEntity> page;
+	        if (activoOpt.isPresent()) {
+	            page = usuarioRepository.findOrdenadosActivosPrimero(
+	                    estadoIds,
+	                    activoOpt.get().getId(),
+	                    pageable
+	            );
+	        } else {
+	            page = usuarioRepository.findByEstado_IdIn(estadoIds, pageable);
+	        }
 
 	        if (page.isEmpty()) {
 	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
@@ -349,6 +384,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	        );
 	    }
 	}
+
 
 
 

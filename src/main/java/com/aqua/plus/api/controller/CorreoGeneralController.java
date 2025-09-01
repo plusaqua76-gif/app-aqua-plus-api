@@ -66,6 +66,22 @@ public class CorreoGeneralController {
     public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
         return correoGeneralServiceImpl.findById(id);
     }
+    
+    @Operation(summary = "Buscar Correo general por id de empresa")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @GetMapping("/empresa/{id}")
+    public ResponseEntity<ResponseDTO> getByEnterpriseId(@PathVariable Integer id) {
+        return correoGeneralServiceImpl.findByEnterpriseId(id);
+    }
 
     @Operation(summary = "Listar todos los Correo generales")
     @ApiResponses(value = {

@@ -235,7 +235,7 @@ public class EmpresaController {
     })
     @PostMapping("/actualizar")
     public ResponseEntity<Map<String, Object>> updateEnterpiseStatus(@RequestBody Map<String, Object> enterpriseData) {
-        Map<String, Object> resultado = empresaServiceImpl.updateEnterpise(enterpriseData);
+        Map<String, Object> resultado = empresaServiceImpl.updateEnterprise(enterpriseData);
 
         if (resultado.containsKey("error")) {
             return ResponseEntity.badRequest().body(resultado);
