@@ -21,7 +21,7 @@ public final class PersonaSpecification {
             var ecc = sub.from(EmpresaClienteContadorEntity.class);
             sub.select(ecc.get("id"))
                .where(
-                   cb.equal(ecc.get("persona").get("id"), root.get("id")),
+                   cb.equal(ecc.get("cliente").get("id"), root.get("id")),
                    cb.equal(ecc.get("empresa").get("id"), empresaId),
                    cb.isTrue(ecc.get("activo"))
                );
