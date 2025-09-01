@@ -119,6 +119,40 @@ public class CorreoGeneralServiceImpl implements ICorreoGeneralService{
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 	    }
 	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer id) {
+	    log.info("Buscar Correo General por id de empresa: {}", id);
+	    try {
+	        Optional<CorreoGeneralEntity> correoGeneral = correoGeneralRepository.findTopByEmpresa_IdAndActivoTrueOrderByFechaCreacionDesc(id);
+	        if (correoGeneral.isPresent()) {
+	        	CorreoGeneralDTO dto = correoGeneralMapper.entityToDto(correoGeneral.get());
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                    .success(true)
+	                    .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                    .code(HttpStatus.OK.value())
+	                    .response(dto)
+	                    .build();
+	            return ResponseEntity.ok(responseDTO);
+	        } else {
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                    .success(false)
+	                    .message(Constantes.CONSULTING_ERROR)
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build();
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+	        }
+	    } catch (Exception e) {
+	        log.error("Error al buscar Correo General por id de empresa: {}", id, e);
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+	    }
+	}
 
     @Override
     @Transactional(readOnly = true)
