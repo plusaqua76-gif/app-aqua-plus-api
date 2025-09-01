@@ -327,42 +327,76 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario) {
-		log.info("Buscar Empresa por id de usuario: {}", idUsuario);
-		try {
-			Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
+	    log.info("Buscar Empresa por id de usuario: {}", idUsuario);
+	    try {
+	        Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
 
-			if (empresaOpt.isEmpty()) {
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
-						.message("No se encontró una empresa asociada al usuario").code(HttpStatus.NOT_FOUND.value())
-						.build();
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-			}
+	        if (empresaOpt.isEmpty()) {
+	            ResponseDTO responseDTO = ResponseDTO.builder()
+	                .success(false)
+	                .message("No se encontró una empresa asociada al usuario")
+	                .code(HttpStatus.NOT_FOUND.value())
+	                .build();
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+	        }
 
-			EmpresaEntity empresa = empresaOpt.get();
-			Integer idEmpresa = empresa.getId();
+	        EmpresaEntity empresa = empresaOpt.get();
+	        Integer idEmpresa = empresa.getId();
 
-			Map<String, Object> responseMap = new HashMap<>();
-			responseMap.put("idEmpresa", idEmpresa);
-			responseMap.put("nombre", empresa.getNombre());
+	        Map<String, Object> responseMap = new HashMap<>();
+	        responseMap.put("idEmpresa", idEmpresa);
+	        responseMap.put("nombre", empresa.getNombre());
 
-			imagenEmpresaRepository.findByEmpresa_Id(idEmpresa).map(ImagenEmpresaEntity::getImagen)
-					.ifPresent(bytes -> responseMap.put("imagenEmpresa", bytes));
+	        imagenEmpresaRepository.findByEmpresa_Id(idEmpresa)
+	            .map(ImagenEmpresaEntity::getImagen)
+	            .ifPresent(bytes -> {
+	                byte[] raw = bytes;
 
-			correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
-					.ifPresent(correo -> responseMap.put("correo", correo));
+	                // Detecta si el BYTEA trae TEXTO Base64 (y no bytes de la imagen)
+	                try {
+	                    String asText = new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
+	                    String compact = asText.replaceAll("\\s+", "");
+	                    boolean pareceBase64 = compact.matches("^[A-Za-z0-9+/=]+$") && (compact.length() % 4 == 0);
+	                    if (pareceBase64) {
+	                        byte[] decoded = java.util.Base64.getDecoder().decode(compact);
+	                        boolean esJpeg = decoded.length >= 2 && (decoded[0] & 0xFF) == 0xFF && (decoded[1] & 0xFF) == 0xD8;
+	                        boolean esPng  = decoded.length >= 4 && decoded[0] == (byte)0x89 && decoded[1] == 'P' && decoded[2] == 'N' && decoded[3] == 'G';
+	                        boolean esGif  = decoded.length >= 3 && decoded[0] == 'G' && decoded[1] == 'I' && decoded[2] == 'F';
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(responseMap).build();
+	                        if (esJpeg || esPng || esGif) {
+	                            raw = decoded;
+	                        }
+	                    }
+	                } catch (IllegalArgumentException ignore) {
+	                }
 
-			return ResponseEntity.ok(responseDTO);
+	                String base64 = java.util.Base64.getEncoder().encodeToString(raw);
+	                responseMap.put("imagenEmpresa", base64);
+	            });
 
-		} catch (Exception e) {
-			log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-		}
+	        correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
+	            .ifPresent(correo -> responseMap.put("correo", correo));
+
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	            .success(true)
+	            .message(Constantes.CONSULTED_SUCCESSFULLY)
+	            .code(HttpStatus.OK.value())
+	            .response(responseMap)
+	            .build();
+
+	        return ResponseEntity.ok(responseDTO);
+
+	    } catch (Exception e) {
+	        log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
+	        ResponseDTO responseDTO = ResponseDTO.builder()
+	            .success(false)
+	            .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	            .build();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+	    }
 	}
+
 
 	@Override
 	@Transactional(readOnly = true)
