@@ -43,4 +43,4 @@ seguridad:
 link:
   recover: https://aquaplus.dev/auth/recover-password?token=
 app:
-  cors: https://app-aqua-plus-api.azurewebsites.net
+  cors: https://www.aquaplus.dev
