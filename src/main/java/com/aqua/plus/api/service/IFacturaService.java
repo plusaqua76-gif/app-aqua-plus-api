@@ -7,17 +7,20 @@ import com.aqua.plus.commons.dtos.FacturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 public interface IFacturaService {
-    
+
 	ResponseEntity<ResponseDTO> save(FacturaDTO facturaDTO);
-	
-	ResponseEntity<ResponseDTO> update(FacturaDTO facturaDTO); 
-	
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    
-    ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable);
-    
-    ResponseEntity<ResponseDTO> findAll();
-    
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> update(FacturaDTO facturaDTO);
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo, String clienteNombreCompleto,
+			Integer consumo, String fechaEmisionDesde, String fechaEmisionHasta, String fechaFinDesde,
+			String fechaFinHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax,
+			Pageable pageable);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 
 }

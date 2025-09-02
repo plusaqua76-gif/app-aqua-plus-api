@@ -3,7 +3,9 @@ package com.aqua.plus.api.service.impl;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
@@ -162,6 +164,14 @@ public class LecturaServiceImpl implements ILecturaService {
 		}
 	}
 	
+	@SafeVarargs
+	private static <T> Specification<T> allOfNonNull(Specification<T>... specs) {
+	    Specification<T> result = (root, query, cb) -> cb.conjunction();
+	    for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
+	        result = result.and(s);
+	    }
+	    return result;
+	}
 	
 	@Override
 	@Transactional(readOnly = true)
@@ -190,14 +200,14 @@ public class LecturaServiceImpl implements ILecturaService {
 	            java.time.LocalDate tmp = dDesde; dDesde = dHasta; dHasta = tmp;
 	        }
 
-	        Specification<LecturaEntity> spec = Specification.allOf(java.util.List.of(
-	            LecturaSpecifications.perteneceAEmpresa(empresaId),
-	            LecturaSpecifications.serialLike(serial),
-	            LecturaSpecifications.lecturaEquals(lectura),
-	            LecturaSpecifications.fechaBetween(dDesde, dHasta),
-	            LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
-	            LecturaSpecifications.observacionLike(observacion)
-	        ));
+	        Specification<LecturaEntity> spec = allOfNonNull(
+	        	    LecturaSpecifications.perteneceAEmpresa(empresaId),
+	        	    LecturaSpecifications.serialLike(serial),
+	        	    LecturaSpecifications.lecturaEquals(lectura),
+	        	    LecturaSpecifications.fechaBetween(dDesde, dHasta),
+	        	    LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
+	        	    LecturaSpecifications.observacionLike(observacion)
+	        	);
 
 	        Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 	        Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
