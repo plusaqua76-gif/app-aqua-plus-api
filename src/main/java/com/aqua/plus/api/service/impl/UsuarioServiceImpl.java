@@ -1,6 +1,5 @@
 package com.aqua.plus.api.service.impl;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
@@ -12,6 +11,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IUsuarioService;
+import com.aqua.plus.api.service.impl.specification.UsuarioSpecification;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
@@ -29,7 +30,6 @@ import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.UsuarioMapper;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
-import com.aqua.plus.commons.repositories.EstadoRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.RolRepository;
 import com.aqua.plus.commons.repositories.UsuarioRepository;
@@ -52,7 +52,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 
 	@Value("${link.recover}")
 	private String linkRecover;
-	
+
 	private final UsuarioRepository usuarioRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final RolRepository rolRepository;
@@ -61,7 +61,6 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final JwtUtil jwtUtil;
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final NotificacionServiceImpl notificacionServiceImpl;
-	private final EstadoRepository estadoRepository;
 	private final EmpresaRepository empresaRepository;
 
 	@Override
@@ -190,24 +189,29 @@ public class UsuarioServiceImpl implements IUsuarioService {
 				return buildErrorResponse(Constantes.USER_NOT_ASCIATED, HttpStatus.NOT_FOUND);
 			}
 			UsuarioEntity usuario = usuarioOpt.get();
-			String token = jwtUtil.generateToken(usuario.getNombre(), Constantes.KEY_TOKEN_EXTERNO, Constantes.TIEMPO_VIGENCIA_EXTERNO);
-			String recoveryLink =  this.linkRecover + token;
-			
-			String tiempoLegible = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+			String token = jwtUtil.generateToken(usuario.getNombre(), Constantes.KEY_TOKEN_EXTERNO,
+					Constantes.TIEMPO_VIGENCIA_EXTERNO);
+			String recoveryLink = this.linkRecover + token;
 
-			String nombreCompleto = String.join(" ",
-				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getNombre()).orElse(""),
-				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoNombre()).orElse(""),
-				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getApellido()).orElse(""),
-				    Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoApellido()).orElse("")
-				).replaceAll("\\s+", " ").trim();
-			
-			Map<String,Object> data = new HashMap<>();
+			String tiempoLegible = notificacionServiceImpl
+					.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+			String nombreCompleto = String
+					.join(" ", Optional.ofNullable(correoGeneralOpt.get().getPersona().getNombre()).orElse(""),
+							Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoNombre()).orElse(""),
+							Optional.ofNullable(correoGeneralOpt.get().getPersona().getApellido()).orElse(""),
+							Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoApellido()).orElse(""))
+					.replaceAll("\\s+", " ").trim();
+
+			Map<String, Object> data = new HashMap<>();
 			data.put(Constantes.PARAMETRO_LINK_RECOVER, recoveryLink);
 			data.put(Constantes.PARAMETRO_NAME_USER, nombreCompleto);
 			data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 			data.put(Constantes.PARAMETRO_USER, usuario.getNombre());
-			this.notificacionServiceImpl.enviarNotificacion(correo, Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty() ? codigoPlantilla: Constantes.RECOVER_PASSWORD, data);
+			this.notificacionServiceImpl.enviarNotificacion(correo,
+					Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty() ? codigoPlantilla
+							: Constantes.RECOVER_PASSWORD,
+					data);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.EMAIL_SEND)
 					.code(HttpStatus.OK.value()).build());
@@ -226,12 +230,9 @@ public class UsuarioServiceImpl implements IUsuarioService {
 					.message("Token requerido").code(HttpStatus.UNAUTHORIZED.value()).build());
 		}
 
-		if (jwtUtil.isTokenExpired(token,Constantes.KEY_TOKEN_EXTERNO)) {
-		    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder()
-		            .success(false)
-		            .message("Token inválido o expirado")
-		            .code(HttpStatus.UNAUTHORIZED.value())
-		            .build());
+		if (jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN_EXTERNO)) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+					.message("Token inválido o expirado").code(HttpStatus.UNAUTHORIZED.value()).build());
 		}
 
 		String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
@@ -273,136 +274,86 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
-	    log.info("Buscar usuario por id: {}", id);
-	    try {
-	        Optional<UsuarioEntity> usuarioOpt = usuarioRepository.findById(id);
+		log.info("Buscar usuario por id: {}", id);
+		try {
+			Optional<UsuarioEntity> usuarioOpt = usuarioRepository.findById(id);
 
-	        if (usuarioOpt.isEmpty()) {
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(false)
-	                    .message(Constantes.CONSULTING_ERROR)
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build();
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-	        }
+			if (usuarioOpt.isEmpty()) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
 
-	        UsuarioEntity usuario = usuarioOpt.get();
-	        UsuarioDTO dto = usuarioMapper.entityToDto(usuario);
+			UsuarioEntity usuario = usuarioOpt.get();
+			UsuarioDTO dto = usuarioMapper.entityToDto(usuario);
 
-	        Integer personaId = (usuario.getPersona() != null) ? usuario.getPersona().getId() : null;
-	        if (personaId != null) {
-	            String correo = correoGeneralRepository
-	                    .findTopByPersona_IdAndActivoTrueOrderByFechaCreacionDesc(personaId)
-	                    .map(CorreoGeneralEntity::getCorreo)
-	                    .orElse(null);
+			Integer personaId = (usuario.getPersona() != null) ? usuario.getPersona().getId() : null;
+			if (personaId != null) {
+				String correo = correoGeneralRepository
+						.findTopByPersona_IdAndActivoTrueOrderByFechaCreacionDesc(personaId)
+						.map(CorreoGeneralEntity::getCorreo).orElse(null);
 
-	            dto.setCorreo(correo);
-	        }
+				dto.setCorreo(correo);
+			}
 
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	                .success(true)
-	                .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                .code(HttpStatus.OK.value())
-	                .response(dto)
-	                .build();
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dto).build();
 
-	        return ResponseEntity.ok(responseDTO);
+			return ResponseEntity.ok(responseDTO);
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar el usuario por id: {}", id, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-	    }
+		} catch (Exception e) {
+			log.error("Error al buscar el usuario por id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
 	}
 
-	
-	
+	/**
+	 * @author nicope
+	 * @version 1.0
+	 * 
+	 */
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findActivosEInactivos(Pageable pageable) {
-	    log.info("Listar usuarios con estado ACTIVO o INACTIVO (lite)");
-	    try {
-	        var activoOpt   = estadoRepository.findByNombreIgnoreCase(Constantes.ACTIVE);
-	        var inactivoOpt = estadoRepository.findByNombreIgnoreCase(Constantes.IDLE);
+	public ResponseEntity<ResponseDTO> findActivosEInactivos(String nombre, String estadoNombre, Pageable pageable) {
 
-	        List<Integer> estadoIds = new ArrayList<>(2);
-	        activoOpt.ifPresent(e -> estadoIds.add(e.getId()));
-	        inactivoOpt.ifPresent(e -> estadoIds.add(e.getId()));
+		log.info("Listar usuarios ACTIVO/INACTIVO con filtros: nombre={}, estado={}", nombre, estadoNombre);
 
-	        if (estadoIds.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-	                ResponseDTO.builder()
-	                    .success(false)
-	                    .message("No existen los estados 'ACTIVO' ni 'INACTIVO' en la tabla estado")
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build()
-	            );
-	        }
+		try {
+			Specification<UsuarioEntity> spec = Specification.allOf(
+					UsuarioSpecification.estadoNombreIn(java.util.List.of(Constantes.ACTIVE, Constantes.IDLE)),
+					UsuarioSpecification.nombreLike(nombre), UsuarioSpecification.estadoNombreEquals(estadoNombre));
 
-	        Page<UsuarioEntity> page;
-	        if (activoOpt.isPresent()) {
-	            page = usuarioRepository.findOrdenadosActivosPrimero(
-	                    estadoIds,
-	                    activoOpt.get().getId(),
-	                    pageable
-	            );
-	        } else {
-	            page = usuarioRepository.findByEstado_IdIn(estadoIds, pageable);
-	        }
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			Page<UsuarioEntity> page = usuarioRepository.findAll(spec, pageToUse);
 
-	        if (page.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-	                ResponseDTO.builder()
-	                    .success(false)
-	                    .message("No se encontraron usuarios con estado ACTIVO o INACTIVO")
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build()
-	            );
-	        }
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron usuarios ACTIVO/INACTIVO para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
 
-	        List<Integer> userIds = page.getContent()
-	                                    .stream()
-	                                    .map(UsuarioEntity::getId)
-	                                    .toList();
+			List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
 
-	        Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository
-	                .findNombresByUsuarioIds(userIds)
-	                .stream()
-	                .collect(java.util.stream.Collectors.toMap(
-	                        EmpresaRepository.NombrePorUsuario::getUsuarioId,
-	                        EmpresaRepository.NombrePorUsuario::getNombre,
-	                        (a, b) -> a
-	                ));
+			List<Integer> userIds = page.getContent().stream().map(UsuarioEntity::getId).toList();
 
-	        List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
-	        content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
+			Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository.findNombresByUsuarioIds(userIds).stream()
+					.collect(java.util.stream.Collectors.toMap(EmpresaRepository.NombrePorUsuario::getUsuarioId,
+							EmpresaRepository.NombrePorUsuario::getNombre, (a, b) -> a));
 
-	        return ResponseEntity.ok(
-	            ResponseDTO.builder()
-	                .success(true)
-	                .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                .code(HttpStatus.OK.value())
-	                .response(content)
-	                .build()
-	        );
+			content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
 
-	    } catch (Exception e) {
-	        log.error("Error al listar usuarios con estado ACTIVO o INACTIVO (lite)", e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.CONSULTING_ERROR)
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build()
-	        );
-	    }
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(content).build());
+
+		} catch (Exception e) {
+			log.error("Error al listar usuarios ACTIVO/INACTIVO", e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
-
-
 
 	@Override
 	@Transactional(readOnly = true)

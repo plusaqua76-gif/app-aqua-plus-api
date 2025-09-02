@@ -1,10 +1,10 @@
 package com.aqua.plus.api.controller;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
-
 
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,6 +32,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -50,205 +51,194 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UsuarioController {
 
-
-	
 	private final UsuarioServiceImpl usuarioServiceImpl;
 	private final AutenticacionServiceImpl autenticacionServiceImpl;
-	
+
 	@Operation(summary = "Autenticar Usuario")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "200", description = "Autenticación exitosa", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
+			@ApiResponse(responseCode = "200", description = "Autenticación exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@PostMapping("/validar")
 	public ResponseEntity<ResponseDTO> validarUsuario(@RequestBody UsuarioDTO usuario) {
-	    return this.autenticacionServiceImpl.autenticar(usuario);
+		return this.autenticacionServiceImpl.autenticar(usuario);
 	}
-	
+
 	@Operation(summary = "Refrescar token Usuario Autenticación")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "200", description = "Autenticación exitosa", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
+			@ApiResponse(responseCode = "200", description = "Autenticación exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@PostMapping("/auth/refresh")
-	public ResponseEntity<ResponseDTO> refresh(@RequestHeader(value = "Authorization", required = false) String authorization) {
-	    return autenticacionServiceImpl.refreshToken(authorization);
+	public ResponseEntity<ResponseDTO> refresh(
+			@RequestHeader(value = "Authorization", required = false) String authorization) {
+		return autenticacionServiceImpl.refreshToken(authorization);
 	}
-	
+
 	@Operation(summary = "Guardar o actualizar usuario")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
-    @PostMapping
-    public ResponseEntity<ResponseDTO> save(@RequestBody UsuarioDTO usuarioDTO) {
-        return usuarioServiceImpl.save(usuarioDTO);
-    }
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PostMapping
+	public ResponseEntity<ResponseDTO> save(@RequestBody UsuarioDTO usuarioDTO) {
+		return usuarioServiceImpl.save(usuarioDTO);
+	}
 
-    @Operation(summary = "Buscar usuario por id")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @GetMapping("/{id}")
-    public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
-        return usuarioServiceImpl.findById(id);
-    }
-    
-    @Operation(summary = "Buscar todos los usuarios inactivos")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @GetMapping("/inactivos")
-    public ResponseEntity<ResponseDTO> listarInactivos(Pageable pageable) {
-        return usuarioServiceImpl.findActivosEInactivos(pageable);
-    }
+	@Operation(summary = "Buscar usuario por id")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/{id}")
+	public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
+		return usuarioServiceImpl.findById(id);
+	}
 
-    @Operation(summary = "Listar todas las usuario")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @GetMapping("/all")
-    public ResponseEntity<ResponseDTO> getAll() {
-        return usuarioServiceImpl.findAll();
-    }
+	@Operation(summary = "Buscar todos los usuarios inactivos")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/inactivos")
+	public ResponseEntity<ResponseDTO> listarInactivos(@RequestParam(required = false) String nombre,
+			@RequestParam(required = false, name = "estado") String estadoNombre,
+			@PageableDefault(size = 20, sort = "nombre", direction = Sort.Direction.ASC) Pageable pageable,
+			HttpServletRequest request) {
 
-    @Operation(summary = "Eliminar  usuario por id ")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
-        return usuarioServiceImpl.deleteById(id);
-    }
-    
-    @Operation(summary = "Actualizar password por id usuario ")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @PutMapping("/actualiza-contra/{id}")
-    public ResponseEntity<ResponseDTO> actualizarContrasena(
-            @PathVariable Integer id,
-            @RequestBody UpdatePasswordDTO dto) {
-        return usuarioServiceImpl.updatePassword(id, dto.getNuevaContrasena(), dto.getUsuarioModificacion());
-    }
-    
-    @Operation(summary = "Recuperar password por id usuario ")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @PostMapping("/recover-password")
-    public ResponseEntity<ResponseDTO> recoverPassword(@RequestParam(required = true) String correo, @RequestParam(required = false) String codigoPlantilla) {
-        return usuarioServiceImpl.recoverPassword(correo, codigoPlantilla);
-    }
-    
-    
-    @Operation(summary = "Actualizar password ")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @PostMapping("/update-password")
-    public ResponseEntity<ResponseDTO> updatePasswordByToken(
-        @RequestHeader("token") String token,
-        @RequestBody UsuarioDTO usuarioDTO
-    ) {
-        return usuarioServiceImpl.updatePasswordByToken(token, usuarioDTO);
-    }
-    
-    @Operation(summary = "Actualizar imagen del usuario")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Imagen actualizada exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Error actualizando la imagen", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) })
-    })
-    
-    @PutMapping("/imagen/{id}")
-    public ResponseEntity<ResponseDTO> actualizarImagenUsuario(
-            @PathVariable Integer id,
-            @RequestParam("imagen") MultipartFile imagen,
-            @RequestParam("usuarioModificacion") String usuarioModificacion) {
-        try {
-            byte[] imagenBytes = imagen.getBytes();
-            return usuarioServiceImpl.updateImage(id, imagenBytes, usuarioModificacion);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ResponseDTO.builder()
-                            .success(false)
-                            .message("Error procesando la imagen")
-                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                            .build());
-        }
-    }
+		boolean pagingRequested = request.getParameter("page") != null || request.getParameter("size") != null
+				|| request.getParameter("sort") != null;
+
+		Pageable pageToUse = pagingRequested ? pageable : Pageable.unpaged();
+
+		return usuarioServiceImpl.findActivosEInactivos(nombre, estadoNombre, pageToUse);
+	}
+
+	@Operation(summary = "Listar todas las usuario")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/all")
+	public ResponseEntity<ResponseDTO> getAll() {
+		return usuarioServiceImpl.findAll();
+	}
+
+	@Operation(summary = "Eliminar  usuario por id ")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@DeleteMapping("/{id}")
+	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
+		return usuarioServiceImpl.deleteById(id);
+	}
+
+	@Operation(summary = "Actualizar password por id usuario ")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PutMapping("/actualiza-contra/{id}")
+	public ResponseEntity<ResponseDTO> actualizarContrasena(@PathVariable Integer id,
+			@RequestBody UpdatePasswordDTO dto) {
+		return usuarioServiceImpl.updatePassword(id, dto.getNuevaContrasena(), dto.getUsuarioModificacion());
+	}
+
+	@Operation(summary = "Recuperar password por id usuario ")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PostMapping("/recover-password")
+	public ResponseEntity<ResponseDTO> recoverPassword(@RequestParam(required = true) String correo,
+			@RequestParam(required = false) String codigoPlantilla) {
+		return usuarioServiceImpl.recoverPassword(correo, codigoPlantilla);
+	}
+
+	@Operation(summary = "Actualizar password ")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PostMapping("/update-password")
+	public ResponseEntity<ResponseDTO> updatePasswordByToken(@RequestHeader("token") String token,
+			@RequestBody UsuarioDTO usuarioDTO) {
+		return usuarioServiceImpl.updatePasswordByToken(token, usuarioDTO);
+	}
+
+	@Operation(summary = "Actualizar imagen del usuario")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Imagen actualizada exitosamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error actualizando la imagen", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+
+	@PutMapping("/imagen/{id}")
+	public ResponseEntity<ResponseDTO> actualizarImagenUsuario(@PathVariable Integer id,
+			@RequestParam("imagen") MultipartFile imagen,
+			@RequestParam("usuarioModificacion") String usuarioModificacion) {
+		try {
+			byte[] imagenBytes = imagen.getBytes();
+			return usuarioServiceImpl.updateImage(id, imagenBytes, usuarioModificacion);
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error procesando la imagen").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
 
 }
