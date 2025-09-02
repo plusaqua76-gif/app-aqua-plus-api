@@ -7,7 +7,14 @@ import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 
 import jakarta.persistence.criteria.JoinType;
 
-public class ContadorSpecification {
+/**
+ * @author nicope
+ * @version 1.0
+ *
+ * Especificaciones JPA reutilizables para filtrar Contadores en consultas; combinables dinámicamente.
+ */
+
+public final class ContadorSpecification {
 
 	private ContadorSpecification() {}
 

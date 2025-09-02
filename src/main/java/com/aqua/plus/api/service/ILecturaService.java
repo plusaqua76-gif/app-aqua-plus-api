@@ -19,9 +19,14 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface ILecturaService {
 
 	ResponseEntity<ResponseDTO> save(LecturaDTO lecturaDTO);
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, Pageable pageable);
-    ResponseEntity<ResponseDTO> findAll();
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
-    
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, String serial, Integer lectura,
+			String fechaDesde, String fechaHasta, Boolean consumoAnormal, String observacion, Pageable pageable);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
+
 }
