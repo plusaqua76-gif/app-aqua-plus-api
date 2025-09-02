@@ -43,4 +43,6 @@ seguridad:
 link:
   recover: https://aquaplus.dev/auth/recover-password?token=
 app:
-  cors: https://www.aquaplus.dev
+  cors:
+    - http://localhost:4200
+    - https://aquaplus.dev
