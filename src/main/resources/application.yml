@@ -45,4 +45,4 @@ link:
 app:
   cors:
     - http://localhost:4200
-    - https://aquaplus.dev
+    - https://www.aquaplus.dev
