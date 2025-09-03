@@ -183,69 +183,89 @@ public class EmpresaServiceImpl implements IEmpresaService {
 
 	@Transactional
 	public Map<String, Object> updateEnterprise(Map<String, Object> jsonParams) {
-		try {
+	    try {
+	        String jsonString = objectMapper.writeValueAsString(jsonParams);
+	        String sql = "SELECT public.actualizar_estado_empresa(CAST(:jsonData AS jsonb)) AS result";
+	        MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
+	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
-			String jsonString = objectMapper.writeValueAsString(jsonParams);
-			String sql = "SELECT public.actualizar_estado_empresa(CAST(:jsonData AS jsonb)) AS result";
-			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
-			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+	        Object wrapped = row.get("result");
+	        String jsonValue;
+	        if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+	            jsonValue = pg.getValue();
+	        } else if (wrapped instanceof String s) {
+	            jsonValue = s;
+	        } else {
+	            return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");
+	        }
 
-			Object wrapped = row.get("result");
-			if (!(wrapped instanceof PGobject pg) || !"jsonb".equalsIgnoreCase(pg.getType())) {
-				return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");
-			}
+	        Map<String, Object> response = objectMapper.readValue(
+	                jsonValue, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
 
-			String jsonValue = pg.getValue();
-			Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
-			});
+	        Integer code = asInteger(response.get("code"));
+	        if (code == null) code = asInteger(response.get("statusCode"));
 
-			Object codeObj = response.get("code");
-			if (codeObj == null)
-				codeObj = response.get("statusCode");
-			Integer code = (codeObj != null) ? Integer.valueOf(String.valueOf(codeObj)) : null;
-			boolean success = Boolean.TRUE.equals(response.get("success"));
-			boolean ok = success && code != null && (code == 200 || code == 201);
+	        boolean ok = (code != null) && (code == 200 || code == 201);
+	        if (!ok) {
+	            return response;
+	        }
 
-			Integer idEmpresa = (Integer) jsonParams.get("idEmpresa");
+	        Integer idEmpresa = asInteger(jsonParams.get("idEmpresa"));
+	        if (idEmpresa == null) {
+	            response.put("warning", "idEmpresa ausente o inválido; no se intentó enviar correo.");
+	            return response;
+	        }
 
-			if (ok) {
-				String correoEmpresa = correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa).orElse(null);
+	        String correoEmpresa = correoGeneralRepository
+	                .findCorreoPrincipalByEmpresaId(idEmpresa)
+	                .orElse(null);
 
-				if (correoEmpresa == null || correoEmpresa.isBlank()) {
-					return Map.of("success", false, "code", 422, "message",
-							"La empresa no tiene un correo activo registrado. No se envió la notificación.", "data",
-							Map.of("idEmpresa", idEmpresa));
-				}
+	        if (correoEmpresa == null || correoEmpresa.isBlank()) {
+	            response.put("notice", "La empresa no tiene un correo activo registrado. No se envió la notificación.");
+	            return response;
+	        }
 
-				String nombreEmpresa = (String) jsonParams.get("nombreEmpresa");
+	        String nombreEmpresa  = asString(jsonParams.get("nombreEmpresa"));
+	        String usuarioEmpresa = asString(jsonParams.get("usuario"));
+	        String tiempoLegible  = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-				String usuarioEmpresa = (String) jsonParams.get("usuario");
+	        Map<String, Object> data = new HashMap<>();
+	        data.put(Constantes.PARAMETRO_NAME_USER, nombreEmpresa);
+	        data.put(Constantes.PARAMETRO_USER, usuarioEmpresa);
+	        data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
+	        data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
-				String tiempoLegible = notificacionServiceImpl
-						.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+	        log.info("Info data notificacion (empresa {}): {}", idEmpresa, data);
 
-				Map<String, Object> data = new HashMap<>();
-				data.put(Constantes.PARAMETRO_NAME_USER, nombreEmpresa);
-				data.put(Constantes.PARAMETRO_USER, usuarioEmpresa);
-				data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
-				data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+	        try {
+	            notificacionServiceImpl.enviarNotificacion(correoEmpresa, Constantes.CREATE_PASSWORD, data);
+	            response.put("emailSent", true);
+	            response.put("emailTo", correoEmpresa);
+	        } catch (Exception mailEx) {
+	            log.error("Fallo enviando notificación a {}", correoEmpresa, mailEx);
+	            response.put("emailSent", false);
+	            response.put("emailError", mailEx.getMessage());
+	        }
 
-				log.info("Info data notificacion (empresa): {}", data);
+	        return response;
 
-				String codigoPlantilla = Constantes.CREATE_PASSWORD;
-				notificacionServiceImpl.enviarNotificacion(correoEmpresa, codigoPlantilla, data);
-			}
-
-			return response;
-
-		} catch (JsonProcessingException e) {
-			log.error("Error de procesamiento JSON", e);
-			return Map.of(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
-		} catch (Exception e) {
-			log.error("Error inesperado en updateEnterprise", e);
-			return Map.of(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
-		}
+	    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+	        log.error("Error de procesamiento JSON", e);
+	        return Map.of(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
+	    } catch (Exception e) {
+	        log.error("Error inesperado en updateEnterprise", e);
+	        return Map.of(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
+	    }
 	}
+
+	// Helpers seguros
+	private static Integer asInteger(Object o) {
+	    if (o == null) return null;
+	    if (o instanceof Number n) return n.intValue();
+	    try { return Integer.valueOf(o.toString()); } catch (Exception ignored) { return null; }
+	}
+	private static String asString(Object o) { return (o == null) ? null : String.valueOf(o); }
+
 
 	@Override
 	@Transactional
