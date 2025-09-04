@@ -165,7 +165,7 @@ public class RutaEmpleadoController {
     @GetMapping("/config/{idPersona}")
     public ResponseEntity<Map<String, Object>> sincronizarConfig(@PathVariable Integer idPersona, @RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
         try {
-            Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncLectorData(idPersona, offset, limit);
+            Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncConfigEnterprise(idPersona, offset, limit);
 
             String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
             HttpStatus httpStatus = switch (status) {
