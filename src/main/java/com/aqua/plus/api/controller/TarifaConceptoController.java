@@ -4,6 +4,8 @@ import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,5 +60,21 @@ public class TarifaConceptoController {
 	public ResponseEntity<ResponseDTO> crearTarifaConcepto(@RequestBody Map<String, Object> body) {
 	    return tarifaConceptoServiceImpl.crearTarifaConcepto(body);
 	}
+	
+	@Operation(summary = "Buscar las tarifas conceptos por el id de la empresa")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @GetMapping("/empresa/{id}")
+    public ResponseEntity<ResponseDTO> findByEmpresaId(@PathVariable Integer id) {
+        return tarifaConceptoServiceImpl.findByEmpresaId(id);
+    }
 
 }
