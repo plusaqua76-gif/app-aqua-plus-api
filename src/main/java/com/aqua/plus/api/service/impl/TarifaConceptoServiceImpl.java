@@ -33,7 +33,7 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 	 */
 	@Transactional
 	public ResponseEntity<ResponseDTO> crearTarifaConcepto(Map<String, Object> payload) {
-		log.info("Invocando SP crearTarifa_Concepto con payload: {}", payload);
+		log.info("Invocando SP creartarifa_concepto con payload: {}", payload);
 		try {
 			String jsonString = objectMapper.writeValueAsString(payload);
 
