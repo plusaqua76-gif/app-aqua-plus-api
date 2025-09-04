@@ -49,14 +49,14 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContadorService{
-	
+public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContadorService {
+
 	@Value("${link.recover}")
 	private String linkRecover;
-	
+
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final EmpresaClienteContadorMapper empresaClienteContadorMapper;
-    private final ObjectMapper objectMapper;
+	private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final PersonaMapper personaMapper;
@@ -65,58 +65,40 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final PersonaRepository personaRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
-	
-	
+
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(EmpresaClienteContadorDTO empresaClienteContadorDTO) {
-	    log.info("Creando Empresa Cliente Contador");
-	    try {
-	        boolean existe = empresaClienteContadorRepository.existsByEmpresaIdAndClienteIdAndContadorId(
-	                empresaClienteContadorDTO.getEmpresa().getId(),
-	                empresaClienteContadorDTO.getCliente().getId(),
-	                empresaClienteContadorDTO.getContador().getId()
-	        );
+		log.info("Creando Empresa Cliente Contador");
+		try {
+			boolean existe = empresaClienteContadorRepository.existsByEmpresaIdAndClienteIdAndContadorId(
+					empresaClienteContadorDTO.getEmpresa().getId(), empresaClienteContadorDTO.getCliente().getId(),
+					empresaClienteContadorDTO.getContador().getId());
 
-	        if (existe) {
-	            return ResponseEntity.status(HttpStatus.CONFLICT).body(
-	                    ResponseDTO.builder()
-	                            .success(false)
-	                            .message(Constantes.EMCL_EXISTS)
-	                            .code(HttpStatus.CONFLICT.value())
-	                            .build()
-	            );
-	        }
-	        EmpresaClienteContadorEntity entity = empresaClienteContadorMapper.dtoToEntity(empresaClienteContadorDTO);
-	        entity.setFechaCreacion(new Date());
-	        entity.setUsuarioCreacion(empresaClienteContadorDTO.getUsuarioCreacion());
-	        entity.setActivo(true);
+			if (existe) {
+				return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+						.message(Constantes.EMCL_EXISTS).code(HttpStatus.CONFLICT.value()).build());
+			}
+			EmpresaClienteContadorEntity entity = empresaClienteContadorMapper.dtoToEntity(empresaClienteContadorDTO);
+			entity.setFechaCreacion(new Date());
+			entity.setUsuarioCreacion(empresaClienteContadorDTO.getUsuarioCreacion());
+			entity.setActivo(true);
 
-	        EmpresaClienteContadorEntity saved = empresaClienteContadorRepository.save(entity);
-	        EmpresaClienteContadorDTO savedDTO = empresaClienteContadorMapper.entityToDto(saved);
+			EmpresaClienteContadorEntity saved = empresaClienteContadorRepository.save(entity);
+			EmpresaClienteContadorDTO savedDTO = empresaClienteContadorMapper.entityToDto(saved);
 
-	        return ResponseEntity.status(HttpStatus.CREATED).body(
-	                ResponseDTO.builder()
-	                        .success(true)
-	                        .message(Constantes.SAVED_SUCCESSFULLY)
-	                        .code(HttpStatus.CREATED.value())
-	                        .response(savedDTO)
-	                        .build()
-	        );
+			return ResponseEntity.status(HttpStatus.CREATED)
+					.body(ResponseDTO.builder().success(true).message(Constantes.SAVED_SUCCESSFULLY)
+							.code(HttpStatus.CREATED.value()).response(savedDTO).build());
 
-	    } catch (Exception e) {
-	        log.error("Error creando la Empresa Cliente Contador", e);
-	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-	                ResponseDTO.builder()
-	                        .success(false)
-	                        .message(Constantes.SAVE_ERROR)
-	                        .code(HttpStatus.BAD_REQUEST.value())
-	                        .build()
-	        );
-	    }
+		} catch (Exception e) {
+			log.error("Error creando la Empresa Cliente Contador", e);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
+		}
 	}
-	
-    @Transactional
+
+	@Transactional
 	public Map<String, Object> saveClient(Map<String, Object> jsonParams) {
 		try {
 			String jsonString = objectMapper.writeValueAsString(jsonParams);
@@ -129,45 +111,45 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
 			Object wrappedValue = rawResult.get("guardar_cliente_completo");
-			
+
 			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-	            String jsonValue = pgObject.getValue();
-	            Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {});
+				String jsonValue = pgObject.getValue();
+				Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {
+				});
 
-	            Object statusCode = response.get("statusCode");
-	            if ("200".equals(String.valueOf(statusCode))) {
-	            	String primerNombre = (String) jsonParams.get("primer_nombre");
-	            	String segundoNombre = (String) jsonParams.get("segundo_nombre");
-	            	String primerApellido = (String) jsonParams.get("primer_apellido");
-	            	String segundoApellido = (String) jsonParams.get("segundo_apellido");
-	            	
-	                String correo = (String) jsonParams.get("correo");
-	                String nombre = String.join(" ",
-	                	    Optional.ofNullable(primerNombre).orElse(""),
-	                	    Optional.ofNullable(segundoNombre).orElse(""),
-	                	    Optional.ofNullable(primerApellido).orElse(""),
-	                	    Optional.ofNullable(segundoApellido).orElse("")
-	                	).replaceAll("\\s+", " ").trim();
-	                String usuario = (String) jsonParams.get("usuario");
-	                String tiempoLegible = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+				Object statusCode = response.get("statusCode");
+				if ("200".equals(String.valueOf(statusCode))) {
+					String primerNombre = (String) jsonParams.get("primer_nombre");
+					String segundoNombre = (String) jsonParams.get("segundo_nombre");
+					String primerApellido = (String) jsonParams.get("primer_apellido");
+					String segundoApellido = (String) jsonParams.get("segundo_apellido");
 
-	                if (correo != null && !correo.isBlank()) {
-	                    Map<String, Object> data = new HashMap<>();
-	                    data.put(Constantes.PARAMETRO_NAME_USER, nombre);
-	                    data.put(Constantes.PARAMETRO_USER, usuario);
-	                    data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
-	                    data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
-	                    
-	                    log.info("Info data notificacion {}", data);
+					String correo = (String) jsonParams.get("correo");
+					String nombre = String.join(" ", Optional.ofNullable(primerNombre).orElse(""),
+							Optional.ofNullable(segundoNombre).orElse(""),
+							Optional.ofNullable(primerApellido).orElse(""),
+							Optional.ofNullable(segundoApellido).orElse("")).replaceAll("\\s+", " ").trim();
+					String usuario = (String) jsonParams.get("usuario");
+					String tiempoLegible = notificacionServiceImpl
+							.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-	                    String codigoPlantilla = Constantes.CREATE_PASSWORD;
+					if (correo != null && !correo.isBlank()) {
+						Map<String, Object> data = new HashMap<>();
+						data.put(Constantes.PARAMETRO_NAME_USER, nombre);
+						data.put(Constantes.PARAMETRO_USER, usuario);
+						data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
+						data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
-	                    notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
-	                }
-	            }
+						log.info("Info data notificacion {}", data);
 
-	            return response;
-	        }
+						String codigoPlantilla = Constantes.CREATE_PASSWORD;
+
+						notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
+					}
+				}
+
+				return response;
+			}
 
 			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
 
@@ -179,68 +161,65 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			return Map.of("error", "Error inesperado: " + e.getMessage());
 		}
 	}
-    
-    @Transactional
-    public Map<String, Object> updateClient(Map<String, Object> jsonParams) {
-        try {
-            
-            String jsonString = objectMapper.writeValueAsString(jsonParams);
 
-           
-            String sql = "SELECT * FROM public.actualizar_cliente_basico(CAST(:jsonData AS jsonb))";
+	@Transactional
+	public Map<String, Object> updateClient(Map<String, Object> jsonParams) {
+		try {
 
-          
-            MapSqlParameterSource parameters = new MapSqlParameterSource();
-            parameters.addValue("jsonData", jsonString);
+			String jsonString = objectMapper.writeValueAsString(jsonParams);
 
-          
-            Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+			String sql = "SELECT * FROM public.actualizar_cliente_basico(CAST(:jsonData AS jsonb))";
 
-         
-            Object wrappedValue = rawResult.get("actualizar_cliente_basico");
-            if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-                String jsonValue = pgObject.getValue();
-                return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {});
-            }
+			MapSqlParameterSource parameters = new MapSqlParameterSource();
+			parameters.addValue("jsonData", jsonString);
 
-            return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
-        } catch (JsonProcessingException e) {
-            log.error("Error de procesamiento JSON", e);
-            return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
-        } catch (Exception e) {
-            log.error("Error inesperado en updateClient", e);
-            return Map.of("error", "Error inesperado: " + e.getMessage());
-        }
-    }
+			Object wrappedValue = rawResult.get("actualizar_cliente_basico");
+			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+				String jsonValue = pgObject.getValue();
+				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
+				});
+			}
 
-    
-    @Transactional
-    public Map<String, Object> deleteClient(Integer idPersona) {
-    	try {
-    		String sql = "SELECT * FROM public.eliminar_cliente_completo(:idPersona)";
+			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
 
-    		MapSqlParameterSource parameters = new MapSqlParameterSource();
-    		parameters.addValue("idPersona", idPersona);
+		} catch (JsonProcessingException e) {
+			log.error("Error de procesamiento JSON", e);
+			return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
+		} catch (Exception e) {
+			log.error("Error inesperado en updateClient", e);
+			return Map.of("error", "Error inesperado: " + e.getMessage());
+		}
+	}
 
-    		Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+	@Transactional
+	public Map<String, Object> deleteClient(Integer idPersona) {
+		try {
+			String sql = "SELECT * FROM public.eliminar_cliente_completo(:idPersona)";
 
-    		Object wrappedValue = rawResult.get("eliminar_cliente_completo");
-    		if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-    			String jsonValue = pgObject.getValue();
-    			return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {});
-    		}
+			MapSqlParameterSource parameters = new MapSqlParameterSource();
+			parameters.addValue("idPersona", idPersona);
 
-    		return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
-    	} catch (JsonProcessingException e) {
-    		log.error("Error de procesamiento JSON", e);
-    		return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
-    	} catch (Exception e) {
-    		log.error("Error inesperado en deleteClient", e);
-    		return Map.of("error", "Error inesperado: " + e.getMessage());
-    	}
-    }
+			Object wrappedValue = rawResult.get("eliminar_cliente_completo");
+			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+				String jsonValue = pgObject.getValue();
+				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
+				});
+			}
+
+			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+
+		} catch (JsonProcessingException e) {
+			log.error("Error de procesamiento JSON", e);
+			return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
+		} catch (Exception e) {
+			log.error("Error inesperado en deleteClient", e);
+			return Map.of("error", "Error inesperado: " + e.getMessage());
+		}
+	}
 
 	@Transactional
 	public Map<String, Object> actualizarEstado(Map<String, Object> jsonParams) {
@@ -271,345 +250,247 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			return Map.of("error", "Error inesperado: " + e.getMessage());
 		}
 	}
-    @Override
-    @Transactional
-    public ResponseEntity<ResponseDTO> update(EmpresaClienteContadorDTO empresaClienteContadorDTO) {
-        log.info("Actualizando Empresa Cliente Contador");
-        try {
-            if (empresaClienteContadorDTO.getId() == null || !empresaClienteContadorRepository.existsById(empresaClienteContadorDTO.getId())) {
-                throw new IllegalArgumentException(Constantes.ECC_NOT_FOUND);
-            }
-            EmpresaClienteContadorEntity entity = empresaClienteContadorRepository.findById(empresaClienteContadorDTO.getId()).orElseThrow();
-            empresaClienteContadorMapper.updateEntityFromDto(empresaClienteContadorDTO, entity); 
-            entity.setFechaModificacion(new Date());
-            entity.setUsuarioModificacion(empresaClienteContadorDTO.getUsuarioModificacion());
 
-            EmpresaClienteContadorEntity updated = empresaClienteContadorRepository.save(entity);
-            EmpresaClienteContadorDTO updatedDTO = empresaClienteContadorMapper.entityToDto(updated);
+	@Override
+	@Transactional
+	public ResponseEntity<ResponseDTO> update(EmpresaClienteContadorDTO empresaClienteContadorDTO) {
+		log.info("Actualizando Empresa Cliente Contador");
+		try {
+			if (empresaClienteContadorDTO.getId() == null
+					|| !empresaClienteContadorRepository.existsById(empresaClienteContadorDTO.getId())) {
+				throw new IllegalArgumentException(Constantes.ECC_NOT_FOUND);
+			}
+			EmpresaClienteContadorEntity entity = empresaClienteContadorRepository
+					.findById(empresaClienteContadorDTO.getId()).orElseThrow();
+			empresaClienteContadorMapper.updateEntityFromDto(empresaClienteContadorDTO, entity);
+			entity.setFechaModificacion(new Date());
+			entity.setUsuarioModificacion(empresaClienteContadorDTO.getUsuarioModificacion());
 
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.UPDATED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(updatedDTO)
-                    .build();
+			EmpresaClienteContadorEntity updated = empresaClienteContadorRepository.save(entity);
+			EmpresaClienteContadorDTO updatedDTO = empresaClienteContadorMapper.entityToDto(updated);
 
-            return ResponseEntity.status(HttpStatus.OK).body(responseDTO);
-        } catch (Exception e) {
-            log.error("Error actualizando la Empresa Cliente Contador", e);
-            ResponseDTO errorResponse = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.UPDATE_ERROR)
-                    .code(HttpStatus.BAD_REQUEST.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
-    }
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.UPDATED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(updatedDTO).build();
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findByEmpresaId(Integer idEmpresa) {
-        log.info("Buscar Empresa Cliente Contador por id de empresa: {}", idEmpresa);
-        try {
-            var list = empresaClienteContadorRepository.findByEmpresa_Id(idEmpresa);
-            var dtoList = empresaClienteContadorMapper.listEntityToDtoList(list);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(dtoList)
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al consultar por id de empresa: {}", idEmpresa, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.CONSULTING_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
-    
-    /**
-     * @author nicope
-     * @version 1.0
-     *
-     * Busca clientes de una empresa con filtros dinámicos y paginación; retorna DTO.
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
-            Integer idEmpresa,
-            Pageable pageable,
-            String nombre,
-            String cedula,
-            String codigo,
-            String departamento,
-            String ciudad,
-            String corregimiento,
-            String telefono,
-            String correo
-    ) {
-        log.info("Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
-                idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
-        try {
-        	Specification<PersonaEntity> spec = Specification.allOf(
-        		    PersonaSpecification.belongsToEmpresa(idEmpresa),
-        		    PersonaSpecification.nameLike(nombre),
-        		    PersonaSpecification.hasNumeroCedula(cedula),
-        		    PersonaSpecification.hasCodigo(codigo),
-        		    PersonaSpecification.byDepartamentoNombre(departamento),
-        		    PersonaSpecification.byCiudadNombre(ciudad),
-        		    PersonaSpecification.byCorregimientoNombre(corregimiento),
-        		    PersonaSpecification.hasTelefonoLike(telefono),
-        		    PersonaSpecification.hasCorreoLike(correo)
-        		);
+			return ResponseEntity.status(HttpStatus.OK).body(responseDTO);
+		} catch (Exception e) {
+			log.error("Error actualizando la Empresa Cliente Contador", e);
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.UPDATE_ERROR)
+					.code(HttpStatus.BAD_REQUEST.value()).build();
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+		}
+	}
 
-            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-            Page<PersonaEntity> page = personaRepository.findAll(spec, pageToUse);
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer idEmpresa) {
+		log.info("Buscar Empresa Cliente Contador por id de empresa: {}", idEmpresa);
+		try {
+			var list = empresaClienteContadorRepository.findByEmpresa_Id(idEmpresa);
+			var dtoList = empresaClienteContadorMapper.listEntityToDtoList(list);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtoList).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al consultar por id de empresa: {}", idEmpresa, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 
-            if (page.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                        ResponseDTO.builder()
-                                .success(false)
-                                .message("No se encontraron clientes para los filtros dados")
-                                .code(HttpStatus.NOT_FOUND.value())
-                                .build()
-                );
-            }
+	/**
+	 * @author nicope
+	 * @version 1.0
+	 *
+	 *          Busca clientes de una empresa con filtros dinámicos y paginación;
+	 *          retorna DTO.
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
+			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
+			String correo) {
+		log.info(
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
+				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
+		try {
+			Specification<PersonaEntity> spec = Specification.allOf(PersonaSpecification.belongsToEmpresa(idEmpresa),
+					PersonaSpecification.nameLike(nombre), PersonaSpecification.hasNumeroCedula(cedula),
+					PersonaSpecification.hasCodigo(codigo), PersonaSpecification.byDepartamentoNombre(departamento),
+					PersonaSpecification.byCiudadNombre(ciudad),
+					PersonaSpecification.byCorregimientoNombre(corregimiento),
+					PersonaSpecification.hasTelefonoLike(telefono), PersonaSpecification.hasCorreoLike(correo));
 
-            List<PersonaDTO> personasDto = personaMapper.listEntityToDtoList(page.getContent());
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			Page<PersonaEntity> page = personaRepository.findAll(spec, pageToUse);
 
-            List<Map<String, Object>> respuesta = new ArrayList<>(personasDto.size());
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron clientes para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
 
-            for (PersonaDTO p : personasDto) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id", p.getId());
-                row.put("direccion", p.getDireccion());
-                row.put("tipoDocumento", p.getTipoDocumento());
-                row.put("numeroCedula", p.getNumeroCedula());
-                row.put("nombre", p.getNombre());
-                row.put("segundoNombre", p.getSegundoNombre());
-                row.put("apellido", p.getApellido());
-                row.put("segundoApellido", p.getSegundoApellido());
-                row.put("codigo", p.getCodigo());
+			List<PersonaDTO> personasDto = personaMapper.listEntityToDtoList(page.getContent());
 
-                Optional<CorreoGeneralEntity> cOpt =
-                    correoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
-                Optional<TelefonoGeneralEntity> tOpt =
-                    telefonoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
+			List<Map<String, Object>> respuesta = new ArrayList<>(personasDto.size());
 
-                row.put("correo", cOpt.map(CorreoGeneralEntity::getCorreo).orElse(null));
-                row.put("telefono", tOpt.map(TelefonoGeneralEntity::getNumero).orElse(null));
+			for (PersonaDTO p : personasDto) {
+				Map<String, Object> row = new LinkedHashMap<>();
+				row.put("id", p.getId());
+				row.put("direccion", p.getDireccion());
+				row.put("tipoDocumento", p.getTipoDocumento());
+				row.put("numeroCedula", p.getNumeroCedula());
+				row.put("nombre", p.getNombre());
+				row.put("segundoNombre", p.getSegundoNombre());
+				row.put("apellido", p.getApellido());
+				row.put("segundoApellido", p.getSegundoApellido());
+				row.put("codigo", p.getCodigo());
 
-                respuesta.add(row);
-            }
+				Optional<CorreoGeneralEntity> cOpt = correoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
+				Optional<TelefonoGeneralEntity> tOpt = telefonoGeneralRepository
+						.findByPersonaIdAndActivoTrue(p.getId());
 
-            return ResponseEntity.ok(
-                    ResponseDTO.builder()
-                            .success(true)
-                            .message("Consulta exitosa")
-                            .code(HttpStatus.OK.value())
-                            .response(respuesta)
-                            .build()
-            );
+				row.put("correo", cOpt.map(CorreoGeneralEntity::getCorreo).orElse(null));
+				row.put("telefono", tOpt.map(TelefonoGeneralEntity::getNumero).orElse(null));
 
-        } catch (Exception e) {
-            log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseDTO.builder()
-                            .success(false)
-                            .message("Error consultando")
-                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                            .build()
-            );
-        }
-    }
+				respuesta.add(row);
+			}
 
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+					.code(HttpStatus.OK.value()).response(respuesta).build());
 
+		} catch (Exception e) {
+			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(
-            Integer idEmpresa,
-            Pageable pageable,
-            String serial,
-            String tipoContadorNombre,
-            String direccionDescripcion,
-            String nombreLike,
-            String cedula) {
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable, String serial,
+			String tipoContadorNombre, String direccionDescripcion, String nombreLike, String cedula) {
 
-        log.info("Buscar contadores por empresa: {}, filtros: [serial={}, tipoContador={}, dir={}, nombreLike={}, cedula={}]",
-                idEmpresa, serial, tipoContadorNombre, direccionDescripcion, nombreLike, cedula);
+		log.info(
+				"Buscar contadores por empresa: {}, filtros: [serial={}, tipoContador={}, dir={}, nombreLike={}, cedula={}]",
+				idEmpresa, serial, tipoContadorNombre, direccionDescripcion, nombreLike, cedula);
 
-        try {
-            var spec = Specification.allOf(
-                ContadorSpecification.belongsToEmpresa(idEmpresa),
-                ContadorSpecification.serialLike(serial),
-                ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
-                ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
-                ContadorSpecification.personaNombreLike(nombreLike),
-                ContadorSpecification.personaCedulaEquals(cedula)
-            );
+		try {
+			var spec = Specification.allOf(ContadorSpecification.belongsToEmpresa(idEmpresa),
+					ContadorSpecification.serialLike(serial),
+					ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
+					ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
+					ContadorSpecification.personaNombreLike(nombreLike),
+					ContadorSpecification.personaCedulaEquals(cedula));
 
-            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-            var page = contadorRepository.findAll(spec, pageToUse);
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			var page = contadorRepository.findAll(spec, pageToUse);
 
-            var contadores = pageToUse.isPaged() ? page.getContent() : page.getContent();
-            var dtoList = contadorMapper.listEntityToDtoList(contadores);
+			var contadores = pageToUse.isPaged() ? page.getContent() : page.getContent();
+			var dtoList = contadorMapper.listEntityToDtoList(contadores);
 
-            return ResponseEntity.ok(
-                ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(dtoList)
-                    .build()
-            );
-        } catch (Exception e) {
-            log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.CONSULTING_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .response(null)
-                    .build()
-            );
-        }
-    }
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtoList).build());
+		} catch (Exception e) {
+			log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(null).build());
+		}
+	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaIdResponseId(Integer idEmpresa) {
+		log.info("Buscar Empresa Cliente Contador por id de empresa: {}", idEmpresa);
+		try {
+			var list = empresaClienteContadorRepository.findByEmpresa_Id(idEmpresa);
 
+			if (list.isEmpty()) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
+						.message("No se encontraron registros para la empresa con id: " + idEmpresa)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
 
-    
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findByEmpresaIdResponseId(Integer idEmpresa) {
-        log.info("Buscar Empresa Cliente Contador por id de empresa: {}", idEmpresa);
-        try {
-        	var list = empresaClienteContadorRepository.findByEmpresa_Id(idEmpresa);
+			List<Map<String, Object>> idList = list.stream().map(e -> Map.<String, Object>of("id", e.getId())).toList();
 
-            if (list.isEmpty()) {
-                ResponseDTO responseDTO = ResponseDTO.builder()
-                        .success(false)
-                        .message("No se encontraron registros para la empresa con id: " + idEmpresa)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .build();
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-            }
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(idList).build();
 
-            List<Map<String, Object>> idList = list.stream()
-            	    .map(e -> Map.<String, Object>of("id", e.getId()))
-            	    .toList();
-
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(idList)
-                    .build();
-
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-        	log.error("Error al consultar por id de empresa: {}", idEmpresa, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.CONSULTING_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al consultar por id de empresa: {}", idEmpresa, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
-	    log.info("Buscar Empresa Cliente Contador por id: {}", id);
-	    try {
-	        Optional<EmpresaClienteContadorEntity> empresaClienteContador = empresaClienteContadorRepository.findById(id);
-	        if (empresaClienteContador.isPresent()) {
-	        	EmpresaClienteContadorDTO dto = empresaClienteContadorMapper.entityToDto(empresaClienteContador.get());
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(true)
-	                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                    .code(HttpStatus.OK.value())
-	                    .response(dto)
-	                    .build();
-	            return ResponseEntity.ok(responseDTO);
-	        } else {
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(false)
-	                    .message(Constantes.CONSULTING_ERROR)
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build();
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-	        }
-	    } catch (Exception e) {
-	        log.error("Error al buscar  Empresa Cliente Contador por id: {}", id, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-	    }
+		log.info("Buscar Empresa Cliente Contador por id: {}", id);
+		try {
+			Optional<EmpresaClienteContadorEntity> empresaClienteContador = empresaClienteContadorRepository
+					.findById(id);
+			if (empresaClienteContador.isPresent()) {
+				EmpresaClienteContadorDTO dto = empresaClienteContadorMapper.entityToDto(empresaClienteContador.get());
+				ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+						.code(HttpStatus.OK.value()).response(dto).build();
+				return ResponseEntity.ok(responseDTO);
+			} else {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+		} catch (Exception e) {
+			log.error("Error al buscar  Empresa Cliente Contador por id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
 	}
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findAll() {
-        log.info("Listar todos las Empresa Cliente Contador");
-        try {
-            var list = empresaClienteContadorRepository.findAll();
-            var dtoList = empresaClienteContadorMapper.listEntityToDtoList(list);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(dtoList)
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al listar las Empresa Cliente Contador", e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.CONSULTING_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .response(null)
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findAll() {
+		log.info("Listar todos las Empresa Cliente Contador");
+		try {
+			var list = empresaClienteContadorRepository.findAll();
+			var dtoList = empresaClienteContadorMapper.listEntityToDtoList(list);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtoList).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al listar las Empresa Cliente Contador", e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(null).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 
-    @Override
-    @Transactional
-    public ResponseEntity<ResponseDTO> deleteById(Integer id) {
-        log.info("Inicio método para eliminar Empresa Cliente Contador por id: {}", id);
-        try {
-            if (!empresaClienteContadorRepository.existsById(id)) {
-                ResponseDTO responseDTO = ResponseDTO.builder()
-                        .success(false)
-                        .message(Constantes.RECORD_NOT_FOUND)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .build();
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-            }
-            empresaClienteContadorRepository.deleteById(id);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.DELETED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al eliminar Empresa Cliente Contador con id: {}", id, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.DELETE_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+	@Override
+	@Transactional
+	public ResponseEntity<ResponseDTO> deleteById(Integer id) {
+		log.info("Inicio método para eliminar Empresa Cliente Contador por id: {}", id);
+		try {
+			if (!empresaClienteContadorRepository.existsById(id)) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.RECORD_NOT_FOUND)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+			empresaClienteContadorRepository.deleteById(id);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.DELETED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al eliminar Empresa Cliente Contador con id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 }

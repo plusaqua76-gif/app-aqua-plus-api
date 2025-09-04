@@ -19,4 +19,6 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface ITarifaConceptoService {
 
 	ResponseEntity<ResponseDTO> crearTarifaConcepto(Map<String, Object> payload);
+
+	ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId);
 }

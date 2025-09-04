@@ -41,7 +41,7 @@ mail:
 seguridad:
   llave: keyaquaplus
 link:
-  recover: https://aquaplus.dev/auth/recover-password?token=
+  recover: https://www.aquaplus.dev/auth/recover-password?Authorization=
 app:
   cors:
     - http://localhost:4200

@@ -28,7 +28,6 @@ import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.EstadoMapper;
 import com.aqua.plus.commons.maps.FacturaMapper;
 import com.aqua.plus.commons.maps.LecturaMapper;
-import com.aqua.plus.commons.maps.TarifaMapper;
 import com.aqua.plus.commons.maps.TipoPagoMapper;
 import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
@@ -47,7 +46,6 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final FacturaRepository facturaRepository;
 	private final FacturaMapper facturaMapper;
 	private final EmpresaClienteContadorMapper empresaMapper;
-	private final TarifaMapper tarifaMapper;
 	private final LecturaMapper lecturaMapper;
 	private final TipoPagoMapper tipoPagoMapper;
 	private final EstadoMapper estadoMapper;
@@ -97,9 +95,6 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			if (facturaDTO.getEmpresaClienteContador() != null)
 				entity.setEmpresaClienteContador(empresaMapper.dtoToEntity(facturaDTO.getEmpresaClienteContador()));
-
-			if (facturaDTO.getTarifa() != null)
-				entity.setTarifa(tarifaMapper.dtoToEntity(facturaDTO.getTarifa()));
 
 			if (facturaDTO.getLectura() != null)
 				entity.setLectura(lecturaMapper.dtoToEntity(facturaDTO.getLectura()));
