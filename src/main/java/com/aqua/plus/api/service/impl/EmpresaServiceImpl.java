@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaService;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
@@ -54,6 +55,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	private final CiudadRepository ciudadRepository;
 	private final ImagenEmpresaRepository imagenEmpresaRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
+	private final JwtUtil jwtUtil;
 
 	@Value("${mail.username}")
 	private String correoAquaPlus;
@@ -202,40 +204,61 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	        Map<String, Object> response = objectMapper.readValue(
 	                jsonValue, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
 
-	        Integer code = asInteger(response.get("code"));
-	        if (code == null) code = asInteger(response.get("statusCode"));
+	        Integer code = null;
+	        Object codeObj = (response.containsKey("code") ? response.get("code") : response.get("statusCode"));
+	        if (codeObj instanceof Number n) code = n.intValue();
+	        else if (codeObj != null) { try { code = Integer.valueOf(codeObj.toString()); } catch (Exception ignored) {} }
+	        if (code == null || (code != 200 && code != 201)) return response;
 
-	        boolean ok = (code != null) && (code == 200 || code == 201);
-	        if (!ok) {
-	            return response;
-	        }
-
-	        Integer idEmpresa = asInteger(jsonParams.get("idEmpresa"));
+	        Integer idEmpresa = null;
+	        Object idEmpObj = jsonParams.get("idEmpresa");
+	        if (idEmpObj instanceof Number n) idEmpresa = n.intValue();
+	        else if (idEmpObj != null) { try { idEmpresa = Integer.valueOf(idEmpObj.toString()); } catch (Exception ignored) {} }
 	        if (idEmpresa == null) {
-	            response.put("warning", "idEmpresa ausente o inválido; no se intentó enviar correo.");
+	            response.put("notice", "idEmpresa ausente o inválido; no se intentó enviar correo.");
 	            return response;
 	        }
 
-	        String correoEmpresa = correoGeneralRepository
-	                .findCorreoPrincipalByEmpresaId(idEmpresa)
-	                .orElse(null);
-
+	        String correoEmpresa = correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa).orElse(null);
 	        if (correoEmpresa == null || correoEmpresa.isBlank()) {
 	            response.put("notice", "La empresa no tiene un correo activo registrado. No se envió la notificación.");
 	            return response;
 	        }
 
-	        String nombreEmpresa  = asString(jsonParams.get("nombreEmpresa"));
-	        String usuarioEmpresa = asString(jsonParams.get("usuario"));
+	        String nombreEmpresa  = (jsonParams.get("nombreEmpresa") == null) ? null : String.valueOf(jsonParams.get("nombreEmpresa"));
+	        String usuarioEmpresa = (jsonParams.get("usuario") == null) ? null : String.valueOf(jsonParams.get("usuario"));
+	        if (usuarioEmpresa == null || usuarioEmpresa.isBlank()) {
+	            response.put("notice", "'usuario' es requerido para generar el token de recuperación. No se envió notificación.");
+	            return response;
+	        }
 	        String tiempoLegible  = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+	        String token = jwtUtil.generateToken(
+	                usuarioEmpresa,
+	                Constantes.KEY_TOKEN_EXTERNO,
+	                Constantes.TIEMPO_VIGENCIA_EXTERNO
+	        );
+
+	        String recoverLink = (this.linkRecover == null) ? "" : this.linkRecover;
+	        String encodedValue = java.net.URLEncoder.encode("Bearer " + token, java.nio.charset.StandardCharsets.UTF_8);
+
+	        if (recoverLink.matches(".*[?&]Authorization=$")) {
+	            recoverLink = recoverLink + encodedValue;
+	        } else if (recoverLink.contains("?")) {
+	            recoverLink = recoverLink + "&Authorization=" + encodedValue;
+	        } else {
+	            recoverLink = recoverLink + "?Authorization=" + encodedValue;
+	        }
 
 	        Map<String, Object> data = new HashMap<>();
 	        data.put(Constantes.PARAMETRO_NAME_USER, nombreEmpresa);
 	        data.put(Constantes.PARAMETRO_USER, usuarioEmpresa);
-	        data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
+	        data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
 	        data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
-	        log.info("Info data notificacion (empresa {}): {}", idEmpresa, data);
+	        String recoverLinkMasked = recoverLink.replaceAll("(?i)(Authorization=)[^&]+", "$1***");
+	        log.info("Info data notificacion (empresa {}): [nameUser={}, user={}, linkRecover={}, hours={}]",
+	                idEmpresa, nombreEmpresa, usuarioEmpresa, recoverLinkMasked, tiempoLegible);
 
 	        try {
 	            notificacionServiceImpl.enviarNotificacion(correoEmpresa, Constantes.CREATE_PASSWORD, data);
@@ -258,13 +281,6 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	    }
 	}
 
-	// Helpers seguros
-	private static Integer asInteger(Object o) {
-	    if (o == null) return null;
-	    if (o instanceof Number n) return n.intValue();
-	    try { return Integer.valueOf(o.toString()); } catch (Exception ignored) { return null; }
-	}
-	private static String asString(Object o) { return (o == null) ? null : String.valueOf(o); }
 
 
 	@Override
