@@ -35,6 +35,11 @@ public final class PersonaSpecification {
             return cb.exists(sub);
         };
     }
+    
+    public static Specification<PersonaEntity> isActivoTrue() {
+        return (root, query, cb) -> cb.isTrue(root.get("activo"));
+    }
+
 
     public static Specification<PersonaEntity> nameLike(String nombreLike) {
         return (root, q, cb) -> {

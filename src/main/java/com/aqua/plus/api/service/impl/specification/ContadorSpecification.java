@@ -81,4 +81,18 @@ public final class ContadorSpecification {
             return cb.equal(cb.lower(per.get("numeroCedula")), cedula.toLowerCase().trim());
         };
     }
+    
+    public static Specification<ContadorEntity> isActivoTrue() {
+        return (root, query, cb) -> cb.isTrue(root.get("activo"));
+    }
+
+    public static Specification<ContadorEntity> eccActivoTrue() {
+        return (root, query, cb) -> {
+            // join a la relación; ajusta el nombre del atributo mapeado:
+            var ecc = root.join("empresaClienteContadores", JoinType.INNER);
+            query.distinct(true); // evita duplicados por los joins
+            return cb.isTrue(ecc.get("activo"));
+        };
+    }
+
 }

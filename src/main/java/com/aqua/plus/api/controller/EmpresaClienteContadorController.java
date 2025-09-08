@@ -22,6 +22,7 @@ import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -206,9 +207,8 @@ public class EmpresaClienteContadorController {
 	@GetMapping("/contadores/{idEmpresa}")
 	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa,
 			@RequestParam(required = false) String serial, @RequestParam(required = false) String tipoContadorNombre,
-			@RequestParam(required = false) String direccionDescripcion,
-			@RequestParam(required = false) String nombre, @RequestParam(required = false) String cedula,
-			Pageable pageable) {
+			@RequestParam(required = false) String direccionDescripcion, @RequestParam(required = false) String nombre,
+			@RequestParam(required = false) String cedula, Pageable pageable) {
 		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa, pageable, serial,
 				tipoContadorNombre, direccionDescripcion, nombre, cedula);
 	}
@@ -304,4 +304,21 @@ public class EmpresaClienteContadorController {
 	public ResponseEntity<ResponseDTO> update(@RequestBody EmpresaClienteContadorDTO empresaClienteContadorDTO) {
 		return empresaClienteContadorServiceImpl.update(empresaClienteContadorDTO);
 	}
+
+	@Operation(summary = "Resumen de clientes por empresa y mes", description = "Invoca el SP public.fn_clientes_empresa_mes para obtener clientes_al_dia, en_mora, activos y nuevos.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/clientes-empresa-mes")
+	public ResponseEntity<Map<String, Object>> clientesEmpresaMes(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
+			@Parameter(description = "Año de consulta", required = true, example = "2025") @RequestParam Integer anio,
+			@Parameter(description = "Mes de consulta (1..12)", required = true, example = "9") @RequestParam Integer mes,
+			@Parameter(description = "Criterio de rango: 'emision' | 'vencimiento' (opcional)", example = "emision") @RequestParam(required = false) String rangoPor,
+			@Parameter(description = "Al día exclusivo (sin vencidas): true/false (opcional)", example = "false") @RequestParam(required = false) Boolean exclusivo) {
+		Map<String, Object> resp = empresaClienteContadorServiceImpl.clientesEmpresaMes(empresaId, anio, mes, rangoPor,
+				exclusivo);
+		return ResponseEntity.ok(resp);
+	}
+
 }

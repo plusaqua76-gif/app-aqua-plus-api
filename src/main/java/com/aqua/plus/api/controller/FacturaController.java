@@ -22,6 +22,7 @@ import com.aqua.plus.commons.dtos.FacturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -156,4 +157,31 @@ public class FacturaController {
 					.body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
 		}
 	}
+
+	@Operation(summary = "Métricas de consumo por mes", description = "Invoca el SP public.fn_metricas_consumo_mes para obtener m³ totales e importes del mes.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/consumo-mes")
+	public ResponseEntity<Map<String, Object>> metricasConsumoMes(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
+			@Parameter(description = "Año", required = true, example = "2025") @RequestParam Integer anio,
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam Integer mes) {
+		Map<String, Object> resp = facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
+		return ResponseEntity.ok(resp);
+	}
+	
+	@Operation(summary = "Métricas de factura por mes", description = "Invoca el SP public.fn_metricas_facturas_mes para obtener m³ totales e importes del mes.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/factura-mes")
+	public ResponseEntity<Map<String, Object>> metricasFacturasMes(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
+			@Parameter(description = "Año", required = true, example = "2025") @RequestParam Integer anio,
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam Integer mes) {
+		Map<String, Object> resp = facturaServiceImpl.metricasFacturaMes(empresaId, anio, mes);
+		return ResponseEntity.ok(resp);
+	}
+
 }

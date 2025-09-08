@@ -194,60 +194,58 @@ public class FacturaServiceImpl implements IFacturaService {
 	/* ====================== Helpers privados ====================== */
 
 	private record DateRange(LocalDate from, LocalDate to, boolean error) {
-	    static DateRange ok(LocalDate f, LocalDate t) { return new DateRange(f, t, false); }
-	    static DateRange err() { return new DateRange(null, null, true); }
+		static DateRange ok(LocalDate f, LocalDate t) {
+			return new DateRange(f, t, false);
+		}
+
+		static DateRange err() {
+			return new DateRange(null, null, true);
+		}
 	}
 
 	private DateRange parseAndNormalizeRange(String desde, String hasta) {
-	    try {
-	        LocalDate d = (desde == null || desde.isBlank()) ? null : LocalDate.parse(desde);
-	        LocalDate h = (hasta == null || hasta.isBlank()) ? null : LocalDate.parse(hasta);
-	        if (d != null && h != null && d.isAfter(h)) { var tmp = d; d = h; h = tmp; }
-	        return DateRange.ok(d, h);
-	    } catch (java.time.format.DateTimeParseException ex) {
-	        return DateRange.err();
-	    }
+		try {
+			LocalDate d = (desde == null || desde.isBlank()) ? null : LocalDate.parse(desde);
+			LocalDate h = (hasta == null || hasta.isBlank()) ? null : LocalDate.parse(hasta);
+			if (d != null && h != null && d.isAfter(h)) {
+				var tmp = d;
+				d = h;
+				h = tmp;
+			}
+			return DateRange.ok(d, h);
+		} catch (java.time.format.DateTimeParseException ex) {
+			return DateRange.err();
+		}
 	}
-	
+
 	@SafeVarargs
 	private static <T> Specification<T> allOfNonNull(Specification<T>... specs) {
-	    Specification<T> result = (root, query, cb) -> cb.conjunction();
-	    for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
-	        result = result.and(s);
-	    }
-	    return result;
+		Specification<T> result = (root, query, cb) -> cb.conjunction();
+		for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
+			result = result.and(s);
+		}
+		return result;
 	}
 
-	private Specification<FacturaEntity> buildFacturaSpec(
-	        Integer idEmpresa,
-	        String codigo,
-	        String clienteNombreCompleto,
-	        Integer consumo,
-	        LocalDate emDesde, LocalDate emHasta,
-	        LocalDate finDesde, LocalDate finHasta,
-	        String estadoNombre,
-	        Boolean consumoAnormal,
-	        Double precioMin,
-	        Double precioMax
-	) {
-	    if (precioMin != null && precioMax != null && precioMin > precioMax) {
-	        double tmp = precioMin; precioMin = precioMax; precioMax = tmp;
-	    }
+	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
+			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde,
+			LocalDate finHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
+		if (precioMin != null && precioMax != null && precioMin > precioMax) {
+			double tmp = precioMin;
+			precioMin = precioMax;
+			precioMax = tmp;
+		}
 
-	    return allOfNonNull(
-	        FacturaSpecifications.perteneceAEmpresa(idEmpresa),
-	        FacturaSpecifications.codigoLike(codigo),
-	        FacturaSpecifications.clienteNombreCompletoLike(clienteNombreCompleto),
-	        FacturaSpecifications.consumoEquals(consumo),
-	        FacturaSpecifications.fechaEmisionBetween(emDesde, emHasta),
-	        FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
-	        FacturaSpecifications.estadoNombreLike(estadoNombre),
-	        FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
-	        FacturaSpecifications.precioBetween(precioMin, precioMax)
-	    );
+		return allOfNonNull(FacturaSpecifications.perteneceAEmpresa(idEmpresa),
+				FacturaSpecifications.codigoLike(codigo),
+				FacturaSpecifications.clienteNombreCompletoLike(clienteNombreCompleto),
+				FacturaSpecifications.consumoEquals(consumo),
+				FacturaSpecifications.fechaEmisionBetween(emDesde, emHasta),
+				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
+				FacturaSpecifications.estadoNombreLike(estadoNombre),
+				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
+				FacturaSpecifications.precioBetween(precioMin, precioMax));
 	}
-
-
 
 	private ResponseEntity<ResponseDTO> badRequest(String msg) {
 		return ResponseEntity.badRequest()
@@ -335,6 +333,82 @@ public class FacturaServiceImpl implements IFacturaService {
 		} catch (Exception e) {
 			e.printStackTrace();
 			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public Map<String, Object> metricasConsumoMes(Integer empresaId, Integer anio, Integer mes) {
+		try {
+			String sql = "SELECT public.fn_metricas_consumo_mes(:idEmpresa, :anio, :mes) AS payload";
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+					.addValue("anio", anio).addValue("mes", mes);
+
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+
+			Object wrappedValue = rawResult.get("payload");
+
+			if (wrappedValue instanceof org.postgresql.util.PGobject pg
+					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
+				String jsonValue = pg.getValue();
+				return objectMapper.readValue(jsonValue,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			if (wrappedValue instanceof String s) {
+				return objectMapper.readValue(s,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+
+			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.PROCCESSING_ERROR + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+	
+	@Transactional(readOnly = true)
+	public Map<String, Object> metricasFacturaMes(Integer empresaId, Integer anio, Integer mes) {
+		try {
+			String sql = "SELECT public.fn_metricas_facturas_mes(:idEmpresa, :anio, :mes) AS payload";
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+					.addValue("anio", anio).addValue("mes", mes);
+
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+
+			Object wrappedValue = rawResult.get("payload");
+
+			if (wrappedValue instanceof org.postgresql.util.PGobject pg
+					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
+				String jsonValue = pg.getValue();
+				return objectMapper.readValue(jsonValue,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			if (wrappedValue instanceof String s) {
+				return objectMapper.readValue(s,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+
+			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.PROCCESSING_ERROR + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.UNEXPECTED_ERROR + e.getMessage());
 		}
 	}
 

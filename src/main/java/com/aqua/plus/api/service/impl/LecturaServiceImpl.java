@@ -163,97 +163,67 @@ public class LecturaServiceImpl implements ILecturaService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
-	
+
 	@SafeVarargs
 	private static <T> Specification<T> allOfNonNull(Specification<T>... specs) {
-	    Specification<T> result = (root, query, cb) -> cb.conjunction();
-	    for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
-	        result = result.and(s);
-	    }
-	    return result;
+		Specification<T> result = (root, query, cb) -> cb.conjunction();
+		for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
+			result = result.and(s);
+		}
+		return result;
 	}
-	
+
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findLecturasByEmpresaId(
-	        Integer empresaId,
-	        String serial,
-	        Integer lectura,
-	        String fechaDesde,
-	        String fechaHasta,
-	        Boolean consumoAnormal,
-	        String observacion,
-	        Pageable pageable) {
+	public ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, String serial, Integer lectura,
+			String fechaDesde, String fechaHasta, Boolean consumoAnormal, String observacion, Pageable pageable) {
 
-	    log.info(
-	        "Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fechaDesde={}, fechaHasta={}, consumoAnormal={}, observacion={}",
-	        empresaId, serial, lectura, fechaDesde, fechaHasta, consumoAnormal, observacion
-	    );
+		log.info(
+				"Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fechaDesde={}, fechaHasta={}, consumoAnormal={}, observacion={}",
+				empresaId, serial, lectura, fechaDesde, fechaHasta, consumoAnormal, observacion);
 
-	    try {
-	        java.time.LocalDate dDesde = (fechaDesde == null || fechaDesde.isBlank())
-	                ? null : java.time.LocalDate.parse(fechaDesde);
-	        java.time.LocalDate dHasta = (fechaHasta == null || fechaHasta.isBlank())
-	                ? null : java.time.LocalDate.parse(fechaHasta);
+		try {
+			java.time.LocalDate dDesde = (fechaDesde == null || fechaDesde.isBlank()) ? null
+					: java.time.LocalDate.parse(fechaDesde);
+			java.time.LocalDate dHasta = (fechaHasta == null || fechaHasta.isBlank()) ? null
+					: java.time.LocalDate.parse(fechaHasta);
 
-	        if (dDesde != null && dHasta != null && dDesde.isAfter(dHasta)) {
-	            java.time.LocalDate tmp = dDesde; dDesde = dHasta; dHasta = tmp;
-	        }
+			if (dDesde != null && dHasta != null && dDesde.isAfter(dHasta)) {
+				java.time.LocalDate tmp = dDesde;
+				dDesde = dHasta;
+				dHasta = tmp;
+			}
 
-	        Specification<LecturaEntity> spec = allOfNonNull(
-	        	    LecturaSpecifications.perteneceAEmpresa(empresaId),
-	        	    LecturaSpecifications.serialLike(serial),
-	        	    LecturaSpecifications.lecturaEquals(lectura),
-	        	    LecturaSpecifications.fechaBetween(dDesde, dHasta),
-	        	    LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
-	        	    LecturaSpecifications.observacionLike(observacion)
-	        	);
+			Specification<LecturaEntity> spec = allOfNonNull(LecturaSpecifications.perteneceAEmpresa(empresaId),
+					LecturaSpecifications.serialLike(serial), LecturaSpecifications.lecturaEquals(lectura),
+					LecturaSpecifications.fechaBetween(dDesde, dHasta),
+					LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
+					LecturaSpecifications.observacionLike(observacion));
 
-	        Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-	        Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
 
-	        if (page.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-	                ResponseDTO.builder()
-	                    .success(false)
-	                    .message("No se encontraron lecturas para la empresa con id " + empresaId)
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build()
-	            );
-	        }
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron lecturas para la empresa con id " + empresaId)
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
 
-	        var content = lecturaMapper.listEntityToDtoList(page.getContent());
+			var content = lecturaMapper.listEntityToDtoList(page.getContent());
 
-	        return ResponseEntity.ok(
-	            ResponseDTO.builder()
-	                .success(true)
-	                .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                .code(HttpStatus.OK.value())
-	                .response(content)
-	                .build()
-	        );
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(content).build());
 
-	    } catch (java.time.format.DateTimeParseException ex) {
-	        return ResponseEntity.badRequest().body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message("Formato de fecha inválido. Usa yyyy-MM-dd")
-	                .code(HttpStatus.BAD_REQUEST.value())
-	                .build()
-	        );
-	    } catch (Exception e) {
-	        log.error("Error al listar lecturas por empresa", e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.CONSULTING_ERROR)
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build()
-	        );
-	    }
+		} catch (java.time.format.DateTimeParseException ex) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
+		} catch (Exception e) {
+			log.error("Error al listar lecturas por empresa", e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
-
-
 
 	@Override
 	@Transactional(readOnly = true)
@@ -294,4 +264,42 @@ public class LecturaServiceImpl implements ILecturaService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+
+	@Transactional(readOnly = true)
+	public Map<String, Object> metricasLecturasMes(Integer empresaId, Integer anio, Integer mes, Integer idCiudad,
+			Integer idCorregimiento) {
+		try {
+			String sql = "SELECT public.fn_metricas_lecturas_mes(:idEmpresa, :anio, :mes, :idCiudad, :idCorreg) AS payload";
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+					.addValue("anio", anio).addValue("mes", mes).addValue("idCiudad", idCiudad)
+					.addValue("idCorreg", idCorregimiento);
+
+			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+			Object payload = raw.get("payload");
+
+			if (payload instanceof org.postgresql.util.PGobject pg
+					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
+				return objectMapper.readValue(pg.getValue(),
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			if (payload instanceof String s) {
+				return objectMapper.readValue(s,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.PROCCESSING_ERROR + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
 }
