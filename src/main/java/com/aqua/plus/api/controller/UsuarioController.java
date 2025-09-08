@@ -214,8 +214,21 @@ public class UsuarioController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@PostMapping("/update-password")
-	public ResponseEntity<ResponseDTO> updatePasswordByToken(@RequestHeader("token") String token,
+	public ResponseEntity<ResponseDTO> updatePasswordByToken(
+			@RequestHeader(value = "Authorization", required = false) String authHeader,
+			@RequestHeader(value = "Recover-Token", required = false) String recoverHeader,
+			@RequestParam(value = "Authorization", required = false) String authQuery,
 			@RequestBody UsuarioDTO usuarioDTO) {
+
+		String token = (recoverHeader != null) ? recoverHeader : (authHeader != null ? authHeader : authQuery);
+
+		if (token != null) {
+			if (token.contains("%") || token.contains("+")) {
+				token = java.net.URLDecoder.decode(token, java.nio.charset.StandardCharsets.UTF_8);
+			}
+			token = token.replaceFirst("(?i)^Bearer[\\s]+", "").trim();
+		}
+
 		return usuarioServiceImpl.updatePasswordByToken(token, usuarioDTO);
 	}
 
