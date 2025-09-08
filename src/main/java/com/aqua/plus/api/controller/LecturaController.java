@@ -21,6 +21,7 @@ import com.aqua.plus.commons.dtos.LecturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -145,4 +146,21 @@ public class LecturaController {
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
 		return lecturaServiceImpl.deleteById(id);
 	}
+
+	@Operation(summary = "Métricas de lecturas por mes", description = "Invoca el SP public.fn_metricas_lecturas_mes para obtener totales y desglose por ciudad/corregimiento.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/lecturas-mes")
+	public ResponseEntity<Map<String, Object>> metricasLecturasMes(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
+			@Parameter(description = "Año", required = true, example = "2025") @RequestParam Integer anio,
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam Integer mes,
+			@Parameter(description = "ID de la ciudad (opcional). Si lo envías solo, filtra toda la ciudad.", example = "7") @RequestParam(required = false) Integer idCiudad,
+			@Parameter(description = "ID del corregimiento (opcional). Si envías ciudad y corregimiento, filtra por ambos.", example = "23") @RequestParam(required = false) Integer idCorregimiento) {
+		Map<String, Object> resp = lecturaServiceImpl.metricasLecturasMes(empresaId, anio, mes, idCiudad,
+				idCorregimiento);
+		return ResponseEntity.ok(resp);
+	}
+
 }

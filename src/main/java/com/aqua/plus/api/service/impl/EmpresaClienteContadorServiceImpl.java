@@ -1,6 +1,7 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -316,6 +317,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
 		try {
 			Specification<PersonaEntity> spec = Specification.allOf(PersonaSpecification.belongsToEmpresa(idEmpresa),
+					PersonaSpecification.isActivoTrue(),
 					PersonaSpecification.nameLike(nombre), PersonaSpecification.hasNumeroCedula(cedula),
 					PersonaSpecification.hasCodigo(codigo), PersonaSpecification.byDepartamentoNombre(departamento),
 					PersonaSpecification.byCiudadNombre(ciudad),
@@ -347,6 +349,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				row.put("apellido", p.getApellido());
 				row.put("segundoApellido", p.getSegundoApellido());
 				row.put("codigo", p.getCodigo());
+				row.put("activo", p.getActivo());
 
 				Optional<CorreoGeneralEntity> cOpt = correoGeneralRepository.findByPersonaIdAndActivoTrue(p.getId());
 				Optional<TelefonoGeneralEntity> tOpt = telefonoGeneralRepository
@@ -379,6 +382,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 		try {
 			var spec = Specification.allOf(ContadorSpecification.belongsToEmpresa(idEmpresa),
+					ContadorSpecification.isActivoTrue(),
+	                ContadorSpecification.eccActivoTrue(),
 					ContadorSpecification.serialLike(serial),
 					ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
 					ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
@@ -493,4 +498,57 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+
+	@Transactional(readOnly = true)
+	public Map<String, Object> clientesEmpresaMes(Integer idEmpresa, Integer anio, Integer mes, String rangoPor,
+			Boolean exclusivo) {
+		try {
+			StringBuilder sql = new StringBuilder("SELECT public.fn_clientes_empresa_mes(:idEmpresa, :anio, :mes");
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa)
+					.addValue("anio", anio).addValue("mes", mes);
+
+			if (rangoPor != null && exclusivo != null) {
+				sql.append(", :rangoPor, :exclusivo)");
+				parameters.addValue("rangoPor", rangoPor);
+				parameters.addValue("exclusivo", exclusivo);
+			} else if (rangoPor != null) {
+				sql.append(", :rangoPor)");
+				parameters.addValue("rangoPor", rangoPor);
+			} else if (exclusivo != null) {
+				sql.append(", :rangoPor, :exclusivo)");
+				parameters.addValue("rangoPor", "emision");
+				parameters.addValue("exclusivo", exclusivo);
+			} else {
+				sql.append(")");
+			}
+
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql.toString(), parameters);
+
+			Object wrappedValue = rawResult.get("fn_clientes_empresa_mes");
+
+			if (wrappedValue instanceof org.postgresql.util.PGobject pg
+					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
+				String jsonValue = pg.getValue();
+				return objectMapper.readValue(jsonValue,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			if (wrappedValue instanceof String s) {
+				return objectMapper.readValue(s,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+
+			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			e.printStackTrace();
+			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
 }
