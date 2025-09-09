@@ -66,17 +66,13 @@ public class LecturaController {
 
 	@Operation(summary = "Guardar Lectura y Ruta Empleado")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis o validación", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@PostMapping("/registrar")
 	public ResponseEntity<Map<String, Object>> guardarLectura(@RequestBody Map<String, Object> jsonParams) {
-
 		try {
-			Map<String, Object> resultFromService = lecturaServiceImpl.guardarLectura(jsonParams);
+			Map<String, Object> resultFromService = lecturaServiceImpl.guardarLecturas(jsonParams);
 			return ResponseEntity.ok(resultFromService);
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

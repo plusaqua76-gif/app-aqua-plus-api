@@ -2,7 +2,9 @@ package com.aqua.plus.api.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -71,5 +73,19 @@ public class TipoConceptoController {
     @GetMapping("/all")
     public ResponseEntity<ResponseDTO> getAll() {
         return tipoConceptoServiceImpl.findAll();
+    }
+	
+	@Operation(summary = "Eliminar tipos de conceptos por id")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
+        return tipoConceptoServiceImpl.deleteById(id);
     }
 }

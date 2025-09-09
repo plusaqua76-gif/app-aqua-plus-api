@@ -91,4 +91,35 @@ public class TipoConceptoServiceImpl implements ITipoConceptoService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+	
+	@Override
+    @Transactional
+    public ResponseEntity<ResponseDTO> deleteById(Integer id) {
+        log.info("Inicio método para eliminar tipo de tarifa por id: {}", id);
+        try {
+            if (!tipoConceptoRepository.existsById(id)) {
+                ResponseDTO responseDTO = ResponseDTO.builder()
+                        .success(false)
+                        .message(Constantes.RECORD_NOT_FOUND)
+                        .code(HttpStatus.NOT_FOUND.value())
+                        .build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+            }
+            tipoConceptoRepository.deleteById(id);
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(true)
+                    .message(Constantes.DELETED_SUCCESSFULLY)
+                    .code(HttpStatus.OK.value())
+                    .build();
+            return ResponseEntity.ok(responseDTO);
+        } catch (Exception e) {
+            log.error("Error al eliminar el tipo de tarifa con id: {}", id, e);
+            ResponseDTO responseDTO = ResponseDTO.builder()
+                    .success(false)
+                    .message(Constantes.DELETE_ERROR)
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+        }
+    }
 }

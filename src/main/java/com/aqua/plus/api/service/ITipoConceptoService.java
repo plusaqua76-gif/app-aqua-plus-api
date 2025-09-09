@@ -20,4 +20,6 @@ public interface ITipoConceptoService {
 	ResponseEntity<ResponseDTO> save(TipoConceptoDTO tipoConceptoDTO);
 
 	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 }
