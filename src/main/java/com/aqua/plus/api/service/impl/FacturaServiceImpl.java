@@ -411,5 +411,46 @@ public class FacturaServiceImpl implements IFacturaService {
 					Constantes.UNEXPECTED_ERROR + e.getMessage());
 		}
 	}
+	
+	/**
+     * Actualiza facturas por código (batch o una sola), delegando en el SP:
+     *   public.actualizar_facturas(jsonb)
+     * El payload puede ser un objeto JSON o un array de objetos.
+     * 
+     * @author nicope
+	 * @version 1.0
+	 * 
+     */
+    @Transactional
+    public Map<String, Object> actualizarFacturas(Object jsonPayload) {
+        try {
+            String jsonString = objectMapper.writeValueAsString(jsonPayload);
+
+            String sql = "SELECT public.actualizar_facturas(CAST(:jsonData AS jsonb)) AS actualizar_facturas";
+
+            MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
+            Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+            Object resultObj = row.get("actualizar_facturas");
+            if (resultObj instanceof org.postgresql.util.PGobject pg
+                    && "jsonb".equalsIgnoreCase(pg.getType())) {
+                return objectMapper.readValue(pg.getValue(),
+                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            }
+            if (resultObj instanceof String s) {
+                return objectMapper.readValue(s,
+                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            }
+
+            return Map.of(Constantes.ERROR_KEY, "No fue posible procesar la respuesta del SP");
+
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return Map.of(Constantes.ERROR_KEY, "Error serializando/deserializando JSON: " + e.getMessage());
+        } catch (org.springframework.dao.DataAccessException e) {
+            return Map.of("error", "Error de base de datos al ejecutar el SP: " + e.getMostSpecificCause().getMessage());
+        } catch (Exception e) {
+            return Map.of("error", "Error inesperado: " + e.getMessage());
+        }
+    }
 
 }

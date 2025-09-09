@@ -183,5 +183,25 @@ public class FacturaController {
 		Map<String, Object> resp = facturaServiceImpl.metricasFacturaMes(empresaId, anio, mes);
 		return ResponseEntity.ok(resp);
 	}
+	
+	@Operation(summary = "Actualizar facturas por código (batch o individual)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Operación completada exitosamente",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+        @ApiResponse(responseCode = "400", description = "Petición inválida",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+        @ApiResponse(responseCode = "500", description = "Error inesperado en el servidor",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+    })
+    @PostMapping("/actualizar")
+    public ResponseEntity<Map<String, Object>> actualizarFacturas(@RequestBody Object body) {
+        try {
+            Map<String, Object> result = facturaServiceImpl.actualizarFacturas(body);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
+        }
+    }
 
 }

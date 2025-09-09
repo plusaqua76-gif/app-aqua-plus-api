@@ -1,13 +1,11 @@
 package com.aqua.plus.api.service.impl;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,9 +26,9 @@ import com.aqua.plus.commons.maps.LecturaMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.LecturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -101,42 +99,50 @@ public class LecturaServiceImpl implements ILecturaService {
 	}
 
 	/**
-	 * Guarda una lectura a partir de los parámetros recibidos en formato JSON.
-	 * Llama a un procedimiento almacenado en PostgreSQL y devuelve el resultado
-	 * deserializado.
-	 * 
-	 * @author nicope
-	 * @version 1.0
+	 * Guarda una o varias lecturas. - Si el JSON viene como objeto plano (una
+	 * lectura), lo envuelve en un array. - Si viene como { "lecturas": [ ... ] },
+	 * toma ese array. - Llama al SP: public.sincronizar_lecturas_a_nube(jsonb)
 	 */
 	@Transactional
-	public Map<String, Object> guardarLectura(Map<String, Object> jsonParams) {
+	public Map<String, Object> guardarLecturas(Map<String, Object> jsonParams) {
 		try {
-			String jsonString = objectMapper.writeValueAsString(jsonParams);
+			JsonNode root = objectMapper.valueToTree(jsonParams);
+			ArrayNode payloadArray;
 
-			String sql = "SELECT * FROM public.registrar_lectura(CAST(:jsonData AS jsonb))";
-
-			MapSqlParameterSource parameters = new MapSqlParameterSource();
-			parameters.addValue("jsonData", jsonString);
-
-			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
-			// Obtener el campo "value" del resultado
-			Object wrappedValue = rawResult.get("registrar_lectura");
-			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-				String jsonValue = pgObject.getValue();
-				// Deserializar a Map
-				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
-				});
+			if (root.has("lecturas") && root.get("lecturas").isArray()) {
+				payloadArray = (ArrayNode) root.get("lecturas");
+			} else {
+				if (!root.isObject()) {
+					return Map.of("error", "El cuerpo debe ser un objeto o {\"lecturas\": [...] }");
+				}
+				payloadArray = objectMapper.createArrayNode().add(root);
 			}
 
-			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+			String jsonString = objectMapper.writeValueAsString(payloadArray);
 
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
+			String sql = "SELECT public.sincronizar_lecturas_a_nube(CAST(:jsonData AS jsonb)) AS result";
+			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
+
+			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+			Object wrapper = raw.get("result");
+			String jsonOut;
+			if (wrapper instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonOut = pg.getValue();
+			} else if (wrapper instanceof String s) {
+				jsonOut = s;
+			} else {
+				return Map.of("error", "No se pudo interpretar la respuesta del procedimiento.");
+			}
+
+			return objectMapper.readValue(jsonOut,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			return Map.of("error", "Error JSON: " + e.getMessage());
 		} catch (Exception e) {
-			e.printStackTrace();
-			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+			return Map.of("error", "Error inesperado al guardar lecturas: " + e.getMessage());
 		}
 	}
 
