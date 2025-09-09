@@ -383,7 +383,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 		try {
 			var spec = Specification.allOf(ContadorSpecification.belongsToEmpresa(idEmpresa),
 					ContadorSpecification.isActivoTrue(),
-	                ContadorSpecification.eccActivoTrue(),
 					ContadorSpecification.serialLike(serial),
 					ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
 					ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
