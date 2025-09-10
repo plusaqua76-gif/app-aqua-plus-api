@@ -141,7 +141,7 @@ public class UsuarioController {
 		return usuarioServiceImpl.findActivosEInactivos(nombre, estadoNombre, pageToUse);
 	}
 
-	@Operation(summary = "Listar todas las usuario")
+	@Operation(summary = "Listar todos los usuarios")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),

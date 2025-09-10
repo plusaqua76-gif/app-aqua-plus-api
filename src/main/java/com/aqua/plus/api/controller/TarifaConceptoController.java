@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -75,6 +76,20 @@ public class TarifaConceptoController {
     @GetMapping("/empresa/{id}")
     public ResponseEntity<ResponseDTO> findByEmpresaId(@PathVariable Integer id) {
         return tarifaConceptoServiceImpl.findByEmpresaId(id);
+    }
+	
+	@Operation(summary = "Eliminar tarifa concepto por id")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
+        return tarifaConceptoServiceImpl.deleteById(id);
     }
 
 }

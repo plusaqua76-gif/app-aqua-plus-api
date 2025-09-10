@@ -21,4 +21,6 @@ public interface ITarifaConceptoService {
 	ResponseEntity<ResponseDTO> crearTarifaConcepto(Map<String, Object> payload);
 
 	ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId);
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 }
