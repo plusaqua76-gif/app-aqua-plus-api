@@ -19,6 +19,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TOKEN_LIB_AQUA }}
   build:
     runs-on: ubuntu-latest
+    needs: cleanup-artifacts
     permissions:
       contents: read   # Necesario para actions/checkout
       packages: read   # Necesario para descargar dependencias de GitHub Packages
@@ -84,5 +85,7 @@ jobs:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
           package: '*.jar'
+          retention-days: 1
+
 
 
