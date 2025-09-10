@@ -9,6 +9,9 @@ on:
 jobs:
   cleanup-artifacts:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Borrar artifacts viejos
         run: |
@@ -86,6 +89,7 @@ jobs:
           slot-name: 'Production'
           package: '*.jar'
           retention-days: 1
+
 
 
 
