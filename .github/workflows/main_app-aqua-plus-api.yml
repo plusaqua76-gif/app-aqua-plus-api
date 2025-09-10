@@ -7,6 +7,16 @@ on:
   workflow_dispatch:
 
 jobs:
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Borrar artifacts viejos
+        run: |
+          gh api repos/${{ github.repository }}/actions/artifacts --paginate \
+          | jq -r '.artifacts[].id' \
+          | xargs -n1 -I {} gh api repos/${{ github.repository }}/actions/artifacts/{}/ --method DELETE
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_LIB_AQUA }}
   build:
     runs-on: ubuntu-latest
     permissions:
@@ -74,4 +84,5 @@ jobs:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
           package: '*.jar'
+
 
