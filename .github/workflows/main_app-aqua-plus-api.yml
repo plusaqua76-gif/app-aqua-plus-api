@@ -13,13 +13,16 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: Borrar artifacts viejos
-        run: |
-          gh api repos/${{ github.repository }}/actions/artifacts --paginate \
-          | jq -r '.artifacts[].id' \
-          | xargs -n1 -I {} gh api repos/${{ github.repository }}/actions/artifacts/{}/ --method DELETE
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_LIB_AQUA }}
+    - name: Instalar jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Borrar artifacts viejos
+      run: |
+        gh api repos/${{ github.repository }}/actions/artifacts --paginate \
+        | jq -r '.artifacts[].id' \
+        | xargs -n1 -I {} gh api repos/${{ github.repository }}/actions/artifacts/{}/ --method DELETE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
     runs-on: ubuntu-latest
     needs: cleanup-artifacts
@@ -89,6 +92,7 @@ jobs:
           slot-name: 'Production'
           package: '*.jar'
           retention-days: 1
+
 
 
 
