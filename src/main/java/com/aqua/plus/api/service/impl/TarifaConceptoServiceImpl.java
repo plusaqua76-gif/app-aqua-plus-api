@@ -50,7 +50,7 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			String jsonString = objectMapper.writeValueAsString(payload);
 
 			String sql = """
-					    SELECT public."crearTarifa_Concepto"(CAST(:jsonData AS jsonb)) AS result
+					    SELECT public."creartarifa_concepto"(CAST(:jsonData AS jsonb)) AS result
 					""";
 			MapSqlParameterSource params = new MapSqlParameterSource().addValue("jsonData", jsonString);
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
@@ -115,6 +115,91 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 		}
 	}
 
+	/**
+	 * Invoca el SP public.actualizar_tarifa_concepto(jsonb) que retorna jsonb.
+	 * Acepta un mapa (payload) que será serializado a JSON.
+	 */
+	@Transactional
+	public ResponseEntity<ResponseDTO> actualizarTarifaConcepto(Map<String, Object> payload) {
+		log.info("Invocando SP actualizar_tarifa_concepto con payload: {}", payload);
+		try {
+			String jsonString = objectMapper.writeValueAsString(payload);
+
+			String sql = """
+					    SELECT public.actualizar_tarifa_concepto(CAST(:jsonData AS jsonb)) AS result
+					""";
+
+			MapSqlParameterSource params = new MapSqlParameterSource().addValue("jsonData", jsonString);
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+			Object resultObj = row.get("result");
+			String jsonResult = null;
+
+			if (resultObj instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonResult = pg.getValue();
+			} else if (resultObj instanceof String s) {
+				jsonResult = s;
+			} else if (resultObj != null) {
+				jsonResult = String.valueOf(resultObj);
+			}
+
+			if (jsonResult == null || jsonResult.isBlank()) {
+				ResponseDTO dto = ResponseDTO.builder().success(false).message("El SP no retornó contenido.")
+						.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+			}
+
+			Map<String, Object> result = objectMapper.readValue(jsonResult,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
+
+			int code = HttpStatus.OK.value();
+			Object codeObj = result.getOrDefault("statusCode", result.get("code"));
+			if (codeObj != null) {
+				String raw = codeObj.toString();
+				try {
+					code = Integer.parseInt(raw);
+				} catch (NumberFormatException ex) {
+					log.warn("El SP devolvió un código no numérico ('{}'). Usando {} por defecto.", raw, code);
+				}
+			}
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null) {
+				log.warn("Código HTTP inválido ({}) devuelto por el SP. Usando 200 OK.", code);
+				status = HttpStatus.OK;
+			}
+
+			String message = String.valueOf(result.getOrDefault("message", "Operación realizada"));
+			boolean success = status.is2xxSuccessful();
+
+			ResponseDTO dto = ResponseDTO.builder().success(success).message(message).code(status.value())
+					.response(result).build();
+
+			return ResponseEntity.status(status).body(dto);
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			log.error("Error de procesamiento JSON", e);
+			ResponseDTO dto = ResponseDTO.builder().success(false)
+					.message("Error de procesamiento JSON: " + e.getOriginalMessage())
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+
+		} catch (org.springframework.dao.DataAccessException e) {
+			log.error("Error de base de datos al ejecutar actualizar_tarifa_concepto", e);
+			ResponseDTO dto = ResponseDTO.builder().success(false)
+					.message("Error de base de datos al ejecutar el SP: " + e.getMostSpecificCause().getMessage())
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+
+		} catch (Exception e) {
+			log.error("Error inesperado al ejecutar actualizar_tarifa_concepto", e);
+			ResponseDTO dto = ResponseDTO.builder().success(false)
+					.message("Error inesperado al actualizar la tarifa/concepto")
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+		}
+	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId) {
@@ -171,36 +256,27 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
 		}
 	}
-	
+
 	@Override
-    @Transactional
-    public ResponseEntity<ResponseDTO> deleteById(Integer id) {
-        log.info("Inicio método para eliminar tarifa concepto por id: {}", id);
-        try {
-            if (!tarifaConceptoRepository.existsById(id)) {
-                ResponseDTO responseDTO = ResponseDTO.builder()
-                        .success(false)
-                        .message(Constantes.RECORD_NOT_FOUND)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .build();
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-            }
-            tarifaConceptoRepository.deleteById(id);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.DELETED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al eliminar la tarifa concepto con id: {}", id, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.DELETE_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+	@Transactional
+	public ResponseEntity<ResponseDTO> deleteById(Integer id) {
+		log.info("Inicio método para eliminar tarifa concepto por id: {}", id);
+		try {
+			if (!tarifaConceptoRepository.existsById(id)) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.RECORD_NOT_FOUND)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+			tarifaConceptoRepository.deleteById(id);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.DELETED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al eliminar la tarifa concepto con id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 
 }
