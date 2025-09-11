@@ -7,8 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+    - name: Instalar jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Borrar artifacts viejos
+      run: |
+        gh api repos/${{ github.repository }}/actions/artifacts --paginate \
+        | jq -r '.artifacts[].id' \
+        | xargs -n1 -I {} gh api repos/${{ github.repository }}/actions/artifacts/{}/ --method DELETE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
     runs-on: ubuntu-latest
+    needs: cleanup-artifacts
     permissions:
       contents: read   # Necesario para actions/checkout
       packages: read   # Necesario para descargar dependencias de GitHub Packages
@@ -49,6 +66,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write   # Necesario para OIDC con Azure
       contents: read
@@ -73,3 +91,9 @@ jobs:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
           package: '*.jar'
+          retention-days: 1
+
+
+
+
+
