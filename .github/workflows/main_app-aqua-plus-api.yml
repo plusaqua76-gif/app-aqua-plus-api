@@ -7,28 +7,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  cleanup-artifacts:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-    - name: Instalar jq
-      run: sudo apt-get update && sudo apt-get install -y jq
-
-    - name: Borrar artifacts viejos
-      run: |
-        gh api repos/${{ github.repository }}/actions/artifacts --paginate \
-        | jq -r '.artifacts[].id' \
-        | xargs -n1 -I {} gh api repos/${{ github.repository }}/actions/artifacts/{}/ --method DELETE
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
     runs-on: ubuntu-latest
-    needs: cleanup-artifacts
     permissions:
-      contents: read   # Necesario para actions/checkout
-      packages: read   # Necesario para descargar dependencias de GitHub Packages
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
@@ -48,20 +31,20 @@ jobs:
             <servers>
               <server>
                 <id>github</id>
-                <username>${{github.actor}}</username>
-                <password>${{secrets.TOKEN_LIB_AQUA}}</password>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
               </server>
             </servers>
           </settings>' > ~/.m2/settings.xml
 
       - name: Build with Maven
-        run: mvn -B clean install
+        run: mvn -B clean package
 
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
+      - name: Cache JAR output
+        uses: actions/cache@v4
         with:
-          name: java-app
           path: target/*.jar
+          key: ${{ github.sha }}-jar
 
   deploy:
     runs-on: ubuntu-latest
@@ -72,10 +55,13 @@ jobs:
       contents: read
 
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - name: Restore JAR from cache
+        uses: actions/cache@v4
         with:
-          name: java-app
+          path: target/*.jar
+          key: ${{ github.sha }}-jar
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -85,15 +71,8 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_E3EC9B842DEB4722876474713503B1C8 }}
 
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
-          package: '*.jar'
-          retention-days: 1
-
-
-
-
-
+          package: target/*.jar
