@@ -312,14 +312,16 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
 			String correo) {
+
 		log.info(
 				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
+
 		try {
 			Specification<PersonaEntity> spec = Specification.allOf(PersonaSpecification.belongsToEmpresa(idEmpresa),
-					PersonaSpecification.isActivoTrue(),
-					PersonaSpecification.nameLike(nombre), PersonaSpecification.hasNumeroCedula(cedula),
-					PersonaSpecification.hasCodigo(codigo), PersonaSpecification.byDepartamentoNombre(departamento),
+					PersonaSpecification.isActivoTrue(), PersonaSpecification.nameLike(nombre),
+					PersonaSpecification.hasNumeroCedula(cedula), PersonaSpecification.hasCodigo(codigo),
+					PersonaSpecification.byDepartamentoNombre(departamento),
 					PersonaSpecification.byCiudadNombre(ciudad),
 					PersonaSpecification.byCorregimientoNombre(corregimiento),
 					PersonaSpecification.hasTelefonoLike(telefono), PersonaSpecification.hasCorreoLike(correo));
@@ -327,17 +329,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<PersonaEntity> page = personaRepository.findAll(spec, pageToUse);
 
-			if (page.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron clientes para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).build());
-			}
-
 			List<PersonaDTO> personasDto = personaMapper.listEntityToDtoList(page.getContent());
 
 			List<Map<String, Object>> respuesta = new ArrayList<>(personasDto.size());
-
 			for (PersonaDTO p : personasDto) {
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("id", p.getId());
@@ -361,8 +355,23 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				respuesta.add(row);
 			}
 
+			long totalCount = page.getTotalElements();
+			int pageSize = page.getSize();
+			int currentPage = page.getNumber();
+			int totalPages = page.getTotalPages();
+
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron clientes para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).response(respuesta) // lista vacía
+								.totalCount(totalCount).pageSize(pageSize).currentPage(currentPage)
+								.totalPages(totalPages).build());
+			}
+
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).response(respuesta).build());
+					.code(HttpStatus.OK.value()).response(respuesta).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
 
 		} catch (Exception e) {
 			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
@@ -382,8 +391,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 		try {
 			var spec = Specification.allOf(ContadorSpecification.belongsToEmpresa(idEmpresa),
-					ContadorSpecification.isActivoTrue(),
-					ContadorSpecification.serialLike(serial),
+					ContadorSpecification.isActivoTrue(), ContadorSpecification.serialLike(serial),
 					ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
 					ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
 					ContadorSpecification.personaNombreLike(nombreLike),
@@ -392,16 +400,29 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			var page = contadorRepository.findAll(spec, pageToUse);
 
-			var contadores = pageToUse.isPaged() ? page.getContent() : page.getContent();
-			var dtoList = contadorMapper.listEntityToDtoList(contadores);
+			var dtoList = contadorMapper.listEntityToDtoList(page.getContent());
+
+			long totalCount = page.getTotalElements();
+			int pageSize = page.getSize();
+			int currentPage = page.getNumber();
+			int totalPages = page.getTotalPages();
+
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron contadores para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).response(dtoList).totalCount(totalCount)
+								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
+			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(dtoList).build());
+					.code(HttpStatus.OK.value()).response(dtoList).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
+
 		} catch (Exception e) {
 			log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(null).build());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 

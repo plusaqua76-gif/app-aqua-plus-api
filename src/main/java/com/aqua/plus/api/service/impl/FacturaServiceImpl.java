@@ -172,16 +172,24 @@ public class FacturaServiceImpl implements IFacturaService {
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
 
+			var items = facturaMapper.listEntityToResumenDtoList(page.getContent());
+
+			long totalCount = page.getTotalElements();
+			int totalPages = page.getTotalPages();
+			int currentPage = page.getNumber();
+			int pageSize = page.getSize();
+
 			if (page.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron facturas para la empresa con id " + idEmpresa)
-								.code(HttpStatus.NOT_FOUND.value()).build());
+								.code(HttpStatus.NOT_FOUND.value()).response(items).totalCount(totalCount)
+								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
 			}
 
-			var dtoList = facturaMapper.listEntityToResumenDtoList(page.getContent());
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(dtoList).build());
+					.code(HttpStatus.OK.value()).response(items).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
 
 		} catch (Exception e) {
 			log.error("Error al buscar facturas por id de empresa: {}", idEmpresa, e);
@@ -373,7 +381,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					Constantes.UNEXPECTED_ERROR + e.getMessage());
 		}
 	}
-	
+
 	@Transactional(readOnly = true)
 	public Map<String, Object> metricasFacturaMes(Integer empresaId, Integer anio, Integer mes) {
 		try {
@@ -411,46 +419,48 @@ public class FacturaServiceImpl implements IFacturaService {
 					Constantes.UNEXPECTED_ERROR + e.getMessage());
 		}
 	}
-	
+
 	/**
-     * Actualiza facturas por código (batch o una sola), delegando en el SP:
-     *   public.actualizar_facturas(jsonb)
-     * El payload puede ser un objeto JSON o un array de objetos.
-     * 
-     * @author nicope
+	 * Actualiza facturas por código (batch o una sola), delegando en el SP:
+	 * public.actualizar_facturas(jsonb) El payload puede ser un objeto JSON o un
+	 * array de objetos.
+	 * 
+	 * @author nicope
 	 * @version 1.0
 	 * 
-     */
-    @Transactional
-    public Map<String, Object> actualizarFacturas(Object jsonPayload) {
-        try {
-            String jsonString = objectMapper.writeValueAsString(jsonPayload);
+	 */
+	@Transactional
+	public Map<String, Object> actualizarFacturas(Object jsonPayload) {
+		try {
+			String jsonString = objectMapper.writeValueAsString(jsonPayload);
 
-            String sql = "SELECT public.actualizar_facturas(CAST(:jsonData AS jsonb)) AS actualizar_facturas";
+			String sql = "SELECT public.actualizar_facturas(CAST(:jsonData AS jsonb)) AS actualizar_facturas";
 
-            MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
-            Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
 
-            Object resultObj = row.get("actualizar_facturas");
-            if (resultObj instanceof org.postgresql.util.PGobject pg
-                    && "jsonb".equalsIgnoreCase(pg.getType())) {
-                return objectMapper.readValue(pg.getValue(),
-                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-            }
-            if (resultObj instanceof String s) {
-                return objectMapper.readValue(s,
-                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-            }
+			Object resultObj = row.get("actualizar_facturas");
+			if (resultObj instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				return objectMapper.readValue(pg.getValue(),
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
+			if (resultObj instanceof String s) {
+				return objectMapper.readValue(s,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+			}
 
-            return Map.of(Constantes.ERROR_KEY, "No fue posible procesar la respuesta del SP");
+			return Map.of(Constantes.ERROR_KEY, "No fue posible procesar la respuesta del SP");
 
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            return Map.of(Constantes.ERROR_KEY, "Error serializando/deserializando JSON: " + e.getMessage());
-        } catch (org.springframework.dao.DataAccessException e) {
-            return Map.of("error", "Error de base de datos al ejecutar el SP: " + e.getMostSpecificCause().getMessage());
-        } catch (Exception e) {
-            return Map.of("error", "Error inesperado: " + e.getMessage());
-        }
-    }
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			return Map.of(Constantes.ERROR_KEY, "Error serializando/deserializando JSON: " + e.getMessage());
+		} catch (org.springframework.dao.DataAccessException e) {
+			return Map.of("error",
+					"Error de base de datos al ejecutar el SP: " + e.getMostSpecificCause().getMessage());
+		} catch (Exception e) {
+			return Map.of("error", "Error inesperado: " + e.getMessage());
+		}
+	}
 
 }

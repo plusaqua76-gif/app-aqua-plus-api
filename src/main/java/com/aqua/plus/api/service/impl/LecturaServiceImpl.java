@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
@@ -189,13 +190,11 @@ public class LecturaServiceImpl implements ILecturaService {
 				empresaId, serial, lectura, fechaDesde, fechaHasta, consumoAnormal, observacion);
 
 		try {
-			java.time.LocalDate dDesde = (fechaDesde == null || fechaDesde.isBlank()) ? null
-					: java.time.LocalDate.parse(fechaDesde);
-			java.time.LocalDate dHasta = (fechaHasta == null || fechaHasta.isBlank()) ? null
-					: java.time.LocalDate.parse(fechaHasta);
+			LocalDate dDesde = (fechaDesde == null || fechaDesde.isBlank()) ? null : LocalDate.parse(fechaDesde);
+			LocalDate dHasta = (fechaHasta == null || fechaHasta.isBlank()) ? null : LocalDate.parse(fechaHasta);
 
 			if (dDesde != null && dHasta != null && dDesde.isAfter(dHasta)) {
-				java.time.LocalDate tmp = dDesde;
+				var tmp = dDesde;
 				dDesde = dHasta;
 				dHasta = tmp;
 			}
@@ -209,17 +208,24 @@ public class LecturaServiceImpl implements ILecturaService {
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
 
+			var content = lecturaMapper.listEntityToDtoList(page.getContent());
+
+			long totalCount = page.getTotalElements();
+			int pageSize = page.getSize();
+			int currentPage = page.getNumber();
+			int totalPages = page.getTotalPages();
+
 			if (page.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron lecturas para la empresa con id " + empresaId)
-								.code(HttpStatus.NOT_FOUND.value()).build());
+								.code(HttpStatus.NOT_FOUND.value()).response(content).totalCount(totalCount)
+								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
 			}
 
-			var content = lecturaMapper.listEntityToDtoList(page.getContent());
-
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(content).build());
+					.code(HttpStatus.OK.value()).response(content).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
 
 		} catch (java.time.format.DateTimeParseException ex) {
 			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
