@@ -330,25 +330,37 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<UsuarioEntity> page = usuarioRepository.findAll(spec, pageToUse);
 
+			List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
+
+			if (!content.isEmpty()) {
+				List<Integer> userIds = page.getContent().stream().map(UsuarioEntity::getId).toList();
+
+				if (!userIds.isEmpty()) {
+					Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository.findNombresByUsuarioIds(userIds)
+							.stream()
+							.collect(java.util.stream.Collectors.toMap(EmpresaRepository.NombrePorUsuario::getUsuarioId,
+									EmpresaRepository.NombrePorUsuario::getNombre, (a, b) -> a));
+					content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
+				}
+			}
+
+			long totalCount = page.getTotalElements();
+			int pageSize = page.getSize();
+			int currentPage = page.getNumber();
+			int totalPages = page.getTotalPages();
+
 			if (page.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron usuarios ACTIVO/INACTIVO para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).build());
+								.code(HttpStatus.NOT_FOUND.value()).response(content)
+								.totalCount(totalCount).pageSize(pageSize).currentPage(currentPage)
+								.totalPages(totalPages).build());
 			}
 
-			List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
-
-			List<Integer> userIds = page.getContent().stream().map(UsuarioEntity::getId).toList();
-
-			Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository.findNombresByUsuarioIds(userIds).stream()
-					.collect(java.util.stream.Collectors.toMap(EmpresaRepository.NombrePorUsuario::getUsuarioId,
-							EmpresaRepository.NombrePorUsuario::getNombre, (a, b) -> a));
-
-			content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
-
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(content).build());
+					.code(HttpStatus.OK.value()).response(content).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
 
 		} catch (Exception e) {
 			log.error("Error al listar usuarios ACTIVO/INACTIVO", e);
