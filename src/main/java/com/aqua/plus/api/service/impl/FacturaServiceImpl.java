@@ -155,16 +155,14 @@ public class FacturaServiceImpl implements IFacturaService {
 				precioMin, precioMax);
 
 		try {
-			// ✅ Parse de fechas individuales (o null si no vienen)
 			LocalDate emision = parseSingleDateOrNull(fechaEmision);
 			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
-			// Reutilizamos tus specs “Between” pasando [d, d] cuando hay fecha
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, consumo,
-					emision, emision, // emDesde = emHasta = emision
-					venc, venc, // finDesde = finHasta = venc
-					estadoNombre, consumoAnormal, precioMin, precioMax);
+					emision, emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax);
 
+			spec = spec.and(FacturaSpecifications.activoTrue());
+			
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
 
@@ -203,7 +201,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private LocalDate parseSingleDateOrNull(String dateStr) {
 		if (dateStr == null || dateStr.isBlank())
 			return null;
-		return LocalDate.parse(dateStr); // yyyy-MM-dd
+		return LocalDate.parse(dateStr);
 	}
 
 	@SafeVarargs
@@ -216,10 +214,10 @@ public class FacturaServiceImpl implements IFacturaService {
 	}
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
-			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta, // ← pasamos la misma
-																									// fecha si aplica
-			LocalDate finDesde, LocalDate finHasta, // ← pasamos la misma fecha si aplica
-			String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
+			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta,
+
+			LocalDate finDesde, LocalDate finHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin,
+			Double precioMax) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -231,8 +229,6 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.codigoLike(codigo),
 				FacturaSpecifications.clienteNombreCompletoLike(clienteNombreCompleto),
 				FacturaSpecifications.consumoEquals(consumo),
-				// Si la fecha es null, tus specs “Between” deben ignorar el filtro; si no, usan
-				// [d, d]
 				FacturaSpecifications.fechaEmisionBetween(emDesde, emHasta),
 				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
 				FacturaSpecifications.estadoNombreLike(estadoNombre),

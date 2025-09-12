@@ -67,11 +67,10 @@ public class FacturaController {
 	public ResponseEntity<ResponseDTO> getByEmpresaId(@PathVariable("id") Integer idEmpresa,
 			@RequestParam(required = false) String codigo,
 			@RequestParam(required = false, name = "clienteNombreCompleto") String clienteNombreCompleto,
-			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) String fechaEmisionDesde,
-			@RequestParam(required = false) String fechaEmision, @RequestParam(required = false) String fechaFin,
-			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
-			@RequestParam(required = false) Double precioMin, @RequestParam(required = false) Double precioMax,
-			Pageable pageable) {
+			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) String fechaEmision,
+			@RequestParam(required = false) String fechaFin, @RequestParam(required = false) String estadoNombre,
+			@RequestParam(required = false) Boolean consumoAnormal, @RequestParam(required = false) Double precioMin,
+			@RequestParam(required = false) Double precioMax, Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmision,
 				fechaFin, estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
 	}
