@@ -1,6 +1,5 @@
 package com.aqua.plus.api.service.impl;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +55,8 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	private final ImagenEmpresaRepository imagenEmpresaRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final JwtUtil jwtUtil;
+
+	private final DocumentoServiceImpl documentoServiceImpl;
 
 	@Value("${mail.username}")
 	private String correoAquaPlus;
@@ -115,31 +116,33 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	@Transactional
 	public Map<String, Object> registrarEmpresa(Map<String, Object> jsonParams) {
 		try {
+			/* ---- Encriptar contraseña si viene en claro ---- */
 			String plainPassword = (String) jsonParams.get("password");
 			if (plainPassword != null) {
 				String encodedPassword = encriptarDesencriptar.encriptar(plainPassword);
 				jsonParams.put("password", encodedPassword);
 			}
 
+			/* ---- Invocar SP ---- */
 			String jsonString = objectMapper.writeValueAsString(jsonParams);
-
 			String sql = "SELECT public.crear_o_actualizar_empresa(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
 
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
 			Object wrapped = row.get("result");
-			if (wrapped instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+
+			if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
 				String jsonValue = pg.getValue();
 				Map<String, Object> response = objectMapper.readValue(jsonValue,
-						new TypeReference<Map<String, Object>>() {
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
 						});
 
 				Object codeObj = response.get("code");
-				Integer code = codeObj != null ? Integer.valueOf(String.valueOf(codeObj)) : null;
+				Integer code = (codeObj != null ? Integer.valueOf(String.valueOf(codeObj)) : null);
 				boolean success = Boolean.TRUE.equals(response.get("success"));
 
 				if (success && Integer.valueOf(201).equals(code)) {
+					// ========== Notificación (tu lógica existente) ==========
 					Integer idDepartamento = Integer.valueOf(String.valueOf(jsonParams.get("idDepartamento")));
 					Integer idCiudad = Integer.valueOf(String.valueOf(jsonParams.get("idCiudad")));
 
@@ -155,18 +158,58 @@ public class EmpresaServiceImpl implements IEmpresaService {
 					String telefono = (String) jsonParams.get("telefono");
 
 					if (correoAquaPlus != null && !correoAquaPlus.isBlank()) {
-						Map<String, Object> data = new HashMap<>();
+						Map<String, Object> data = new java.util.HashMap<>();
 						data.put(Constantes.PARAMETRO_NAME_ENTERPRISE, nombreEmpresa);
 						data.put(Constantes.PARAMETRO_NIT, nit);
 						data.put(Constantes.PARAMETRO_EMAIL, correoEmpresa);
 						data.put(Constantes.PARAMETRO_PHONE, telefono);
 						data.put(Constantes.PARAMETRO_DEPARTAMENT, nombreDepartamento);
 						data.put(Constantes.PARAMETRO_CITY, nombreCiudad);
-
 						log.info("Info data notificacion {}", data);
 						notificacionServiceImpl.enviarNotificacion(correoAquaPlus, Constantes.INFO_ACTIVATE, data);
 					}
-					return response;
+
+					// ========== Orquestación de imagen (OPCIONAL) ==========
+					Object dataObj = response.get("data");
+					Integer idEmpresaCreada = null;
+
+					if (dataObj instanceof Map<?, ?> dataMap) {
+					    Object idEmp = dataMap.get("id_empresa");
+					    if (idEmp != null) {
+					        idEmpresaCreada = Integer.valueOf(String.valueOf(idEmp));
+					    }
+					}
+
+					String base64Imagen = (String) jsonParams.get("imagen");
+					String extensionImg = (String) jsonParams.get("extensionImagen");
+					String nombreArchivoImagen = (String) jsonParams.get("nombreArchivoImagen");
+					String usuario = (String) jsonParams.getOrDefault("usuario", "system");
+					String categoriaCodigo = (String) jsonParams.get("categoriaCodigoImagen");
+
+					if (nombreArchivoImagen == null || nombreArchivoImagen.isBlank()) {
+						nombreArchivoImagen = (nombreEmpresa != null && !nombreEmpresa.isBlank())
+								? nombreEmpresa.replaceAll("[^A-Za-z0-9_-]", "_")
+								: "logo_empresa";
+					}
+
+					if (idEmpresaCreada != null && base64Imagen != null && !base64Imagen.isBlank()) {
+						try {
+							var respDoc = documentoServiceImpl.saveDocumentoBase64(base64Imagen, idEmpresaCreada, null,
+									nombreArchivoImagen, extensionImg, usuario, categoriaCodigo);
+
+							if (respDoc.getStatusCode().is2xxSuccessful() && respDoc.getBody() != null
+									&& Boolean.TRUE.equals(respDoc.getBody().getSuccess())) {
+								response.put("documento", respDoc.getBody().getResponse());
+							} else {
+								String msg = (respDoc.getBody() != null ? respDoc.getBody().getMessage()
+										: "Fallo subiendo imagen a Azure");
+								response.put("warningDocumento", msg);
+							}
+						} catch (Exception exUp) {
+							log.warn("No se pudo cargar la imagen en Azure: {}", exUp.getMessage());
+							response.put("warningDocumento", "No se pudo cargar la imagen en Azure");
+						}
+					}
 				}
 
 				return response;
@@ -174,114 +217,129 @@ public class EmpresaServiceImpl implements IEmpresaService {
 
 			return Map.of(Constantes.ERROR_KEY, "No se pudo leer la respuesta JSON del SP.");
 
-		} catch (JsonProcessingException e) {
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
 			log.error("Error JSON", e);
-			return Collections.singletonMap(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
+					"Error de procesamiento JSON: " + e.getMessage());
 		} catch (Exception e) {
 			log.error("Error inesperado", e);
-			return Collections.singletonMap(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
+			return java.util.Collections.singletonMap(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
 		}
 	}
 
 	@Transactional
 	public Map<String, Object> updateEnterprise(Map<String, Object> jsonParams) {
-	    try {
-	        String jsonString = objectMapper.writeValueAsString(jsonParams);
-	        String sql = "SELECT public.actualizar_estado_empresa(CAST(:jsonData AS jsonb)) AS result";
-	        MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
-	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+		try {
+			String jsonString = objectMapper.writeValueAsString(jsonParams);
+			String sql = "SELECT public.actualizar_estado_empresa(CAST(:jsonData AS jsonb)) AS result";
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 
-	        Object wrapped = row.get("result");
-	        String jsonValue;
-	        if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-	            jsonValue = pg.getValue();
-	        } else if (wrapped instanceof String s) {
-	            jsonValue = s;
-	        } else {
-	            return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");
-	        }
+			Object wrapped = row.get("result");
+			String jsonValue;
+			if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonValue = pg.getValue();
+			} else if (wrapped instanceof String s) {
+				jsonValue = s;
+			} else {
+				return Map.of(Constantes.ERROR_KEY, "El resultado no pudo ser procesado correctamente.");
+			}
 
-	        Map<String, Object> response = objectMapper.readValue(
-	                jsonValue, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+			Map<String, Object> response = objectMapper.readValue(jsonValue,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
 
-	        Integer code = null;
-	        Object codeObj = (response.containsKey("code") ? response.get("code") : response.get("statusCode"));
-	        if (codeObj instanceof Number n) code = n.intValue();
-	        else if (codeObj != null) { try { code = Integer.valueOf(codeObj.toString()); } catch (Exception ignored) {} }
-	        if (code == null || (code != 200 && code != 201)) return response;
+			Integer code = null;
+			Object codeObj = (response.containsKey("code") ? response.get("code") : response.get("statusCode"));
+			if (codeObj instanceof Number n)
+				code = n.intValue();
+			else if (codeObj != null) {
+				try {
+					code = Integer.valueOf(codeObj.toString());
+				} catch (Exception ignored) {
+				}
+			}
+			if (code == null || (code != 200 && code != 201))
+				return response;
 
-	        Integer idEmpresa = null;
-	        Object idEmpObj = jsonParams.get("idEmpresa");
-	        if (idEmpObj instanceof Number n) idEmpresa = n.intValue();
-	        else if (idEmpObj != null) { try { idEmpresa = Integer.valueOf(idEmpObj.toString()); } catch (Exception ignored) {} }
-	        if (idEmpresa == null) {
-	            response.put("notice", "idEmpresa ausente o inválido; no se intentó enviar correo.");
-	            return response;
-	        }
+			Integer idEmpresa = null;
+			Object idEmpObj = jsonParams.get("idEmpresa");
+			if (idEmpObj instanceof Number n)
+				idEmpresa = n.intValue();
+			else if (idEmpObj != null) {
+				try {
+					idEmpresa = Integer.valueOf(idEmpObj.toString());
+				} catch (Exception ignored) {
+				}
+			}
+			if (idEmpresa == null) {
+				response.put("notice", "idEmpresa ausente o inválido; no se intentó enviar correo.");
+				return response;
+			}
 
-	        String correoEmpresa = correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa).orElse(null);
-	        if (correoEmpresa == null || correoEmpresa.isBlank()) {
-	            response.put("notice", "La empresa no tiene un correo activo registrado. No se envió la notificación.");
-	            return response;
-	        }
+			String correoEmpresa = correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa).orElse(null);
+			if (correoEmpresa == null || correoEmpresa.isBlank()) {
+				response.put("notice", "La empresa no tiene un correo activo registrado. No se envió la notificación.");
+				return response;
+			}
 
-	        String nombreEmpresa  = (jsonParams.get("nombreEmpresa") == null) ? null : String.valueOf(jsonParams.get("nombreEmpresa"));
-	        String usuarioEmpresa = (jsonParams.get("usuario") == null) ? null : String.valueOf(jsonParams.get("usuario"));
-	        if (usuarioEmpresa == null || usuarioEmpresa.isBlank()) {
-	            response.put("notice", "'usuario' es requerido para generar el token de recuperación. No se envió notificación.");
-	            return response;
-	        }
-	        String tiempoLegible  = notificacionServiceImpl.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+			String nombreEmpresa = (jsonParams.get("nombreEmpresa") == null) ? null
+					: String.valueOf(jsonParams.get("nombreEmpresa"));
+			String usuarioEmpresa = (jsonParams.get("usuario") == null) ? null
+					: String.valueOf(jsonParams.get("usuario"));
+			if (usuarioEmpresa == null || usuarioEmpresa.isBlank()) {
+				response.put("notice",
+						"'usuario' es requerido para generar el token de recuperación. No se envió notificación.");
+				return response;
+			}
+			String tiempoLegible = notificacionServiceImpl
+					.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-	        String token = jwtUtil.generateToken(
-	                usuarioEmpresa,
-	                Constantes.KEY_TOKEN_EXTERNO,
-	                Constantes.TIEMPO_VIGENCIA_EXTERNO
-	        );
+			String token = jwtUtil.generateToken(usuarioEmpresa, Constantes.KEY_TOKEN_EXTERNO,
+					Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-	        String recoverLink = (this.linkRecover == null) ? "" : this.linkRecover;
-	        String encodedValue = java.net.URLEncoder.encode("Bearer " + token, java.nio.charset.StandardCharsets.UTF_8);
+			String recoverLink = (this.linkRecover == null) ? "" : this.linkRecover;
+			String encodedValue = java.net.URLEncoder.encode("Bearer " + token,
+					java.nio.charset.StandardCharsets.UTF_8);
 
-	        if (recoverLink.matches(".*[?&]Authorization=$")) {
-	            recoverLink = recoverLink + encodedValue;
-	        } else if (recoverLink.contains("?")) {
-	            recoverLink = recoverLink + "&Authorization=" + encodedValue;
-	        } else {
-	            recoverLink = recoverLink + "?Authorization=" + encodedValue;
-	        }
+			if (recoverLink.matches(".*[?&]Authorization=$")) {
+				recoverLink = recoverLink + encodedValue;
+			} else if (recoverLink.contains("?")) {
+				recoverLink = recoverLink + "&Authorization=" + encodedValue;
+			} else {
+				recoverLink = recoverLink + "?Authorization=" + encodedValue;
+			}
 
-	        Map<String, Object> data = new HashMap<>();
-	        data.put(Constantes.PARAMETRO_NAME_USER, nombreEmpresa);
-	        data.put(Constantes.PARAMETRO_USER, usuarioEmpresa);
-	        data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
-	        data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+			Map<String, Object> data = new HashMap<>();
+			data.put(Constantes.PARAMETRO_NAME_USER, nombreEmpresa);
+			data.put(Constantes.PARAMETRO_USER, usuarioEmpresa);
+			data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
+			data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
-	        String recoverLinkMasked = recoverLink.replaceAll("(?i)(Authorization=)[^&]+", "$1***");
-	        log.info("Info data notificacion (empresa {}): [nameUser={}, user={}, linkRecover={}, hours={}]",
-	                idEmpresa, nombreEmpresa, usuarioEmpresa, recoverLinkMasked, tiempoLegible);
+			String recoverLinkMasked = recoverLink.replaceAll("(?i)(Authorization=)[^&]+", "$1***");
+			log.info("Info data notificacion (empresa {}): [nameUser={}, user={}, linkRecover={}, hours={}]", idEmpresa,
+					nombreEmpresa, usuarioEmpresa, recoverLinkMasked, tiempoLegible);
 
-	        try {
-	            notificacionServiceImpl.enviarNotificacion(correoEmpresa, Constantes.CREATE_PASSWORD, data);
-	            response.put("emailSent", true);
-	            response.put("emailTo", correoEmpresa);
-	        } catch (Exception mailEx) {
-	            log.error("Fallo enviando notificación a {}", correoEmpresa, mailEx);
-	            response.put("emailSent", false);
-	            response.put("emailError", mailEx.getMessage());
-	        }
+			try {
+				notificacionServiceImpl.enviarNotificacion(correoEmpresa, Constantes.CREATE_PASSWORD, data);
+				response.put("emailSent", true);
+				response.put("emailTo", correoEmpresa);
+			} catch (Exception mailEx) {
+				log.error("Fallo enviando notificación a {}", correoEmpresa, mailEx);
+				response.put("emailSent", false);
+				response.put("emailError", mailEx.getMessage());
+			}
 
-	        return response;
+			return response;
 
-	    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-	        log.error("Error de procesamiento JSON", e);
-	        return Map.of(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
-	    } catch (Exception e) {
-	        log.error("Error inesperado en updateEnterprise", e);
-	        return Map.of(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
-	    }
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			log.error("Error de procesamiento JSON", e);
+			return Map.of(Constantes.ERROR_KEY, "Error de procesamiento JSON: " + e.getMessage());
+		} catch (Exception e) {
+			log.error("Error inesperado en updateEnterprise", e);
+			return Map.of(Constantes.ERROR_KEY, "Error inesperado: " + e.getMessage());
+		}
 	}
-
-
 
 	@Override
 	@Transactional
@@ -363,76 +421,67 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario) {
-	    log.info("Buscar Empresa por id de usuario: {}", idUsuario);
-	    try {
-	        Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
+		log.info("Buscar Empresa por id de usuario: {}", idUsuario);
+		try {
+			Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
 
-	        if (empresaOpt.isEmpty()) {
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                .success(false)
-	                .message("No se encontró una empresa asociada al usuario")
-	                .code(HttpStatus.NOT_FOUND.value())
-	                .build();
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-	        }
+			if (empresaOpt.isEmpty()) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
+						.message("No se encontró una empresa asociada al usuario").code(HttpStatus.NOT_FOUND.value())
+						.build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
 
-	        EmpresaEntity empresa = empresaOpt.get();
-	        Integer idEmpresa = empresa.getId();
+			EmpresaEntity empresa = empresaOpt.get();
+			Integer idEmpresa = empresa.getId();
 
-	        Map<String, Object> responseMap = new HashMap<>();
-	        responseMap.put("idEmpresa", idEmpresa);
-	        responseMap.put("nombre", empresa.getNombre());
+			Map<String, Object> responseMap = new HashMap<>();
+			responseMap.put("idEmpresa", idEmpresa);
+			responseMap.put("nombre", empresa.getNombre());
 
-	        imagenEmpresaRepository.findByEmpresa_Id(idEmpresa)
-	            .map(ImagenEmpresaEntity::getImagen)
-	            .ifPresent(bytes -> {
-	                byte[] raw = bytes;
+			imagenEmpresaRepository.findByEmpresa_Id(idEmpresa).map(ImagenEmpresaEntity::getImagen).ifPresent(bytes -> {
+				byte[] raw = bytes;
 
-	                // Detecta si el BYTEA trae TEXTO Base64 (y no bytes de la imagen)
-	                try {
-	                    String asText = new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
-	                    String compact = asText.replaceAll("\\s+", "");
-	                    boolean pareceBase64 = compact.matches("^[A-Za-z0-9+/=]+$") && (compact.length() % 4 == 0);
-	                    if (pareceBase64) {
-	                        byte[] decoded = java.util.Base64.getDecoder().decode(compact);
-	                        boolean esJpeg = decoded.length >= 2 && (decoded[0] & 0xFF) == 0xFF && (decoded[1] & 0xFF) == 0xD8;
-	                        boolean esPng  = decoded.length >= 4 && decoded[0] == (byte)0x89 && decoded[1] == 'P' && decoded[2] == 'N' && decoded[3] == 'G';
-	                        boolean esGif  = decoded.length >= 3 && decoded[0] == 'G' && decoded[1] == 'I' && decoded[2] == 'F';
+				// Detecta si el BYTEA trae TEXTO Base64 (y no bytes de la imagen)
+				try {
+					String asText = new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
+					String compact = asText.replaceAll("\\s+", "");
+					boolean pareceBase64 = compact.matches("^[A-Za-z0-9+/=]+$") && (compact.length() % 4 == 0);
+					if (pareceBase64) {
+						byte[] decoded = java.util.Base64.getDecoder().decode(compact);
+						boolean esJpeg = decoded.length >= 2 && (decoded[0] & 0xFF) == 0xFF
+								&& (decoded[1] & 0xFF) == 0xD8;
+						boolean esPng = decoded.length >= 4 && decoded[0] == (byte) 0x89 && decoded[1] == 'P'
+								&& decoded[2] == 'N' && decoded[3] == 'G';
+						boolean esGif = decoded.length >= 3 && decoded[0] == 'G' && decoded[1] == 'I'
+								&& decoded[2] == 'F';
 
-	                        if (esJpeg || esPng || esGif) {
-	                            raw = decoded;
-	                        }
-	                    }
-	                } catch (IllegalArgumentException ignore) {
-	                }
+						if (esJpeg || esPng || esGif) {
+							raw = decoded;
+						}
+					}
+				} catch (IllegalArgumentException ignore) {
+				}
 
-	                String base64 = java.util.Base64.getEncoder().encodeToString(raw);
-	                responseMap.put("imagenEmpresa", base64);
-	            });
+				String base64 = java.util.Base64.getEncoder().encodeToString(raw);
+				responseMap.put("imagenEmpresa", base64);
+			});
 
-	        correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
-	            .ifPresent(correo -> responseMap.put("correo", correo));
+			correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
+					.ifPresent(correo -> responseMap.put("correo", correo));
 
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	            .success(true)
-	            .message(Constantes.CONSULTED_SUCCESSFULLY)
-	            .code(HttpStatus.OK.value())
-	            .response(responseMap)
-	            .build();
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(responseMap).build();
 
-	        return ResponseEntity.ok(responseDTO);
+			return ResponseEntity.ok(responseDTO);
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	            .success(false)
-	            .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	            .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-	    }
+		} catch (Exception e) {
+			log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
 	}
-
 
 	@Override
 	@Transactional(readOnly = true)
