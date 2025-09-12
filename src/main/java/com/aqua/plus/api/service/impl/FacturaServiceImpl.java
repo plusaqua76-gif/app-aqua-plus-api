@@ -4,9 +4,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
@@ -148,26 +146,24 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
-			String clienteNombreCompleto, Integer consumo, String fechaEmisionDesde, String fechaEmisionHasta,
-			String fechaFinDesde, String fechaFinHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin,
-			Double precioMax, Pageable pageable) {
+			String clienteNombreCompleto, Integer consumo, String fechaEmision, String fechaFin, String estadoNombre,
+			Boolean consumoAnormal, Double precioMin, Double precioMax, Pageable pageable) {
 
 		log.info(
-				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, consumo={}, fEmiDesde={}, fEmiHasta={}, fFinDesde={}, fFinHasta={}, estado={}, anormal={}, precioMin={}, precioMax={}",
-				idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmisionDesde, fechaEmisionHasta, fechaFinDesde,
-				fechaFinHasta, estadoNombre, consumoAnormal, precioMin, precioMax);
+				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, consumo={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precioMin={}, precioMax={}",
+				idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmision, fechaFin, estadoNombre, consumoAnormal,
+				precioMin, precioMax);
 
 		try {
-			DateRange emision = parseAndNormalizeRange(fechaEmisionDesde, fechaEmisionHasta);
-			if (emision.error)
-				return badRequest("Formato de fecha de emisión inválido. Usa yyyy-MM-dd");
+			// ✅ Parse de fechas individuales (o null si no vienen)
+			LocalDate emision = parseSingleDateOrNull(fechaEmision);
+			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
-			DateRange venc = parseAndNormalizeRange(fechaFinDesde, fechaFinHasta);
-			if (venc.error)
-				return badRequest("Formato de fecha de vencimiento inválido. Usa yyyy-MM-dd");
-
+			// Reutilizamos tus specs “Between” pasando [d, d] cuando hay fecha
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, consumo,
-					emision.from, emision.to, venc.from, venc.to, estadoNombre, consumoAnormal, precioMin, precioMax);
+					emision, emision, // emDesde = emHasta = emision
+					venc, venc, // finDesde = finHasta = venc
+					estadoNombre, consumoAnormal, precioMin, precioMax);
 
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
@@ -191,6 +187,9 @@ public class FacturaServiceImpl implements IFacturaService {
 					.code(HttpStatus.OK.value()).response(items).totalCount(totalCount).pageSize(pageSize)
 					.currentPage(currentPage).totalPages(totalPages).build());
 
+		} catch (java.time.format.DateTimeParseException ex) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 		} catch (Exception e) {
 			log.error("Error al buscar facturas por id de empresa: {}", idEmpresa, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -199,45 +198,29 @@ public class FacturaServiceImpl implements IFacturaService {
 		}
 	}
 
-	/* ====================== Helpers privados ====================== */
+	/* ====================== Helpers ====================== */
 
-	private record DateRange(LocalDate from, LocalDate to, boolean error) {
-		static DateRange ok(LocalDate f, LocalDate t) {
-			return new DateRange(f, t, false);
-		}
-
-		static DateRange err() {
-			return new DateRange(null, null, true);
-		}
-	}
-
-	private DateRange parseAndNormalizeRange(String desde, String hasta) {
-		try {
-			LocalDate d = (desde == null || desde.isBlank()) ? null : LocalDate.parse(desde);
-			LocalDate h = (hasta == null || hasta.isBlank()) ? null : LocalDate.parse(hasta);
-			if (d != null && h != null && d.isAfter(h)) {
-				var tmp = d;
-				d = h;
-				h = tmp;
-			}
-			return DateRange.ok(d, h);
-		} catch (java.time.format.DateTimeParseException ex) {
-			return DateRange.err();
-		}
+	private LocalDate parseSingleDateOrNull(String dateStr) {
+		if (dateStr == null || dateStr.isBlank())
+			return null;
+		return LocalDate.parse(dateStr); // yyyy-MM-dd
 	}
 
 	@SafeVarargs
 	private static <T> Specification<T> allOfNonNull(Specification<T>... specs) {
 		Specification<T> result = (root, query, cb) -> cb.conjunction();
-		for (Specification<T> s : Stream.of(specs).filter(Objects::nonNull).toList()) {
+		for (Specification<T> s : java.util.Arrays.stream(specs).filter(java.util.Objects::nonNull).toList()) {
 			result = result.and(s);
 		}
 		return result;
 	}
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
-			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde,
-			LocalDate finHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
+			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta, // ← pasamos la misma
+																									// fecha si aplica
+			LocalDate finDesde, LocalDate finHasta, // ← pasamos la misma fecha si aplica
+			String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
+
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
 			precioMin = precioMax;
@@ -248,16 +231,13 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.codigoLike(codigo),
 				FacturaSpecifications.clienteNombreCompletoLike(clienteNombreCompleto),
 				FacturaSpecifications.consumoEquals(consumo),
+				// Si la fecha es null, tus specs “Between” deben ignorar el filtro; si no, usan
+				// [d, d]
 				FacturaSpecifications.fechaEmisionBetween(emDesde, emHasta),
 				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
 				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
 				FacturaSpecifications.precioBetween(precioMin, precioMax));
-	}
-
-	private ResponseEntity<ResponseDTO> badRequest(String msg) {
-		return ResponseEntity.badRequest()
-				.body(ResponseDTO.builder().success(false).message(msg).code(HttpStatus.BAD_REQUEST.value()).build());
 	}
 
 	@Override
