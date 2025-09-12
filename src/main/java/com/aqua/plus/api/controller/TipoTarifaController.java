@@ -59,7 +59,7 @@ public class TipoTarifaController {
         return tipoTarifaServiceImpl.save(tipoTarifaDTO);
     }
 
-    @Operation(summary = "Buscar tipo tarifa por id")
+    @Operation(summary = "Buscar tipo tarifa por id de empresa")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -72,7 +72,7 @@ public class TipoTarifaController {
     })
     @GetMapping("/{id}")
     public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
-        return tipoTarifaServiceImpl.findById(id);
+        return tipoTarifaServiceImpl.findByEnterpriseId(id);
     }
 
     @Operation(summary = "Listar todos los tipos de tarifas")

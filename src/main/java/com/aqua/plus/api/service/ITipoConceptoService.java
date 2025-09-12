@@ -22,4 +22,6 @@ public interface ITipoConceptoService {
 	ResponseEntity<ResponseDTO> findAll();
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
+	
+	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa);
 }

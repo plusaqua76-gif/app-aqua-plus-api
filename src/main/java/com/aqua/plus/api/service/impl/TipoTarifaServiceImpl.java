@@ -1,7 +1,7 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
-import java.util.Optional;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -83,37 +83,59 @@ public class TipoTarifaServiceImpl implements ITipoTarifaService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findById(Integer id) {
-	    log.info("Buscar tipo de tarifa por id: {}", id);
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa) {
+	    log.info("Buscar tipo de tarifa por empresaId={}", idEmpresa);
 	    try {
-	        Optional<TipoTarifaEntity> ciudad = tipoTarifaRepository.findById(id);
-	        if (ciudad.isPresent()) {
-	        	TipoTarifaDTO dto = tipoTarifaMapper.entityToDto(ciudad.get());
-	            ResponseDTO responseDTO = ResponseDTO.builder()
-	                    .success(true)
-	                    .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                    .code(HttpStatus.OK.value())
-	                    .response(dto)
-	                    .build();
-	            return ResponseEntity.ok(responseDTO);
-	        } else {
-	            ResponseDTO responseDTO = ResponseDTO.builder()
+	        if (idEmpresa == null) {
+	            return ResponseEntity.badRequest().body(
+	                ResponseDTO.builder()
 	                    .success(false)
-	                    .message(Constantes.CONSULTING_ERROR)
-	                    .code(HttpStatus.NOT_FOUND.value())
-	                    .build();
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+	                    .message("Parámetro requerido: idEmpresa")
+	                    .code(HttpStatus.BAD_REQUEST.value())
+	                    .build()
+	            );
 	        }
+
+	        List<TipoTarifaEntity> entities = tipoTarifaRepository.findByEmpresa_Id(idEmpresa);
+
+	        if (entities == null || entities.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+	                ResponseDTO.builder()
+	                    .success(false)
+	                    .message("No se encontraron tipos de tarifa para la empresa indicada")
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .totalCount(0L)
+	                    .build()
+	            );
+	        }
+
+	        List<TipoTarifaDTO> dtos = entities.stream()
+	                .map(tipoTarifaMapper::entityToDto)
+	                .toList();
+
+	        return ResponseEntity.ok(
+	            ResponseDTO.builder()
+	                .success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .response(dtos)
+	                .totalCount((long) dtos.size())
+	                .build()
+	        );
+
 	    } catch (Exception e) {
-	        log.error("Error al buscar tipo tarifa por id: {}", id, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
+	        log.error("Error al buscar tipo tarifa por empresaId={}", idEmpresa, e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+	            ResponseDTO.builder()
 	                .success(false)
 	                .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
 	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+	                .build()
+	        );
 	    }
 	}
+
+
 
 	@Override
 	@Transactional(readOnly = true)

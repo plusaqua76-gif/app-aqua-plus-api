@@ -205,7 +205,7 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId) {
 		log.info("Buscar tarifas por id de empresa: {}", empresaId);
 		try {
-			List<TarifaConceptoEntity> conceptos = tarifaConceptoRepository.findByTarifaEmpresaId(empresaId);
+			List<TarifaConceptoEntity> conceptos = tarifaConceptoRepository.findByTipoTarifaEmpresaId(empresaId);
 
 			if (conceptos.isEmpty()) {
 				ResponseDTO notFound = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)

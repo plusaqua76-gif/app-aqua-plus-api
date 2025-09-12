@@ -1,6 +1,7 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +77,38 @@ public class TipoConceptoServiceImpl implements ITipoConceptoService {
 
 	@Override
 	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa) {
+		log.info("Buscar tipo de concepto por empresaId={}", idEmpresa);
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			List<TipoConceptoEntity> entities = tipoConceptoRepository.findByEmpresa_Id(idEmpresa);
+
+			if (entities == null || entities.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron tipos de tarifa para la empresa indicada")
+								.code(HttpStatus.NOT_FOUND.value()).totalCount(0L).build());
+			}
+
+			List<TipoConceptoDTO> dtos = entities.stream().map(tipoConceptoMapper::entityToDto).toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtos).totalCount((long) dtos.size()).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar tipo concepto por empresaId={}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findAll() {
 		log.info("Listar todos los tipos conceptos");
 		try {
@@ -91,35 +124,26 @@ public class TipoConceptoServiceImpl implements ITipoConceptoService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
-	
+
 	@Override
-    @Transactional
-    public ResponseEntity<ResponseDTO> deleteById(Integer id) {
-        log.info("Inicio método para eliminar tipo de tarifa por id: {}", id);
-        try {
-            if (!tipoConceptoRepository.existsById(id)) {
-                ResponseDTO responseDTO = ResponseDTO.builder()
-                        .success(false)
-                        .message(Constantes.RECORD_NOT_FOUND)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .build();
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-            }
-            tipoConceptoRepository.deleteById(id);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.DELETED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al eliminar el tipo de tarifa con id: {}", id, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.DELETE_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+	@Transactional
+	public ResponseEntity<ResponseDTO> deleteById(Integer id) {
+		log.info("Inicio método para eliminar tipo de tarifa por id: {}", id);
+		try {
+			if (!tipoConceptoRepository.existsById(id)) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.RECORD_NOT_FOUND)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+			tipoConceptoRepository.deleteById(id);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.DELETED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al eliminar el tipo de tarifa con id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 }

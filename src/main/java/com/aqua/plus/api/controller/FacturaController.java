@@ -68,14 +68,12 @@ public class FacturaController {
 			@RequestParam(required = false) String codigo,
 			@RequestParam(required = false, name = "clienteNombreCompleto") String clienteNombreCompleto,
 			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) String fechaEmisionDesde,
-			@RequestParam(required = false) String fechaEmisionHasta,
-			@RequestParam(required = false) String fechaFinDesde, @RequestParam(required = false) String fechaFinHasta,
+			@RequestParam(required = false) String fechaEmision, @RequestParam(required = false) String fechaFin,
 			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
 			@RequestParam(required = false) Double precioMin, @RequestParam(required = false) Double precioMax,
 			Pageable pageable) {
-		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, consumo,
-				fechaEmisionDesde, fechaEmisionHasta, fechaFinDesde, fechaFinHasta, estadoNombre, consumoAnormal,
-				precioMin, precioMax, pageable);
+		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmision,
+				fechaFin, estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
 	}
 
 	@Operation(summary = "Buscar Factura por id")
@@ -170,7 +168,7 @@ public class FacturaController {
 		Map<String, Object> resp = facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
 		return ResponseEntity.ok(resp);
 	}
-	
+
 	@Operation(summary = "Métricas de factura por mes", description = "Invoca el SP public.fn_metricas_facturas_mes para obtener m³ totales e importes del mes.")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
@@ -183,25 +181,21 @@ public class FacturaController {
 		Map<String, Object> resp = facturaServiceImpl.metricasFacturaMes(empresaId, anio, mes);
 		return ResponseEntity.ok(resp);
 	}
-	
+
 	@Operation(summary = "Actualizar facturas por código (batch o individual)")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Operación completada exitosamente",
-            content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
-        @ApiResponse(responseCode = "400", description = "Petición inválida",
-            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-        @ApiResponse(responseCode = "500", description = "Error inesperado en el servidor",
-            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
-    })
-    @PostMapping("/actualizar")
-    public ResponseEntity<Map<String, Object>> actualizarFacturas(@RequestBody Object body) {
-        try {
-            Map<String, Object> result = facturaServiceImpl.actualizarFacturas(body);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
-        }
-    }
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado en el servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@PostMapping("/actualizar")
+	public ResponseEntity<Map<String, Object>> actualizarFacturas(@RequestBody Object body) {
+		try {
+			Map<String, Object> result = facturaServiceImpl.actualizarFacturas(body);
+			return ResponseEntity.ok(result);
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
+		}
+	}
 
 }
