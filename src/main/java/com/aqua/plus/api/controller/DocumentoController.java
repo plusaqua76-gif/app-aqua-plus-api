@@ -92,7 +92,7 @@ public class DocumentoController {
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/empresa/{idEmpresa}")
 	public ResponseEntity<ResponseDTO> listarPorEmpresa(@PathVariable Integer idEmpresa) {
-		return documentoServiceImpl.listarPorEmpresa(idEmpresa);
+		return documentoServiceImpl.listarPorEmpresaConBase64(idEmpresa);
 	}
 
 	@Operation(summary = "Listar documentos por persona")
