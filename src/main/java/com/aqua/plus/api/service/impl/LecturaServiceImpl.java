@@ -183,25 +183,18 @@ public class LecturaServiceImpl implements ILecturaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, String serial, Integer lectura,
-			String fechaDesde, String fechaHasta, Boolean consumoAnormal, String observacion, Pageable pageable) {
+			String fecha, Boolean consumoAnormal, String observacion, Pageable pageable) {
 
 		log.info(
-				"Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fechaDesde={}, fechaHasta={}, consumoAnormal={}, observacion={}",
-				empresaId, serial, lectura, fechaDesde, fechaHasta, consumoAnormal, observacion);
+				"Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fecha={}, consumoAnormal={}, observacion={}",
+				empresaId, serial, lectura, fecha, consumoAnormal, observacion);
 
 		try {
-			LocalDate dDesde = (fechaDesde == null || fechaDesde.isBlank()) ? null : LocalDate.parse(fechaDesde);
-			LocalDate dHasta = (fechaHasta == null || fechaHasta.isBlank()) ? null : LocalDate.parse(fechaHasta);
-
-			if (dDesde != null && dHasta != null && dDesde.isAfter(dHasta)) {
-				var tmp = dDesde;
-				dDesde = dHasta;
-				dHasta = tmp;
-			}
+			LocalDate f = (fecha == null || fecha.isBlank()) ? null : LocalDate.parse(fecha);
 
 			Specification<LecturaEntity> spec = allOfNonNull(LecturaSpecifications.perteneceAEmpresa(empresaId),
 					LecturaSpecifications.serialLike(serial), LecturaSpecifications.lecturaEquals(lectura),
-					LecturaSpecifications.fechaBetween(dDesde, dHasta),
+					(f != null ? LecturaSpecifications.fechaBetween(f, f) : null),
 					LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
 					LecturaSpecifications.observacionLike(observacion));
 

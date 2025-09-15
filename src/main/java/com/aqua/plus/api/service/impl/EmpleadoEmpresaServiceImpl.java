@@ -1,6 +1,5 @@
 package com.aqua.plus.api.service.impl;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -9,6 +8,7 @@ import java.util.stream.Collectors;
 import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpleadoEmpresaService;
+import com.aqua.plus.api.service.impl.specification.EmpleadoEmpresaSpecification;
 import com.aqua.plus.commons.dtos.EmpleadoEmpresaResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
@@ -151,102 +152,90 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 			Optional<EmpleadoEmpresaEntity> empleadoEmpresa = empleadoEmpresaRepository.findById(id);
 			if (empleadoEmpresa.isPresent()) {
 				EmpleadoEmpresaResponseDTO dto = empleadoEmpresaMapper.entityToResumenDto(empleadoEmpresa.get());
-				ResponseDTO responseDTO = ResponseDTO.builder()
-						.success(true)
-						.message(Constantes.CONSULTED_SUCCESSFULLY)
-						.code(HttpStatus.OK.value())
-						.response(dto)
-						.build();
+				ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+						.code(HttpStatus.OK.value()).response(dto).build();
 				return ResponseEntity.ok(responseDTO);
 			} else {
-				ResponseDTO responseDTO = ResponseDTO.builder()
-						.success(false)
-						.message(Constantes.CONSULTING_ERROR)
-						.code(HttpStatus.NOT_FOUND.value())
-						.build();
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
 			}
 		} catch (Exception e) {
 			log.error("Error al buscar empleado empresa por id: {}", id, e);
-			ResponseDTO responseDTO = ResponseDTO.builder()
-					.success(false)
-					.message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-					.build();
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
-	
+
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable) {
-	    log.info("Buscando empleados empresa por Id de empresa: {}", empresaId);
-	    try {
-	        Page<EmpleadoEmpresaEntity> page =
-	            empleadoEmpresaRepository.findByEmpresa_Id(empresaId, pageable);
+	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable, String nombreCompleto,
+			String cedula, String codigo, String telefono, String correo, String estado) {
+		log.info(
+				"Buscando empleados empresa={}, filtros: nombre={}, cedula={}, codigo={}, tel={}, correo={}, estado={}",
+				empresaId, nombreCompleto, cedula, codigo, telefono, correo, estado);
 
-	        List<EmpleadoEmpresaResponseDTO> dtoList =
-	            empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
+		try {
+			Boolean estadoBool = null;
+			if (estado != null) {
+				if ("ACTIVO".equalsIgnoreCase(estado))
+					estadoBool = Boolean.TRUE;
+				else if ("INACTIVO".equalsIgnoreCase(estado))
+					estadoBool = Boolean.FALSE;
+			}
 
-	        List<Integer> personaIds = dtoList.stream()
-	        	    .map(EmpleadoEmpresaResponseDTO::getPersonaId)
-	        	    .filter(Objects::nonNull)
-	        	    .distinct()
-	        	    .toList();
+			Specification<EmpleadoEmpresaEntity> spec = EmpleadoEmpresaSpecification.allOfNonNull(
+					EmpleadoEmpresaSpecification.belongsToEmpresa(empresaId),
+					EmpleadoEmpresaSpecification.personaNombreCompletoLike(nombreCompleto),
+					EmpleadoEmpresaSpecification.personaCedulaEquals(cedula),
+					EmpleadoEmpresaSpecification.personaCodigoLike(codigo),
+					EmpleadoEmpresaSpecification.telefonoLike(telefono),
+					EmpleadoEmpresaSpecification.correoLike(correo),
+					EmpleadoEmpresaSpecification.personaEstadoEquals(estadoBool));
 
-	        if (!personaIds.isEmpty()) {
-	            List<CorreoGeneralEntity> correos =
-	                correoGeneralRepository.findLatestByPersonaIds(personaIds);
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, pageToUse);
 
-	            Map<Integer, String> correoByPersona = correos.stream()
-	                .filter(cg -> cg.getPersona() != null)
-	                .collect(Collectors.toMap(
-	                    cg -> cg.getPersona().getId(),
-	                    CorreoGeneralEntity::getCorreo,
-	                    (a, b) -> a
-	                ));
+			var dtoList = empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
 
-	            List<TelefonoGeneralEntity> telefonos =
-	                telefonoGeneralRepository.findLatestByPersonaIds(personaIds);
+			var personaIds = dtoList.stream().map(EmpleadoEmpresaResponseDTO::getPersonaId).filter(Objects::nonNull)
+					.distinct().toList();
 
-	            Map<Integer, String> telefonoByPersona = telefonos.stream()
-	                .filter(tg -> tg.getPersona() != null)
-	                .collect(Collectors.toMap(
-	                    tg -> tg.getPersona().getId(),
-	                    TelefonoGeneralEntity::getNumero,
-	                    (a, b) -> a
-	                ));
+			if (!personaIds.isEmpty()) {
+				var correos = correoGeneralRepository.findLatestByPersonaIds(personaIds);
+				var correoByPersona = correos.stream().filter(cg -> cg.getPersona() != null).collect(
+						Collectors.toMap(cg -> cg.getPersona().getId(), CorreoGeneralEntity::getCorreo, (a, b) -> a));
 
-	            for (EmpleadoEmpresaResponseDTO dto : dtoList) {
-	                Integer pid = dto.getPersonaId();
-	                if (pid != null) {
-	                    dto.setCorreo(correoByPersona.get(pid));
-	                    dto.setTelefono(telefonoByPersona.get(pid));
-	                }
-	            }
-	        }
+				var telefonos = telefonoGeneralRepository.findLatestByPersonaIds(personaIds);
+				var telefonoByPersona = telefonos.stream().filter(tg -> tg.getPersona() != null).collect(
+						Collectors.toMap(tg -> tg.getPersona().getId(), TelefonoGeneralEntity::getNumero, (a, b) -> a));
 
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	            .success(true)
-	            .message(Constantes.CONSULTED_SUCCESSFULLY)
-	            .code(HttpStatus.OK.value())
-	            .response(dtoList)
-	            .build();
+				dtoList.forEach(dto -> {
+					Integer pid = dto.getPersonaId();
+					if (pid != null) {
+						dto.setCorreo(correoByPersona.get(pid));
+						dto.setTelefono(telefonoByPersona.get(pid));
+					}
+				});
+			}
 
-	        return ResponseEntity.ok(responseDTO);
+			long totalCount = page.getTotalElements();
+			int totalPages = page.getTotalPages();
+			int currentPage = page.getNumber();
+			int pageSize = page.getSize();
 
-	    } catch (Exception e) {
-	        log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
-	        ResponseDTO responseDTO = ResponseDTO.builder()
-	            .success(false)
-	            .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	            .build();
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-	    }
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtoList).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(currentPage).totalPages(totalPages).build());
+
+		} catch (Exception e) {
+			log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
-
-
 
 	@Override
 	@Transactional(readOnly = true)

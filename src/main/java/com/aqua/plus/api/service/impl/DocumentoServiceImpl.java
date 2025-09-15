@@ -3,7 +3,6 @@ package com.aqua.plus.api.service.impl;
 import java.time.Year;
 import java.util.Base64;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -284,31 +283,90 @@ public class DocumentoServiceImpl {
 		}
 	}
 
-	/** Listar por empresa (desde DB) */
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> listarPorEmpresa(Integer idEmpresa) {
+	public ResponseEntity<ResponseDTO> listarPorEmpresaConBase64(Integer idEmpresa) {
+		log.info("Listar documentos (con base64) por empresaId={}", idEmpresa);
 		try {
-			List<DocumentoDTO> list = documentoMapper
-					.listEntityToDtoList(documentoRepository.findByEmpresa_Id(idEmpresa));
+			var docs = documentoRepository.findByEmpresa_Id(idEmpresa);
+
+			var items = new java.util.ArrayList<java.util.Map<String, Object>>(docs.size());
+
+			for (var d : docs) {
+				var row = new java.util.LinkedHashMap<String, Object>();
+				row.put("id", d.getId());
+				row.put("ruta", d.getRuta());
+				row.put("nombre", d.getNombre());
+				row.put("extension", d.getExtension());
+
+				try {
+					var data = container().getBlobClient(d.getRuta()).downloadContent();
+					byte[] bytes = data.toBytes();
+					String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+
+					row.put("imagen", b64);
+					String ct = guessContentType(bytes);
+					if (ct != null)
+						row.put("contentType", ct);
+				} catch (Exception ex) {
+					log.warn("No se pudo descargar blob {}: {}", d.getRuta(), ex.getMessage());
+					row.put("imagen", null);
+					row.put("contentType", null);
+				}
+
+				items.add(row);
+			}
+
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).totalCount((long) list.size()).response(list).build());
+					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
+
 		} catch (Exception e) {
-			log.error("Error listando por empresa", e);
-			return err("Error consultando documentos");
+			log.error("Error listando/descargando documentos por empresa {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando documentos").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 
-	/** Listar por persona (desde DB) */
+	/** Listar por persona (desde DB + Azure -> base64 por registro) */
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> listarPorPersona(Integer idPersona) {
+		log.info("Listar documentos (con base64) por personaId={}", idPersona);
 		try {
-			List<DocumentoDTO> list = documentoMapper
-					.listEntityToDtoList(documentoRepository.findByPersona_Id(idPersona));
+			var docs = documentoRepository.findByPersona_Id(idPersona);
+
+			var items = new java.util.ArrayList<java.util.Map<String, Object>>(docs.size());
+
+			for (var d : docs) {
+				var row = new java.util.LinkedHashMap<String, Object>();
+				row.put("id", d.getId());
+				row.put("ruta", d.getRuta());
+				row.put("nombre", d.getNombre());
+				row.put("extension", d.getExtension());
+
+				try {
+					var data = container().getBlobClient(d.getRuta()).downloadContent();
+					byte[] bytes = data.toBytes();
+					String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+
+					row.put("imagen", b64);
+					String ct = guessContentType(bytes);
+					if (ct != null)
+						row.put("contentType", ct);
+				} catch (Exception ex) {
+					log.warn("No se pudo descargar blob {}: {}", d.getRuta(), ex.getMessage());
+					row.put("imagen", null);
+					row.put("contentType", null);
+				}
+
+				items.add(row);
+			}
+
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).totalCount((long) list.size()).response(list).build());
+					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
+
 		} catch (Exception e) {
-			log.error("Error listando por persona", e);
-			return err("Error consultando documentos");
+			log.error("Error listando/descargando documentos por persona {}", idPersona, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando documentos").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 
