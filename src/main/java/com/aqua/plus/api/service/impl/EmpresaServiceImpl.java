@@ -1,7 +1,9 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,13 +26,11 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.CiudadEntity;
 import com.aqua.plus.commons.entities.DepartamentoEntity;
 import com.aqua.plus.commons.entities.EmpresaEntity;
-import com.aqua.plus.commons.entities.ImagenEmpresaEntity;
 import com.aqua.plus.commons.maps.EmpresaMapper;
 import com.aqua.plus.commons.repositories.CiudadRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.DepartamentoRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
-import com.aqua.plus.commons.repositories.ImagenEmpresaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -52,7 +52,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final DepartamentoRepository departamentoRepository;
 	private final CiudadRepository ciudadRepository;
-	private final ImagenEmpresaRepository imagenEmpresaRepository;
+	private final DocumentoServiceImpl documentoService;
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final JwtUtil jwtUtil;
 
@@ -174,10 +174,10 @@ public class EmpresaServiceImpl implements IEmpresaService {
 					Integer idEmpresaCreada = null;
 
 					if (dataObj instanceof Map<?, ?> dataMap) {
-					    Object idEmp = dataMap.get("id_empresa");
-					    if (idEmp != null) {
-					        idEmpresaCreada = Integer.valueOf(String.valueOf(idEmp));
-					    }
+						Object idEmp = dataMap.get("id_empresa");
+						if (idEmp != null) {
+							idEmpresaCreada = Integer.valueOf(String.valueOf(idEmp));
+						}
 					}
 
 					String base64Imagen = (String) jsonParams.get("imagen");
@@ -298,16 +298,19 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			String token = jwtUtil.generateToken(usuarioEmpresa, Constantes.KEY_TOKEN_EXTERNO,
 					Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-			String recoverLink = (this.linkRecover == null) ? "" : this.linkRecover;
-			String encodedValue = java.net.URLEncoder.encode("Bearer " + token,
-					java.nio.charset.StandardCharsets.UTF_8);
+			String encodedToken = java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8);
 
-			if (recoverLink.matches(".*[?&]Authorization=$")) {
-				recoverLink = recoverLink + encodedValue;
-			} else if (recoverLink.contains("?")) {
-				recoverLink = recoverLink + "&Authorization=" + encodedValue;
+			String baseRecover = (this.linkRecover == null) ? "" : this.linkRecover;
+
+			baseRecover = baseRecover.replaceAll("(?i)([?&])Authorization=$", "$1");
+
+			String recoverLink;
+			if (baseRecover.endsWith("?") || baseRecover.endsWith("&")) {
+				recoverLink = baseRecover + encodedToken;
+			} else if (baseRecover.contains("?")) {
+				recoverLink = baseRecover + "&" + encodedToken;
 			} else {
-				recoverLink = recoverLink + "?Authorization=" + encodedValue;
+				recoverLink = baseRecover + "?" + encodedToken;
 			}
 
 			Map<String, Object> data = new HashMap<>();
@@ -426,60 +429,58 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
 
 			if (empresaOpt.isEmpty()) {
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
-						.message("No se encontró una empresa asociada al usuario").code(HttpStatus.NOT_FOUND.value())
-						.build();
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró una empresa asociada al usuario")
+								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
 			EmpresaEntity empresa = empresaOpt.get();
 			Integer idEmpresa = empresa.getId();
 
-			Map<String, Object> responseMap = new HashMap<>();
+			Map<String, Object> responseMap = new LinkedHashMap<>();
 			responseMap.put("idEmpresa", idEmpresa);
 			responseMap.put("nombre", empresa.getNombre());
 
-			imagenEmpresaRepository.findByEmpresa_Id(idEmpresa).map(ImagenEmpresaEntity::getImagen).ifPresent(bytes -> {
-				byte[] raw = bytes;
-
-				// Detecta si el BYTEA trae TEXTO Base64 (y no bytes de la imagen)
-				try {
-					String asText = new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
-					String compact = asText.replaceAll("\\s+", "");
-					boolean pareceBase64 = compact.matches("^[A-Za-z0-9+/=]+$") && (compact.length() % 4 == 0);
-					if (pareceBase64) {
-						byte[] decoded = java.util.Base64.getDecoder().decode(compact);
-						boolean esJpeg = decoded.length >= 2 && (decoded[0] & 0xFF) == 0xFF
-								&& (decoded[1] & 0xFF) == 0xD8;
-						boolean esPng = decoded.length >= 4 && decoded[0] == (byte) 0x89 && decoded[1] == 'P'
-								&& decoded[2] == 'N' && decoded[3] == 'G';
-						boolean esGif = decoded.length >= 3 && decoded[0] == 'G' && decoded[1] == 'I'
-								&& decoded[2] == 'F';
-
-						if (esJpeg || esPng || esGif) {
-							raw = decoded;
-						}
-					}
-				} catch (IllegalArgumentException ignore) {
-				}
-
-				String base64 = java.util.Base64.getEncoder().encodeToString(raw);
-				responseMap.put("imagenEmpresa", base64);
-			});
-
+			// Correo principal (si existe)
 			correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
 					.ifPresent(correo -> responseMap.put("correo", correo));
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(responseMap).build();
+			// Documentos (con base64) orquestando DocumentoService
+			List<?> documentos = Collections.emptyList();
+			Long totalDocs = 0L;
 
-			return ResponseEntity.ok(responseDTO);
+			try {
+				ResponseEntity<ResponseDTO> docsResp = documentoService.listarPorEmpresaConBase64(idEmpresa);
+				if (docsResp != null && docsResp.getStatusCode().is2xxSuccessful() && docsResp.getBody() != null) {
+					ResponseDTO body = docsResp.getBody();
+					if (Boolean.TRUE.equals(body.getSuccess())) {
+						Object resp = body.getResponse();
+						if (resp instanceof List<?> lista) {
+							documentos = lista;
+							totalDocs = body.getTotalCount() != null ? body.getTotalCount() : (long) lista.size();
+						} else if (resp != null) {
+							responseMap.put("documentosRaw", resp);
+						}
+					} else {
+						log.warn("DocumentoService devolvió success=false: {}", body.getMessage());
+					}
+				}
+			} catch (Exception ex) {
+				log.warn("Fallo al obtener documentos con base64 para empresa {}: {}", idEmpresa, ex.getMessage());
+			}
+
+			responseMap.put("documentos", documentos);
+			responseMap.put("totalDocs", totalDocs);
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(responseMap).build());
 
 		} catch (Exception e) {
 			log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 

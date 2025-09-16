@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
 @EnableAutoConfiguration(exclude = { JpaRepositoriesAutoConfiguration.class })
@@ -16,6 +17,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableJpaRepositories(basePackages = { "com.aqua.plus.commons.repositories" })
 @EnableJpaAuditing
 @ComponentScan(basePackages = {"com.aqua.plus.api", "com.aqua.plus.commons"})
+@EnableScheduling
 public class AquaPlusApiApplication {
 
 	public static void main(String[] args) {
