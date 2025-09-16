@@ -153,7 +153,6 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			}
 
 			UsuarioEntity usuario = optionalUsuario.get();
-			usuario.setImagen(nuevaImagen);
 			usuario.setFechaModificacion(new Date());
 			usuario.setUsuarioModificacion(usuarioModificacion);
 

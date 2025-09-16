@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
 import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
@@ -66,6 +67,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final PersonaRepository personaRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
+	private final JwtUtil jwtUtil;
 
 	@Override
 	@Transactional
@@ -105,47 +107,81 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			String jsonString = objectMapper.writeValueAsString(jsonParams);
 
 			String sql = "SELECT * FROM public.guardar_cliente_completo(CAST(:jsonData AS jsonb))";
-
-			MapSqlParameterSource parameters = new MapSqlParameterSource();
-			parameters.addValue("jsonData", jsonString);
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
 
 			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
 			Object wrappedValue = rawResult.get("guardar_cliente_completo");
 
-			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+			if (wrappedValue instanceof org.postgresql.util.PGobject pgObject && "jsonb".equals(pgObject.getType())) {
 				String jsonValue = pgObject.getValue();
-				Map<String, Object> response = objectMapper.readValue(jsonValue, new TypeReference<>() {
-				});
+				Map<String, Object> response = objectMapper.readValue(jsonValue,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
 
 				Object statusCode = response.get("statusCode");
 				if ("200".equals(String.valueOf(statusCode))) {
-					String primerNombre = (String) jsonParams.get("primer_nombre");
-					String segundoNombre = (String) jsonParams.get("segundo_nombre");
-					String primerApellido = (String) jsonParams.get("primer_apellido");
-					String segundoApellido = (String) jsonParams.get("segundo_apellido");
 
+					String primerNombre = (String) jsonParams.get("primerNombre");
+					String segundoNombre = (String) jsonParams.get("segundoNombre");
+					String primerApellido = (String) jsonParams.get("primerApellido");
+					String segundoApellido = (String) jsonParams.get("segundoApellido");
 					String correo = (String) jsonParams.get("correo");
-					String nombre = String.join(" ", Optional.ofNullable(primerNombre).orElse(""),
-							Optional.ofNullable(segundoNombre).orElse(""),
-							Optional.ofNullable(primerApellido).orElse(""),
-							Optional.ofNullable(segundoApellido).orElse("")).replaceAll("\\s+", " ").trim();
 					String usuario = (String) jsonParams.get("usuario");
-					String tiempoLegible = notificacionServiceImpl
-							.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-					if (correo != null && !correo.isBlank()) {
+					String nombre = String
+							.join(" ", java.util.Optional.ofNullable(primerNombre).orElse(""),
+									java.util.Optional.ofNullable(segundoNombre).orElse(""),
+									java.util.Optional.ofNullable(primerApellido).orElse(""),
+									java.util.Optional.ofNullable(segundoApellido).orElse(""))
+							.replaceAll("\\s+", " ").trim();
+
+					if (correo != null && !correo.isBlank() && usuario != null && !usuario.isBlank()) {
+						String tiempoLegible = notificacionServiceImpl
+								.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+						String token = jwtUtil.generateToken(usuario, Constantes.KEY_TOKEN_EXTERNO,
+								Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+						String encodedToken = java.net.URLEncoder.encode(token,
+								java.nio.charset.StandardCharsets.UTF_8);
+
+						String baseRecover = (this.linkRecover == null) ? "" : this.linkRecover;
+
+						String recoverLink;
+						if (baseRecover.endsWith("?") || baseRecover.endsWith("&")) {
+							recoverLink = baseRecover + encodedToken;
+						} else if (baseRecover.contains("?")) {
+							recoverLink = baseRecover + "&" + encodedToken;
+						} else {
+							recoverLink = baseRecover + "?" + encodedToken;
+						}
+
+						String recoverLinkMasked = recoverLink.replaceAll("([?&])[^#]*", "$1***");
+						log.info(
+								"Info data notificacion (saveClient): [nameUser={}, user={}, linkRecover={}, hours={}]",
+								nombre, usuario, recoverLinkMasked, tiempoLegible);
+
 						Map<String, Object> data = new HashMap<>();
 						data.put(Constantes.PARAMETRO_NAME_USER, nombre);
 						data.put(Constantes.PARAMETRO_USER, usuario);
-						data.put(Constantes.PARAMETRO_LINK_RECOVER, this.linkRecover);
+						data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
 						data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
-						log.info("Info data notificacion {}", data);
-
-						String codigoPlantilla = Constantes.CREATE_PASSWORD;
-
-						notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
+						try {
+							String codigoPlantilla = Constantes.CREATE_PASSWORD;
+							notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
+							response.put("emailSent", true);
+							response.put("emailTo", correo);
+						} catch (Exception mailEx) {
+							log.error("Fallo enviando notificación a {}", correo, mailEx);
+							response.put("emailSent", false);
+							response.put("emailError", mailEx.getMessage());
+						}
+					} else if (correo == null || correo.isBlank()) {
+						response.put("notice", "El cliente no tiene un correo válido; no se envió notificación.");
+					} else {
+						response.put("notice",
+								"'usuario' es requerido para generar el token de recuperación; no se envió notificación.");
 					}
 				}
 
@@ -154,11 +190,11 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
 
-		} catch (JsonProcessingException e) {
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
 			log.error("Error de procesamiento JSON", e);
 			return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
 		} catch (Exception e) {
-			log.error("Error inesperado en actualizarEmpleado", e);
+			log.error("Error inesperado en saveClient", e);
 			return Map.of("error", "Error inesperado: " + e.getMessage());
 		}
 	}

@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -41,40 +42,33 @@ public class ParametrosEmpresaServiceImpl implements IParametrosEmpresaService {
 		try {
 			boolean isUpdate = parametrosEmpresaDTO.getId() != null
 					&& parametrosEmpresaRepository.existsById(parametrosEmpresaDTO.getId());
-			ParametrosEmpresaEntity parametrosEmpresaEntity;
 
+			ParametrosEmpresaEntity entity;
 			if (isUpdate) {
-				parametrosEmpresaEntity = parametrosEmpresaRepository.findById(parametrosEmpresaDTO.getId())
-						.orElseThrow();
-				parametrosEmpresaMapper.updateEntityFromDto(parametrosEmpresaDTO, parametrosEmpresaEntity);
-				parametrosEmpresaEntity.setFechaModificacion(new Date());
-				parametrosEmpresaEntity.setUsuarioModificacion(parametrosEmpresaDTO.getUsuarioModificacion());
+				entity = parametrosEmpresaRepository.findById(parametrosEmpresaDTO.getId()).orElseThrow();
+				parametrosEmpresaMapper.updateEntityFromDto(parametrosEmpresaDTO, entity);
+				entity.setFechaModificacion(new Date());
+				entity.setUsuarioModificacion(parametrosEmpresaDTO.getUsuarioModificacion());
 			} else {
-				parametrosEmpresaEntity = parametrosEmpresaMapper.dtoToEntity(parametrosEmpresaDTO);
-				parametrosEmpresaEntity.setFechaCreacion(new Date());
-				parametrosEmpresaEntity.setUsuarioCreacion(parametrosEmpresaDTO.getUsuarioCreacion());
-				parametrosEmpresaEntity.setActivo(true);
+				entity = parametrosEmpresaMapper.dtoToEntity(parametrosEmpresaDTO);
+				entity.setFechaCreacion(new Date());
+				entity.setUsuarioCreacion(parametrosEmpresaDTO.getUsuarioCreacion());
+				entity.setActivo(true);
 			}
 
-			ParametrosEmpresaEntity savedEntity = parametrosEmpresaRepository.save(parametrosEmpresaEntity);
-			ParametrosEmpresaDTO savedDTO = parametrosEmpresaMapper.entityToDto(savedEntity);
-
-			log.info("Fin guardar/actualizar rol");
+			parametrosEmpresaRepository.save(entity);
 
 			String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
 			int statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(message).code(statusCode)
-					.response(savedDTO).build();
-
-			return ResponseEntity.status(statusCode).body(responseDTO);
+			return ResponseEntity.status(statusCode).body(ResponseDTO.builder().success(true).message(message)
+					.code(statusCode).response(Collections.emptyMap()).build());
 
 		} catch (Exception e) {
 			log.error("Error al guardar/actualizar Parametros Empresa", e);
-			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
-					.code(HttpStatus.BAD_REQUEST.value()).build();
-
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
+							.code(HttpStatus.BAD_REQUEST.value()).response(Collections.emptyMap()).build());
 		}
 	}
 
