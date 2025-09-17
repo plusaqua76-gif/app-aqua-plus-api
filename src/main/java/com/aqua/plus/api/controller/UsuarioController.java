@@ -3,6 +3,7 @@ package com.aqua.plus.api.controller;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -203,33 +204,33 @@ public class UsuarioController {
 		return usuarioServiceImpl.recoverPassword(correo, codigoPlantilla);
 	}
 
-	@Operation(summary = "Actualizar password ")
+	@Operation(summary = "Actualizar contraseña por token")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+			@ApiResponse(responseCode = "200", description = "Contraseña actualizada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "401", description = "No autorizado (token ausente/ inválido/ expirado)", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@PostMapping("/update-password")
 	public ResponseEntity<ResponseDTO> updatePasswordByToken(
-			@RequestHeader(value = "Authorization", required = false) String authHeader,
-			@RequestHeader(value = "Recover-Token", required = false) String recoverHeader,
-			@RequestParam(value = "Authorization", required = false) String authQuery,
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+			@RequestHeader(value = "Recover-Token", required = false) String recoverTokenHeader,
+			@RequestParam(value = "Authorization", required = false) String authorizationQueryParam,
 			@RequestBody UsuarioDTO usuarioDTO) {
 
-		String token = (recoverHeader != null) ? recoverHeader : (authHeader != null ? authHeader : authQuery);
+		String tokenCarrier = firstNonBlank(recoverTokenHeader, authorizationHeader, authorizationQueryParam);
 
-		if (token != null) {
-			if (token.contains("%") || token.contains("+")) {
-				token = java.net.URLDecoder.decode(token, java.nio.charset.StandardCharsets.UTF_8);
-			}
-			token = token.replaceFirst("(?i)^Bearer[\\s]+", "").trim();
+		return usuarioServiceImpl.updatePasswordByToken(tokenCarrier, usuarioDTO);
+	}
+
+	private static String firstNonBlank(String... vals) {
+		if (vals == null)
+			return null;
+		for (String v : vals) {
+			if (v != null && !v.isBlank())
+				return v;
 		}
-
-		return usuarioServiceImpl.updatePasswordByToken(token, usuarioDTO);
+		return null;
 	}
 
 	@Operation(summary = "Actualizar imagen del usuario")

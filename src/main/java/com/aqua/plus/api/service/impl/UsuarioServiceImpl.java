@@ -221,56 +221,73 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		}
 	}
 
+	private String extractRawToken(String tokenOrHeader) {
+	    if (tokenOrHeader == null) return null;
+	    String t = tokenOrHeader.trim();
+	    if (t.regionMatches(true, 0, "Bearer ", 0, 7)) {
+	        return t.substring(7).trim();
+	    }
+	    return t;
+	}
+
 	@Transactional
 	public ResponseEntity<ResponseDTO> updatePasswordByToken(String token, UsuarioDTO usuarioDTO) {
-		log.info("Inicio de actualización de contraseña usando token");
+	    log.info("Inicio de actualización de contraseña usando token");
 
-		token = (token != null) ? token.trim() : null;
-		if (token == null || token.isBlank()) {
-			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
-					.message("Token requerido").code(HttpStatus.UNAUTHORIZED.value()).build());
-		}
+	    token = extractRawToken(token);
+	    if (token == null || token.isBlank()) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+	            ResponseDTO.builder().success(false).message("Token requerido")
+	                .code(HttpStatus.UNAUTHORIZED.value()).build());
+	    }
 
-		try {
-			if (!Boolean.TRUE.equals(jwtUtil.isSignatureValid(token, Constantes.KEY_TOKEN_EXTERNO))) {
-				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
-						.message("Token inválido (firma no coincide)").code(HttpStatus.UNAUTHORIZED.value()).build());
-			}
+	    try {
+	        if (!Boolean.TRUE.equals(jwtUtil.isSignatureValid(token, Constantes.KEY_TOKEN_EXTERNO))) {
+	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+	                ResponseDTO.builder().success(false).message("Token inválido (firma no coincide)")
+	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
+	        }
 
-			final boolean expired = Boolean.TRUE.equals(jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN_EXTERNO));
-			if (expired) {
-				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
-						.message("Token inválido o expirado").code(HttpStatus.UNAUTHORIZED.value()).build());
-			}
+	        if (Boolean.TRUE.equals(jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN_EXTERNO))) {
+	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+	                ResponseDTO.builder().success(false).message("Token inválido o expirado")
+	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
+	        }
 
-			String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
-			if (username == null || username.isBlank()) {
-				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
-						.message("Token sin usuario válido").code(HttpStatus.UNAUTHORIZED.value()).build());
-			}
+	        String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
+	        if (username == null || username.isBlank()) {
+	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+	                ResponseDTO.builder().success(false).message("Token sin usuario válido")
+	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
+	        }
 
-			return usuarioRepository.findByNombre(username).map(usuario -> {
-				String nuevaContrasena = (usuarioDTO != null) ? usuarioDTO.getContrasena() : null;
-				if (nuevaContrasena == null || nuevaContrasena.isBlank()) {
-					return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-							.message("Contraseña requerida").code(HttpStatus.BAD_REQUEST.value()).build());
-				}
+	        return usuarioRepository.findByNombre(username)
+	            .map(usuario -> {
+	                String nuevaContrasena = (usuarioDTO != null) ? usuarioDTO.getContrasena() : null;
+	                if (nuevaContrasena == null || nuevaContrasena.isBlank()) {
+	                    return ResponseEntity.badRequest().body(
+	                        ResponseDTO.builder().success(false).message("Contraseña requerida")
+	                            .code(HttpStatus.BAD_REQUEST.value()).build());
+	                }
+	                usuario.setContrasena(serviceEncriptacion.encriptar(nuevaContrasena));
+	                usuario.setFechaModificacion(new Date());
+	                usuario.setUsuarioModificacion("Recuperación vía token");
+	                usuarioRepository.save(usuario);
 
-				usuario.setContrasena(serviceEncriptacion.encriptar(nuevaContrasena));
-				usuario.setFechaModificacion(new Date());
-				usuario.setUsuarioModificacion("Recuperación vía token");
-				usuarioRepository.save(usuario);
+	                return ResponseEntity.ok(ResponseDTO.builder().success(true)
+	                    .message("Contraseña actualizada exitosamente").code(HttpStatus.OK.value()).build());
+	            })
+	            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+	                ResponseDTO.builder().success(false).message("Usuario no encontrado")
+	                    .code(HttpStatus.NOT_FOUND.value()).build()));
 
-				return ResponseEntity.ok(ResponseDTO.builder().success(true)
-						.message("Contraseña actualizada exitosamente").code(HttpStatus.OK.value()).build());
-			}).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
-					.message("Usuario no encontrado").code(HttpStatus.NOT_FOUND.value()).build()));
-
-		} catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
-					.message("Token inválido").code(HttpStatus.UNAUTHORIZED.value()).build());
-		}
+	    } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+	            ResponseDTO.builder().success(false).message("Token inválido")
+	                .code(HttpStatus.UNAUTHORIZED.value()).build());
+	    }
 	}
+
 
 	@Override
 	@Transactional(readOnly = true)

@@ -203,7 +203,7 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService{
      * @author nicope
      * @version 1.0
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> syncLectorData(Integer idPersona, Integer offset, Integer limit) {
         try {
             StringBuilder sql = new StringBuilder("SELECT * FROM public.sync_lector_data(:idPersona");

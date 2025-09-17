@@ -12,8 +12,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +51,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final EstadoMapper estadoMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
+	private final JdbcTemplate jdbcTemplate;
 
 	@Override
 	@Transactional
@@ -162,7 +165,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					emision, emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax);
 
 			spec = spec.and(FacturaSpecifications.activoTrue());
-			
+
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
 
@@ -321,40 +324,43 @@ public class FacturaServiceImpl implements IFacturaService {
 	}
 
 	@Transactional(readOnly = true)
-	public Map<String, Object> metricasConsumoMes(Integer empresaId, Integer anio, Integer mes) {
+	public ResponseEntity<Map<String, Object>> metricasConsumoMes(Integer empresaId, Integer anio, Integer mes) {
 		try {
-			String sql = "SELECT public.fn_metricas_consumo_mes(:idEmpresa, :anio, :mes) AS payload";
+			SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate).withSchemaName("public")
+					.withFunctionName("fn_metricas_consumo_mes").withoutProcedureColumnMetaDataAccess()
+					.declareParameters(
+							new org.springframework.jdbc.core.SqlParameter("p_id_empresa", java.sql.Types.INTEGER),
+							new org.springframework.jdbc.core.SqlParameter("p_anio", java.sql.Types.INTEGER),
+							new org.springframework.jdbc.core.SqlParameter("p_mes", java.sql.Types.INTEGER));
 
-			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
-					.addValue("anio", anio).addValue("mes", mes);
+			Map<String, Object> in = Map.of("p_id_empresa", empresaId, "p_anio", anio, "p_mes", mes);
 
-			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
-			Object wrappedValue = rawResult.get("payload");
-
-			if (wrappedValue instanceof org.postgresql.util.PGobject pg
-					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
-				String jsonValue = pg.getValue();
-				return objectMapper.readValue(jsonValue,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-						});
-			}
-			if (wrappedValue instanceof String s) {
-				return objectMapper.readValue(s,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-						});
+			String payload = call.executeFunction(String.class, in);
+			if (payload == null) {
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+						.body(Map.of("success", false, "code", 500, "message", "Sin respuesta de la función"));
 			}
 
-			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+			Map<String, Object> body = objectMapper.readValue(payload,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
 
-		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-			e.printStackTrace();
-			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
-					Constantes.PROCCESSING_ERROR + e.getMessage());
+			HttpStatus status = HttpStatus.resolve(Integer.parseInt(String.valueOf(body.getOrDefault("code", 200))));
+			if (status == null) {
+				status = Boolean.TRUE.equals(body.get("success")) ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR;
+			}
+
+			return ResponseEntity.status(status).body(body);
+
+		} catch (org.springframework.jdbc.BadSqlGrammarException ex) {
+			Throwable root = ex.getMostSpecificCause();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("success", false, "code", 500, "message",
+							"SQL inválido al invocar fn_metricas_consumo_mes", "detalle",
+							root != null ? root.getMessage() : ex.getMessage()));
 		} catch (Exception e) {
-			e.printStackTrace();
-			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
-					Constantes.UNEXPECTED_ERROR + e.getMessage());
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("success", false, "code", 500, "message", "Error inesperado: " + e.getMessage()));
 		}
 	}
 
