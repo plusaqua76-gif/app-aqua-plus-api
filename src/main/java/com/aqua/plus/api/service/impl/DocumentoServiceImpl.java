@@ -288,118 +288,96 @@ public class DocumentoServiceImpl implements IDocumentoService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> listarPorEmpresaConBase64(Integer idEmpresa) {
-	    log.info("Listar documentos (con base64) por empresaId={}", idEmpresa);
+		log.info("Listar documentos (con base64) por empresaId={}", idEmpresa);
 
-	    try {
-	        if (idEmpresa == null) {
-	            return ResponseEntity.badRequest().body(
-	                ResponseDTO.builder()
-	                    .success(false)
-	                    .message("idEmpresa es obligatorio")
-	                    .code(HttpStatus.BAD_REQUEST.value())
-	                    .build()
-	            );
-	        }
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
 
-	        var docs = documentoRepository.findByEmpresa_Id(idEmpresa);
-	        if (docs == null || docs.isEmpty()) {
-	            return ResponseEntity.ok(
-	                ResponseDTO.builder()
-	                    .success(true)
-	                    .message("Sin documentos")
-	                    .code(HttpStatus.OK.value())
-	                    .totalCount(0L)
-	                    .response(List.of())
-	                    .build()
-	            );
-	        }
+			var docs = documentoRepository.findByEmpresa_Id(idEmpresa);
+			if (docs == null || docs.isEmpty()) {
+				return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Sin documentos")
+						.code(HttpStatus.OK.value()).totalCount(0L).response(List.of()).build());
+			}
 
-	        var items = new java.util.ArrayList<java.util.Map<String, Object>>(docs.size());
+			var items = new java.util.ArrayList<java.util.Map<String, Object>>(docs.size());
 
-	        for (var d : docs) {
-	            var row = new java.util.LinkedHashMap<String, Object>(8);
-	            row.put("id", d.getId());
-	            row.put("ruta", d.getRuta());
-	            row.put("nombre", d.getNombre());
-	            row.put("extension", d.getExtension());
+			for (var d : docs) {
+				var row = new java.util.LinkedHashMap<String, Object>(8);
+				row.put("id", d.getId());
+				row.put("ruta", d.getRuta());
+				row.put("nombre", d.getNombre());
+				row.put("extension", d.getExtension());
 
-	            try {
-	                var client = container().getBlobClient(d.getRuta());
-	                if (client == null || !client.exists()) {
-	                    log.warn("Blob no existe para ruta={}", d.getRuta());
-	                    row.put("imagen", null);
-	                    row.put("contentType", null);
-	                    row.put("error", "Blob inexistente");
-	                } else {
-	                    var data = client.downloadContent(); // BinaryData
-	                    byte[] bytes = (data != null) ? data.toBytes() : null;
+				try {
+					var client = container().getBlobClient(d.getRuta());
+					if (client == null || !client.exists()) {
+						log.warn("Blob no existe para ruta={}", d.getRuta());
+						row.put("imagen", null);
+						row.put("contentType", null);
+						row.put("error", "Blob inexistente");
+					} else {
+						var data = client.downloadContent(); // BinaryData
+						byte[] bytes = (data != null) ? data.toBytes() : null;
 
-	                    if (bytes != null && bytes.length > 0) {
-	                        String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
-	                        row.put("imagen", b64);
+						if (bytes != null && bytes.length > 0) {
+							String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+							row.put("imagen", b64);
 
-	                        // 1) intentar con tu helper
-	                        String ct = guessContentType(bytes);
-	                        // 2) si no se pudo, caer al content-type por extensión
-	                        if (ct == null || ct.isBlank()) {
-	                            ct = contentTypeFallback(d.getExtension());
-	                        }
-	                        row.put("contentType", ct);
-	                    } else {
-	                        row.put("imagen", null);
-	                        row.put("contentType", null);
-	                        row.put("error", "Blob vacío");
-	                    }
-	                }
-	            } catch (Exception ex) {
-	                log.warn("No se pudo descargar blob {}: {}", d.getRuta(), ex.getMessage());
-	                row.put("imagen", null);
-	                row.put("contentType", null);
-	                row.put("error", ex.getMessage());
-	            }
+							// 1) intentar con tu helper
+							String ct = guessContentType(bytes);
+							// 2) si no se pudo, caer al content-type por extensión
+							if (ct == null || ct.isBlank()) {
+								ct = contentTypeFallback(d.getExtension());
+							}
+							row.put("contentType", ct);
+						} else {
+							row.put("imagen", null);
+							row.put("contentType", null);
+							row.put("error", "Blob vacío");
+						}
+					}
+				} catch (Exception ex) {
+					log.warn("No se pudo descargar blob {}: {}", d.getRuta(), ex.getMessage());
+					row.put("imagen", null);
+					row.put("contentType", null);
+					row.put("error", ex.getMessage());
+				}
 
-	            items.add(row);
-	        }
+				items.add(row);
+			}
 
-	        return ResponseEntity.ok(
-	            ResponseDTO.builder()
-	                .success(true)
-	                .message("Consulta exitosa")
-	                .code(HttpStatus.OK.value())
-	                .totalCount((long) items.size())
-	                .response(items)
-	                .build()
-	        );
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
 
-	    } catch (Exception e) {
-	        log.error("Error listando/descargando documentos por empresa {}", idEmpresa, e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message("Error consultando documentos")
-	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                .build()
-	        );
-	    }
+		} catch (Exception e) {
+			log.error("Error listando/descargando documentos por empresa {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando documentos").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
 
-	/** Fallback simple por extensión cuando guessContentType(bytes) retorna null. */
+	/**
+	 * Fallback simple por extensión cuando guessContentType(bytes) retorna null.
+	 */
 	private String contentTypeFallback(String ext) {
-	    if (ext == null) return null;
-	    String e = ext.toLowerCase(java.util.Locale.ROOT).replace(".", "");
-	    return switch (e) {
-	        case "jpg", "jpeg" -> "image/jpeg";
-	        case "png"         -> "image/png";
-	        case "gif"         -> "image/gif";
-	        case "webp"        -> "image/webp";
-	        case "svg"         -> "image/svg+xml";
-	        case "pdf"         -> "application/pdf";
-	        case "bmp"         -> "image/bmp";
-	        case "tiff", "tif" -> "image/tiff";
-	        default            -> null;
-	    };
+		if (ext == null)
+			return null;
+		String e = ext.toLowerCase(java.util.Locale.ROOT).replace(".", "");
+		return switch (e) {
+		case "jpg", "jpeg" -> "image/jpeg";
+		case "png" -> "image/png";
+		case "gif" -> "image/gif";
+		case "webp" -> "image/webp";
+		case "svg" -> "image/svg+xml";
+		case "pdf" -> "application/pdf";
+		case "bmp" -> "image/bmp";
+		case "tiff", "tif" -> "image/tiff";
+		default -> null;
+		};
 	}
-
 
 	/** Listar por persona (desde DB + Azure -> base64 por registro) */
 	@Transactional(readOnly = true)

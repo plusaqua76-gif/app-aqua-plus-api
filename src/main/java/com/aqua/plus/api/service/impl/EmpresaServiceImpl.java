@@ -426,8 +426,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	public ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario) {
 		log.info("Buscar Empresa por id de usuario: {}", idUsuario);
 		try {
-			Optional<EmpresaEntity> empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
-
+			var empresaOpt = empresaRepository.findByUsuario_Id(idUsuario);
 			if (empresaOpt.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
@@ -435,32 +434,31 @@ public class EmpresaServiceImpl implements IEmpresaService {
 								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			EmpresaEntity empresa = empresaOpt.get();
-			Integer idEmpresa = empresa.getId();
+			var empresa = empresaOpt.get();
+			var idEmpresa = empresa.getId();
 
-			Map<String, Object> responseMap = new LinkedHashMap<>();
+			var responseMap = new LinkedHashMap<String, Object>();
 			responseMap.put("idEmpresa", idEmpresa);
 			responseMap.put("nombre", empresa.getNombre());
 
-			// Correo principal (si existe)
 			correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
-					.ifPresent(correo -> responseMap.put("correo", correo));
+					.ifPresent(c -> responseMap.put("correo", c));
 
-			// Documentos (con base64) orquestando DocumentoService
-			List<?> documentos = Collections.emptyList();
+			// Orquestar documentos con base64
+			List<?> documentos = List.of();
 			Long totalDocs = 0L;
-
 			try {
-				ResponseEntity<ResponseDTO> docsResp = documentoService.listarPorEmpresaConBase64(idEmpresa);
+				var docsResp = documentoService.listarPorEmpresaConBase64(idEmpresa);
 				if (docsResp != null && docsResp.getStatusCode().is2xxSuccessful() && docsResp.getBody() != null) {
-					ResponseDTO body = docsResp.getBody();
+					var body = docsResp.getBody();
 					if (Boolean.TRUE.equals(body.getSuccess())) {
-						Object resp = body.getResponse();
+						var resp = body.getResponse();
 						if (resp instanceof List<?> lista) {
 							documentos = lista;
 							totalDocs = body.getTotalCount() != null ? body.getTotalCount() : (long) lista.size();
 						} else if (resp != null) {
-							responseMap.put("documentosRaw", resp);
+							// por si algún día cambia el DTO de documentos
+							responseMap.put("imagenRaw", resp);
 						}
 					} else {
 						log.warn("DocumentoService devolvió success=false: {}", body.getMessage());
@@ -470,12 +468,12 @@ public class EmpresaServiceImpl implements IEmpresaService {
 				log.warn("Fallo al obtener documentos con base64 para empresa {}: {}", idEmpresa, ex.getMessage());
 			}
 
-			responseMap.put("documentos", documentos);
-			responseMap.put("totalDocs", totalDocs);
+			// 👇 Cambiamos la clave 'documentos' -> 'imagen'
+			responseMap.put("imagen", documentos);
+			responseMap.put("totalImagen", totalDocs);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(responseMap).build());
-
 		} catch (Exception e) {
 			log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

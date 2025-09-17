@@ -155,17 +155,17 @@ public class FacturaController {
 		}
 	}
 
-	@Operation(summary = "Métricas de consumo por mes", description = "Invoca el SP public.fn_metricas_consumo_mes para obtener m³ totales e importes del mes.")
+	@Operation(summary = "Métricas de consumo por mes", description = "Invoca la función public.fn_metricas_consumo_mes para obtener m³ e importes del periodo.")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+			@ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "404", description = "No encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "422", description = "Entidad no procesable", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))) })
 	@GetMapping("/consumo-mes")
-	public ResponseEntity<Map<String, Object>> metricasConsumoMes(
-			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
-			@Parameter(description = "Año", required = true, example = "2025") @RequestParam Integer anio,
-			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam Integer mes) {
-		Map<String, Object> resp = facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
-		return ResponseEntity.ok(resp);
+	public ResponseEntity<Map<String, Object>> metricasConsumoMes(@RequestParam Integer empresaId,
+			@RequestParam Integer anio, @RequestParam Integer mes) {
+		return facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
 	}
 
 	@Operation(summary = "Métricas de factura por mes", description = "Invoca el SP public.fn_metricas_facturas_mes para obtener m³ totales e importes del mes.")
