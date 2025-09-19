@@ -59,20 +59,32 @@ public class AbonoSpecifications {
 	public static Specification<AbonoEntity> cliente(String texto) {
 		if (texto == null || texto.isBlank())
 			return null;
-		String like = "%" + texto.trim().toLowerCase() + "%";
+
 		return (root, cq, cb) -> {
-			Join<Object, Object> dc = root.join("deudaCliente");
-			Join<Object, Object> ecc = dc.join("empresaClienteContador");
-			Join<Object, Object> cli = ecc.join("cliente");
+			var dc = root.join("deudaCliente");
+			var ecc = dc.join("empresaClienteContador");
+			var cli = ecc.join("cliente");
 
-			Expression<String> n1 = cb.lower(cb.coalesce(cli.get("nombre"), ""));
-			Expression<String> n2 = cb.lower(cb.coalesce(cli.get("segundoNombre"), ""));
-			Expression<String> a1 = cb.lower(cb.coalesce(cli.get("apellido"), ""));
-			Expression<String> a2 = cb.lower(cb.coalesce(cli.get("segundoApellido"), ""));
+			var pNombre = cb.coalesce(cli.get("nombre"), "");
+			var sNombre = cb.coalesce(cli.get("segundoNombre"), "");
+			var pApellido = cb.coalesce(cli.get("apellido"), "");
+			var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
 
-			return cb.or(cb.like(n1, like), cb.like(n2, like), cb.like(a1, like), cb.like(a2, like), cb.like(cb.lower(
-					cb.concat(cb.concat(cb.concat(n1, " "), n2), cb.concat(" ", cb.concat(a1, cb.concat(" ", a2))))),
-					like));
+			var part1 = cb.concat(pNombre, cb.literal(" "));
+			var part2 = cb.concat(sNombre, cb.literal(" "));
+			var part3 = cb.concat(pApellido, cb.literal(" "));
+			var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+
+			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameRaw, cb.literal("\\s+"),
+					cb.literal(" "), cb.literal("g"));
+
+			var fullNameLower = cb.lower(fullNameSpNorm);
+
+			var fullNameNorm = fullNameLower;
+
+			String pattern = "%" + texto.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+
+			return cb.like(fullNameNorm, pattern);
 		};
 	}
 

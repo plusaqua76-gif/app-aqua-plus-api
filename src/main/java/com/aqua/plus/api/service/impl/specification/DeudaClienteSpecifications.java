@@ -15,14 +15,15 @@ public class DeudaClienteSpecifications {
 
 	private DeudaClienteSpecifications() {
 	}
-	
+
 	public static Specification<DeudaClienteEntity> perteneceAEmpresa(Integer idEmpresa) {
-	    if (idEmpresa == null) return null;
-	    return (root, cq, cb) -> {
-	        var ecc = root.join("empresaClienteContador");
-	        var emp = ecc.join("empresa");
-	        return cb.equal(emp.get("id"), idEmpresa);
-	    };
+		if (idEmpresa == null)
+			return null;
+		return (root, cq, cb) -> {
+			var ecc = root.join("empresaClienteContador");
+			var emp = ecc.join("empresa");
+			return cb.equal(emp.get("id"), idEmpresa);
+		};
 	}
 
 	/** DATE(fechaDeuda) = :fecha (yyyy-MM-dd). */
@@ -59,23 +60,40 @@ public class DeudaClienteSpecifications {
 		};
 	}
 
-	/**
-	 * clienteNombre ILIKE %texto% sobre los campos del cliente: nombre,
-	 * segundoNombre, apellido, segundoApellido.
-	 */
 	public static Specification<DeudaClienteEntity> clienteNombreLike(String clienteNombreLike) {
-		if (clienteNombreLike == null || clienteNombreLike.isBlank())
-			return null;
-		String like = "%" + clienteNombreLike.trim().toLowerCase() + "%";
-		return (root, cq, cb) -> {
-			var ecc = root.join("empresaClienteContador");
-			var cli = ecc.join("cliente");
-			var n1 = cb.lower(cb.coalesce(cli.get("nombre"), ""));
-			var n2 = cb.lower(cb.coalesce(cli.get("segundoNombre"), ""));
-			var a1 = cb.lower(cb.coalesce(cli.get("apellido"), ""));
-			var a2 = cb.lower(cb.coalesce(cli.get("segundoApellido"), ""));
-			return cb.or(cb.like(n1, like), cb.like(n2, like), cb.like(a1, like), cb.like(a2, like));
-		};
+	    if (clienteNombreLike == null || clienteNombreLike.isBlank()) return null;
+
+	    return (root, cq, cb) -> {
+	        var ecc = root.join("empresaClienteContador");
+	        var cli = ecc.join("cliente");
+
+	        var pNombre   = cb.coalesce(cli.get("nombre"), "");
+	        var sNombre   = cb.coalesce(cli.get("segundoNombre"), "");
+	        var pApellido = cb.coalesce(cli.get("apellido"), "");
+	        var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
+
+	        var part1 = cb.concat(pNombre, cb.literal(" "));
+	        var part2 = cb.concat(sNombre, cb.literal(" "));
+	        var part3 = cb.concat(pApellido, cb.literal(" "));
+
+	        var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+
+	        var fullNameSpNorm = cb.function(
+	            "regexp_replace", String.class,
+	            fullNameRaw,
+	            cb.literal("\\s+"),
+	            cb.literal(" "),
+	            cb.literal("g")
+	        );
+
+	        var fullNameLower = cb.lower(fullNameSpNorm);
+
+	        var fullNameNorm = fullNameLower;
+
+	        String pattern = "%" + clienteNombreLike.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+
+	        return cb.like(fullNameNorm, pattern);
+	    };
 	}
 
 	/** tipoDeuda.nombre ILIKE %nombre%. */

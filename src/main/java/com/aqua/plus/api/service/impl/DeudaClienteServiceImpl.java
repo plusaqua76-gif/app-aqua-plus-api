@@ -117,7 +117,6 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			// Construcción de Specifications (empresaId es obligatorio)
 			Specification<DeudaClienteEntity> spec = DeudaClienteSpecifications.allOfNonNull(
 					DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
 					DeudaClienteSpecifications.fechaDeudaIgual(fechaDeuda),
@@ -130,7 +129,6 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 
 			Pageable pageToUse = (pageable != null) ? pageable : Pageable.unpaged();
 
-			// DISTINCT para evitar duplicados por los joins
 			Page<DeudaClienteEntity> page = deudaClienteRepository.findAll((root, cq, cb) -> {
 				cq.distinct(true);
 				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, cq, cb);
