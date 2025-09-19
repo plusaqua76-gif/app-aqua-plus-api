@@ -63,25 +63,25 @@ public class DireccionServiceImpl implements IDireccionService {
 	            entity.setActivo(true);
 	        }
 	        
-	        if (direccionDTO.getDepartamentoId() != null && direccionDTO.getDepartamentoId().getId() != null) {
+	        if (direccionDTO.getDepartamento() != null && direccionDTO.getDepartamento().getId() != null) {
 	            DepartamentoEntity departamento = departamentoRepository
-	                .findById(direccionDTO.getDepartamentoId().getId())
+	                .findById(direccionDTO.getDepartamento().getId())
 	                .orElseThrow(() -> new RuntimeException("Departamento no encontrado"));
-	            entity.setDepartamentoId(departamento);
+	            entity.setDepartamento(departamento);
 	        }
 	        
-	        if (direccionDTO.getCiudadId() != null && direccionDTO.getCiudadId().getId() != null) {
+	        if (direccionDTO.getCiudad() != null && direccionDTO.getCiudad().getId() != null) {
 	            CiudadEntity ciudad = ciudadRepository
-	                .findById(direccionDTO.getCiudadId().getId())
+	                .findById(direccionDTO.getCiudad().getId())
 	                .orElseThrow(() -> new RuntimeException("Ciudad no encontrado"));
-	            entity.setCiudadId(ciudad);
+	            entity.setCiudad(ciudad);
 	        }
 
-	        if (direccionDTO.getCorregimientoId() != null && direccionDTO.getCorregimientoId().getId() != null) {
+	        if (direccionDTO.getCorregimiento() != null && direccionDTO.getCorregimiento().getId() != null) {
 	            CorregimientoEntity corregimiento = corregimientoRepository
-	                .findById(direccionDTO.getCorregimientoId().getId())
+	                .findById(direccionDTO.getCorregimiento().getId())
 	                .orElseThrow(() -> new RuntimeException("Corregimiento no encontrado"));
-	            entity.setCorregimientoId(corregimiento);
+	            entity.setCorregimiento(corregimiento);
 	        }
 
 	        DireccionEntity saved = direccionRepository.save(entity);

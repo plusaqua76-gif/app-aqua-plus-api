@@ -12,6 +12,7 @@ import com.aqua.plus.api.service.ICorreoGeneralService;
 import com.aqua.plus.api.service.IPersonaService;
 import com.aqua.plus.api.service.ITelefonoGeneralService;
 import com.aqua.plus.commons.dtos.CorreoGeneralDTO;
+import com.aqua.plus.commons.dtos.DireccionDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TelefonoGeneralDTO;
@@ -21,7 +22,10 @@ import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.entities.TipoDocumentoEntity;
 import com.aqua.plus.commons.maps.PersonaMapper;
+import com.aqua.plus.commons.repositories.CiudadRepository;
+import com.aqua.plus.commons.repositories.CorregimientoRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
+import com.aqua.plus.commons.repositories.DepartamentoRepository;
 import com.aqua.plus.commons.repositories.DireccionRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
@@ -49,122 +53,149 @@ public class PersonaServiceImpl implements IPersonaService {
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final PersonaRepository personaRepository;
 	private final DireccionRepository direccionRepository;
+	private final DepartamentoRepository departamentoRepository;
+	private final CiudadRepository ciudadRepository;
+	private final CorregimientoRepository corregimientoRepository;
 	private final TipoDocumentoRepository tipoDocumentoRepository;
 	private final PersonaMapper personaMapper;
 
 	@Override
 	@Transactional
-	public ResponseEntity<ResponseDTO> save(PersonaDTO personaDTO) {
-		log.info("Guardar/Actualizar persona");
+    public ResponseEntity<ResponseDTO> save(PersonaDTO personaDTO) {
+        log.info("Guardar/Actualizar persona");
 
-		try {
-			boolean isUpdate = personaDTO.getId() != null && personaRepository.existsById(personaDTO.getId());
+        try {
+            boolean isUpdate = personaDTO.getId() != null && personaRepository.existsById(personaDTO.getId());
 
-			ResponseEntity<ResponseDTO> validationResponse = validatePersonaData(personaDTO, isUpdate);
-			if (validationResponse != null) {
-				return validationResponse;
-			}
+            ResponseEntity<ResponseDTO> validationResponse = validatePersonaData(personaDTO, isUpdate);
+            if (validationResponse != null) {
+                return validationResponse;
+            }
 
-			PersonaEntity entity = buildPersonaEntity(personaDTO, isUpdate);
+            PersonaEntity entity = buildPersonaEntity(personaDTO, isUpdate);
 
-			setRelacionDireccion(personaDTO, entity);
-			setRelacionTipoDocumento(personaDTO, entity);
+            setRelacionTipoDocumento(personaDTO, entity);
 
-			PersonaEntity saved = personaRepository.save(entity);
-			Integer personaId = saved.getId();
+            setRelacionDireccion(personaDTO, entity);
 
-			if (personaId != null && personaDTO.getTelefono() != null && !personaDTO.getTelefono().isBlank()) {
-				Integer telId = telefonoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
-						.map(TelefonoGeneralEntity::getId).orElse(null);
+            PersonaEntity saved = personaRepository.save(entity);
+            Integer personaId = saved.getId();
 
-				TelefonoGeneralDTO telDto = TelefonoGeneralDTO.builder().id(telId)
-						.persona(PersonaDTO.builder().id(personaId).build()).numero(personaDTO.getTelefono())
-						.activo(Boolean.TRUE)
-						.usuarioCreacion(
-								personaDTO.getUsuarioCreacion() != null ? personaDTO.getUsuarioCreacion() : "system")
-						.usuarioModificacion(personaDTO.getUsuarioModificacion()).build();
+            if (personaId != null && personaDTO.getTelefono() != null && !personaDTO.getTelefono().isBlank()) {
+                Integer telId = telefonoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
+                        .map(TelefonoGeneralEntity::getId).orElse(null);
 
-				telefonoGeneralService.save(telDto);
-			}
+                TelefonoGeneralDTO telDto = TelefonoGeneralDTO.builder().id(telId)
+                        .persona(PersonaDTO.builder().id(personaId).build())
+                        .numero(personaDTO.getTelefono())
+                        .activo(Boolean.TRUE)
+                        .usuarioCreacion(
+                                personaDTO.getUsuarioCreacion() != null ? personaDTO.getUsuarioCreacion() : "system")
+                        .usuarioModificacion(personaDTO.getUsuarioModificacion()).build();
 
-			if (personaId != null && personaDTO.getCorreo() != null && !personaDTO.getCorreo().isBlank()) {
-				Integer correoId = correoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
-						.map(CorreoGeneralEntity::getId).orElse(null);
+                telefonoGeneralService.save(telDto);
+            }
 
-				CorreoGeneralDTO corrDto = CorreoGeneralDTO.builder().id(correoId)
-						.persona(PersonaDTO.builder().id(personaId).build()).correo(personaDTO.getCorreo())
-						.activo(Boolean.TRUE)
-						.usuarioCreacion(
-								personaDTO.getUsuarioCreacion() != null ? personaDTO.getUsuarioCreacion() : "system")
-						.usuarioModificacion(personaDTO.getUsuarioModificacion()).build();
+            if (personaId != null && personaDTO.getCorreo() != null && !personaDTO.getCorreo().isBlank()) {
+                Integer correoId = correoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
+                        .map(CorreoGeneralEntity::getId).orElse(null);
 
-				correoGeneralService.save(corrDto);
-			}
+                CorreoGeneralDTO corrDto = CorreoGeneralDTO.builder().id(correoId)
+                        .persona(PersonaDTO.builder().id(personaId).build())
+                        .correo(personaDTO.getCorreo())
+                        .activo(Boolean.TRUE)
+                        .usuarioCreacion(
+                                personaDTO.getUsuarioCreacion() != null ? personaDTO.getUsuarioCreacion() : "system")
+                        .usuarioModificacion(personaDTO.getUsuarioModificacion()).build();
 
-			PersonaDTO savedDTO = personaMapper.entityToDto(saved);
-			String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
-			int statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
+                correoGeneralService.save(corrDto);
+            }
 
-			return ResponseEntity.status(statusCode).body(
-					ResponseDTO.builder().success(true).message(message).code(statusCode).response(savedDTO).build());
+            PersonaDTO savedDTO = personaMapper.entityToDto(saved);
+            String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
+            int statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
 
-		} catch (Exception e) {
-			log.error("Error guardando persona", e);
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
-					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
-		}
-	}
+            return ResponseEntity.status(statusCode).body(
+                    ResponseDTO.builder().success(true).message(message).code(statusCode).response(savedDTO).build());
+
+        } catch (Exception e) {
+            log.error("Error guardando persona", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+                    .message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
+        }
+    }
+
+	/* ---- Helpers  ---- */
 
 	private ResponseEntity<ResponseDTO> validatePersonaData(PersonaDTO personaDTO, boolean isUpdate) {
-		if (!isUpdate) {
-			if (personaDTO.getNumeroCedula() != null
-					&& personaRepository.existsByNumeroCedula(personaDTO.getNumeroCedula())) {
-				return buildConflictResponse(Constantes.NUMBER_EXISTS);
-			}
-			if (personaDTO.getNombre() != null && personaRepository.existsByNombre(personaDTO.getNombre())) {
-				return buildConflictResponse(Constantes.PERSON_EXISTS);
-			}
-		}
-		return null;
-	}
+        if (!isUpdate) {
+            if (personaDTO.getNumeroCedula() != null
+                    && personaRepository.existsByNumeroCedula(personaDTO.getNumeroCedula())) {
+                return buildConflictResponse(Constantes.NUMBER_EXISTS);
+            }
+            if (personaDTO.getNombre() != null && personaRepository.existsByNombre(personaDTO.getNombre())) {
+                return buildConflictResponse(Constantes.PERSON_EXISTS);
+            }
+        }
+        return null;
+    }
 
-	private PersonaEntity buildPersonaEntity(PersonaDTO personaDTO, boolean isUpdate) {
-		PersonaEntity entity;
+    private PersonaEntity buildPersonaEntity(PersonaDTO personaDTO, boolean isUpdate) {
+        PersonaEntity entity;
 
-		if (isUpdate) {
-			entity = personaRepository.findById(personaDTO.getId()).orElseThrow();
-			personaMapper.updateEntityFromDto(personaDTO, entity);
-			entity.setFechaModificacion(new Date());
-			entity.setUsuarioModificacion(personaDTO.getUsuarioModificacion());
-		} else {
-			entity = personaMapper.dtoToEntity(personaDTO);
-			entity.setFechaCreacion(new Date());
-			entity.setUsuarioCreacion(personaDTO.getUsuarioCreacion());
-			entity.setActivo(true);
-		}
-		return entity;
-	}
+        if (isUpdate) {
+            entity = personaRepository.findById(personaDTO.getId()).orElseThrow();
+            personaMapper.updateEntityFromDto(personaDTO, entity);
+            entity.setFechaModificacion(new Date());
+            entity.setUsuarioModificacion(personaDTO.getUsuarioModificacion());
+        } else {
+            entity = personaMapper.dtoToEntity(personaDTO);
+            entity.setFechaCreacion(new Date());
+            entity.setUsuarioCreacion(personaDTO.getUsuarioCreacion());
+            entity.setActivo(true);
+        }
+        return entity;
+    }
 
-	private void setRelacionDireccion(PersonaDTO personaDTO, PersonaEntity entity) {
-		if (personaDTO.getDireccion() != null && personaDTO.getDireccion().getId() != null) {
-			DireccionEntity direccion = direccionRepository.findById(personaDTO.getDireccion().getId())
-					.orElseThrow(() -> new RuntimeException(Constantes.DIREC_NOT_FOUND));
-			entity.setDireccion(direccion);
-		}
-	}
+    private void setRelacionTipoDocumento(PersonaDTO personaDTO, PersonaEntity entity) {
+        if (personaDTO.getTipoDocumento() != null && personaDTO.getTipoDocumento().getId() != null) {
+            TipoDocumentoEntity tipoDocumento = tipoDocumentoRepository.findById(personaDTO.getTipoDocumento().getId())
+                    .orElseThrow(() -> new RuntimeException(Constantes.TD_NOT_FOUND));
+            entity.setTipoDocumento(tipoDocumento);
+        }
+    }
 
-	private void setRelacionTipoDocumento(PersonaDTO personaDTO, PersonaEntity entity) {
-		if (personaDTO.getTipoDocumento() != null && personaDTO.getTipoDocumento().getId() != null) {
-			TipoDocumentoEntity tipoDocumento = tipoDocumentoRepository.findById(personaDTO.getTipoDocumento().getId())
-					.orElseThrow(() -> new RuntimeException(Constantes.TD_NOT_FOUND));
-			entity.setTipoDocumento(tipoDocumento);
-		}
-	}
+    private void setRelacionDireccion(PersonaDTO personaDTO, PersonaEntity entity) {
+        if (personaDTO.getDireccion() == null) return;
 
-	private ResponseEntity<ResponseDTO> buildConflictResponse(String message) {
-		return ResponseEntity.status(HttpStatus.CONFLICT)
-				.body(ResponseDTO.builder().success(false).message(message).code(HttpStatus.CONFLICT.value()).build());
-	}
+        DireccionEntity dir = upsertDireccionSinValidar(personaDTO.getDireccion(), entity.getDireccion());
+
+        dir = direccionRepository.save(dir);
+
+        entity.setDireccion(dir);
+    }
+
+    private DireccionEntity upsertDireccionSinValidar(DireccionDTO dirDto, DireccionEntity actual) {
+        DireccionEntity dir = (actual == null) ? new DireccionEntity() : actual;
+
+        if (dirDto.getDepartamento() != null && dirDto.getDepartamento().getId() != null) {
+            dir.setDepartamento(departamentoRepository.getReferenceById(dirDto.getDepartamento().getId()));
+        }
+        if (dirDto.getCiudad() != null && dirDto.getCiudad().getId() != null) {
+            dir.setCiudad(ciudadRepository.getReferenceById(dirDto.getCiudad().getId()));
+        }
+        if (dirDto.getCorregimiento() != null && dirDto.getCorregimiento().getId() != null) {
+            dir.setCorregimiento(corregimientoRepository.getReferenceById(dirDto.getCorregimiento().getId()));
+        }
+
+        return dir;
+    }
+
+    private ResponseEntity<ResponseDTO> buildConflictResponse(String message) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ResponseDTO.builder().success(false).message(message).code(HttpStatus.CONFLICT.value()).build());
+    }
+
 
 	@Override
 	@Transactional(readOnly = true)
