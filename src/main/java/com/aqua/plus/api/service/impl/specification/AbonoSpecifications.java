@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl.specification;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -56,7 +57,7 @@ public class AbonoSpecifications {
 		};
 	}
 
-	public static Specification<AbonoEntity> cliente(String texto) {
+	public static Specification<AbonoEntity> clienteLike(String texto) {
 		if (texto == null || texto.isBlank())
 			return null;
 
@@ -65,17 +66,17 @@ public class AbonoSpecifications {
 			var ecc = dc.join("empresaClienteContador");
 			var cli = ecc.join("cliente");
 
-			var pNombre = cb.coalesce(cli.get("nombre"), "");
-			var sNombre = cb.coalesce(cli.get("segundoNombre"), "");
-			var pApellido = cb.coalesce(cli.get("apellido"), "");
-			var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
+			var pNombre = cb.function("nullif", String.class, cli.get("nombre"), cb.literal(""));
+			var sNombre = cb.function("nullif", String.class, cli.get("segundoNombre"), cb.literal(""));
+			var pApellido = cb.function("nullif", String.class, cli.get("apellido"), cb.literal(""));
+			var sApellido = cb.function("nullif", String.class, cli.get("segundoApellido"), cb.literal(""));
 
-			var part1 = cb.concat(pNombre, cb.literal(" "));
-			var part2 = cb.concat(sNombre, cb.literal(" "));
-			var part3 = cb.concat(pApellido, cb.literal(" "));
-			var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+			var fullName = cb.function("concat_ws", String.class, cb.literal(" "), pNombre, sNombre, pApellido,
+					sApellido);
 
-			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameRaw, cb.literal("\\s+"),
+			var fullNameTrim = cb.function("btrim", String.class, fullName);
+
+			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameTrim, cb.literal("\\s+"),
 					cb.literal(" "), cb.literal("g"));
 
 			var fullNameLower = cb.lower(fullNameSpNorm);
@@ -108,7 +109,7 @@ public class AbonoSpecifications {
 		specs.add(activoIgual(activo));
 		specs.add(fechaEntre(fechaDesde, fechaHasta));
 		specs.add(valorEntre(valorMin, valorMax));
-		specs.add(cliente(clienteLike));
+		specs.add(clienteLike(clienteLike));
 		specs.add(codigoFactura(codigoFacturaLike));
 
 		Specification<AbonoEntity> result = null;
@@ -119,4 +120,20 @@ public class AbonoSpecifications {
 		}
 		return result;
 	}
+
+	public static Specification<AbonoEntity> fechaIgual(LocalDate fecha) {
+		if (fecha == null)
+			return null;
+		var ini = java.sql.Timestamp.valueOf(fecha.atStartOfDay());
+		var fin = java.sql.Timestamp.valueOf(fecha.plusDays(1).atStartOfDay());
+		return (root, cq, cb) -> cb.and(cb.greaterThanOrEqualTo(root.get("fechaCreacion"), ini),
+				cb.lessThan(root.get("fechaCreacion"), fin));
+	}
+
+	public static Specification<AbonoEntity> valorIgual(Double valor) {
+		if (valor == null)
+			return null;
+		return (root, cq, cb) -> cb.equal(root.get("valor"), valor);
+	}
+
 }

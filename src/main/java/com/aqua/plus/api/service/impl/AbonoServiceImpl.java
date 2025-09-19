@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IAbonoService;
+import com.aqua.plus.api.service.impl.specification.AbonoSpecifications;
 import com.aqua.plus.commons.dtos.AbonoDTO;
 import com.aqua.plus.commons.dtos.AbonoResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
@@ -27,7 +29,6 @@ import com.aqua.plus.commons.repositories.AbonoRepository;
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
-import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -131,11 +132,12 @@ public class AbonoServiceImpl implements IAbonoService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> listarAbonosPorIdEmpresa(Integer idEmpresa, String cliente,
+	public ResponseEntity<ResponseDTO> listarAbonosPorIdEmpresa(Integer idEmpresa, String clienteLike,
 			String codigoFactura, LocalDate fecha, Double valor, Pageable pageable) {
+
 		log.info(
 				"Listar abonos (resumen) por empresaId={} filtros: clienteLike={}, codigoFacturaLike={}, fecha={}, valor={}",
-				idEmpresa, cliente, codigoFactura, fecha, valor);
+				idEmpresa, clienteLike, codigoFactura, fecha, valor);
 
 		try {
 			if (idEmpresa == null) {
@@ -143,53 +145,17 @@ public class AbonoServiceImpl implements IAbonoService {
 						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Specification<AbonoEntity> porEmpresa = (root, cq, cb) -> {
-				var dc = root.join("deudaCliente");
-				var ecc = dc.join("empresaClienteContador");
-				var emp = ecc.join("empresa");
-				return cb.equal(emp.get("id"), idEmpresa);
-			};
-
-			Specification<AbonoEntity> soloActivos = (root, cq, cb) -> cb.isTrue(root.get("activo"));
-
-			Specification<AbonoEntity> porFecha = (fecha == null) ? null
-					: (root, cq, cb) -> cb.equal(cb.function("DATE", Date.class, root.get("fechaCreacion")),
-							java.sql.Date.valueOf(fecha));
-
-			Specification<AbonoEntity> porValor = (valor == null) ? null
-					: (root, cq, cb) -> cb.equal(root.get("valor"), valor);
-
-			Specification<AbonoEntity> porCliente = (cliente == null || cliente.isBlank()) ? null
-					: (root, cq, cb) -> {
-						String like = "%" + cliente.trim().toLowerCase() + "%";
-						var dc = root.join("deudaCliente");
-						var ecc = dc.join("empresaClienteContador");
-						var cli = ecc.join("cliente");
-						var n1 = cb.lower(cb.coalesce(cli.get("nombre"), ""));
-						var n2 = cb.lower(cb.coalesce(cli.get("segundoNombre"), ""));
-						var a1 = cb.lower(cb.coalesce(cli.get("apellido"), ""));
-						var a2 = cb.lower(cb.coalesce(cli.get("segundoApellido"), ""));
-						return cb.or(cb.like(n1, like), cb.like(n2, like), cb.like(a1, like), cb.like(a2, like));
-					};
-
-			Specification<AbonoEntity> porCodigoFactura = (codigoFactura == null || codigoFactura.isBlank())
-					? null
-					: (root, cq, cb) -> {
-						String like = "%" + codigoFactura.trim().toLowerCase() + "%";
-						var dc = root.join("deudaCliente");
-						var f = dc.join("factura", JoinType.LEFT);
-						return cb.like(cb.lower(cb.coalesce(f.get("codigo"), "")), like);
-					};
-
-			Specification<AbonoEntity> spec = allOfNonNull(porEmpresa, soloActivos, porFecha, porValor, porCliente,
-					porCodigoFactura);
+			Specification<AbonoEntity> spec = Specification.allOf(Stream.of(AbonoSpecifications.porIdEmpresa(idEmpresa),
+					AbonoSpecifications.activoIgual(Boolean.TRUE), AbonoSpecifications.fechaIgual(fecha),
+					AbonoSpecifications.valorIgual(valor), AbonoSpecifications.clienteLike(clienteLike),
+					AbonoSpecifications.codigoFactura(codigoFactura)).filter(Objects::nonNull).toList());
 
 			Pageable pageToUse = (pageable != null) ? pageable
 					: PageRequest.of(0, 20, Sort.by("fechaCreacion").descending());
 
 			Page<AbonoEntity> pageResult = abonoRepository.findAll((root, cq, cb) -> {
 				cq.distinct(true);
-				return spec.toPredicate(root, cq, cb);
+				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, cq, cb);
 			}, pageToUse);
 
 			List<AbonoResponseDTO> items = pageResult.getContent().stream().map(a -> {
@@ -235,15 +201,6 @@ public class AbonoServiceImpl implements IAbonoService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
-	}
-
-	/**
-	 * Igual que tu patrón en lecturas: combina specs ignorando nulos, sin usar
-	 * .where(...)
-	 */
-	@SafeVarargs
-	private final Specification<AbonoEntity> allOfNonNull(Specification<AbonoEntity>... specs) {
-		return Specification.allOf(java.util.Arrays.stream(specs).filter(Objects::nonNull).toList());
 	}
 
 	@Override

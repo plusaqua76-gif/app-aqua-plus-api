@@ -279,4 +279,75 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 		}
 	}
 
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> getTarifaConceptoEstrato(Integer idEmpresa, Integer idTipoTarifa,
+			Integer idTipoConcepto) {
+		log.info("Invocando SP get_tarifa_concepto_estrato con params: empresa={}, tipoTarifa={}, tipoConcepto={}",
+				idEmpresa, idTipoTarifa, idTipoConcepto);
+
+		try {
+			String sql = """
+					    SELECT public."get_tarifa_concepto_estrato"(
+					        CAST(:idEmpresa AS int),
+					        CAST(:idTipoTarifa AS int),
+					        CAST(:idTipoConcepto AS int)
+					    ) AS result
+					""";
+
+			MapSqlParameterSource params = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa)
+					.addValue("idTipoTarifa", idTipoTarifa).addValue("idTipoConcepto", idTipoConcepto);
+
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+			Object resultObj = row.get("result");
+			String jsonResult = null;
+			if (resultObj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonResult = pg.getValue();
+			} else if (resultObj instanceof String s) {
+				jsonResult = s;
+			} else if (resultObj != null) {
+				jsonResult = String.valueOf(resultObj);
+			}
+
+			if (jsonResult == null || jsonResult.isBlank()) {
+				ResponseDTO dto = ResponseDTO.builder().success(false).message("El SP no retornó contenido.")
+						.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+			}
+
+			Map<String, Object> result = objectMapper.readValue(jsonResult,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
+
+			int code = HttpStatus.OK.value();
+			Object codeObj = result.getOrDefault("statusCode", result.get("code"));
+			if (codeObj != null) {
+				try {
+					code = Integer.parseInt(codeObj.toString());
+				} catch (NumberFormatException ex) {
+					log.warn("El SP devolvió un código no numérico ('{}'). Usando {} por defecto.", codeObj, code);
+				}
+			}
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null) {
+				status = HttpStatus.OK;
+			}
+
+			String message = String.valueOf(result.getOrDefault("message", "Consulta realizada"));
+			boolean success = status.is2xxSuccessful();
+
+			ResponseDTO dto = ResponseDTO.builder().success(success).message(message).code(status.value())
+					.response(result).build();
+
+			return ResponseEntity.status(status).body(dto);
+
+		} catch (Exception e) {
+			log.error("Error inesperado al ejecutar get_tarifa_concepto_estrato", e);
+			ResponseDTO dto = ResponseDTO.builder().success(false)
+					.message("Error inesperado al consultar tarifa concepto estrato")
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+		}
+	}
+
 }
