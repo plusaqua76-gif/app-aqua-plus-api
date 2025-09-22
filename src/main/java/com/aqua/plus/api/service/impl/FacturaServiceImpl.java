@@ -3,6 +3,8 @@ package com.aqua.plus.api.service.impl;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -443,6 +445,32 @@ public class FacturaServiceImpl implements IFacturaService {
 		} catch (Exception e) {
 			return Map.of("error", "Error inesperado: " + e.getMessage());
 		}
+	}
+
+	public ResponseEntity<ResponseDTO> sugerirCodigos(String term) {
+		if (term == null || term.trim().length() < 3) {
+			ResponseDTO dto = ResponseDTO.builder().success(false).message("Debe escribir al menos 3 caracteres")
+					.code(HttpStatus.BAD_REQUEST.value()).build();
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(dto);
+		}
+
+		List<Map<String, Object>> sugerencias = facturaRepository
+				.findTop5ByCodigoStartingWithIgnoreCaseOrderByCodigoAsc(term.trim()).stream().map(f -> {
+					Map<String, Object> map = new HashMap<>();
+					map.put("id", f.getId());
+					map.put("codigo", f.getCodigo());
+					return map;
+				}).toList();
+
+		if (sugerencias.isEmpty()) {
+			ResponseDTO dto = ResponseDTO.builder().success(false).message("No se encontraron resultados")
+					.code(HttpStatus.NO_CONTENT.value()).response(List.of()).build();
+			return ResponseEntity.status(HttpStatus.NO_CONTENT).body(dto);
+		}
+
+		ResponseDTO dto = ResponseDTO.builder().success(true).message("Resultados encontrados")
+				.code(HttpStatus.OK.value()).response(sugerencias).build();
+		return ResponseEntity.ok(dto);
 	}
 
 }

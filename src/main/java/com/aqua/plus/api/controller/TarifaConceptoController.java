@@ -101,5 +101,22 @@ public class TarifaConceptoController {
 			@RequestParam("idTipoConcepto") Integer idTipoConcepto) {
 		return tarifaConceptoServiceImpl.getTarifaConceptoEstrato(idEmpresa, idTipoTarifa, idTipoConcepto);
 	}
+	
+	@Operation(summary = "Actualizar valor fijo o estratos de una tarifa_concepto")
+	@ApiResponses(value = {
+	        @ApiResponse(responseCode = "200", description = "Actualización exitosa", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	})
+	@PostMapping("/actualizar-valor-estratos")
+	public ResponseEntity<ResponseDTO> actualizarValorOEstratos(@RequestBody Map<String, Object> body) {
+	    return tarifaConceptoServiceImpl.actualizarValorOEstratos(body);
+	}
+
 
 }
