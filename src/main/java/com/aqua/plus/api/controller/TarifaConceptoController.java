@@ -47,36 +47,14 @@ public class TarifaConceptoController {
 
 	@Operation(summary = "Crear Tarifa + Concepto (con/sin estratos)")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))), })
 	@PostMapping("/crear")
 	public ResponseEntity<ResponseDTO> crearTarifaConcepto(@RequestBody Map<String, Object> body) {
 		return tarifaConceptoServiceImpl.crearTarifaConcepto(body);
-	}
-
-	@Operation(summary = "Actualizar Tarifa + Concepto (con/sin estratos)")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
-	@PostMapping("/actualizar")
-	public ResponseEntity<ResponseDTO> actualizarTarifaConcepto(@RequestBody Map<String, Object> body) {
-		return tarifaConceptoServiceImpl.actualizarTarifaConcepto(body);
 	}
 
 	@Operation(summary = "Buscar las tarifas conceptos por el id de la empresa")
@@ -106,25 +84,22 @@ public class TarifaConceptoController {
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
 		return tarifaConceptoServiceImpl.deleteById(id);
 	}
-	
+
 	@Operation(summary = "Consultar tarifa concepto con sus estratos")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping("/concepto-estrato")
-	public ResponseEntity<ResponseDTO> getTarifaConceptoEstrato(
-	        @RequestParam("idEmpresa") Integer idEmpresa,
-	        @RequestParam("idTipoTarifa") Integer idTipoTarifa,
-	        @RequestParam("idTipoConcepto") Integer idTipoConcepto) {
-	    return tarifaConceptoServiceImpl.getTarifaConceptoEstrato(idEmpresa, idTipoTarifa, idTipoConcepto);
+	public ResponseEntity<ResponseDTO> getTarifaConceptoEstrato(@RequestParam("idEmpresa") Integer idEmpresa,
+			@RequestParam("idTipoTarifa") Integer idTipoTarifa,
+			@RequestParam("idTipoConcepto") Integer idTipoConcepto) {
+		return tarifaConceptoServiceImpl.getTarifaConceptoEstrato(idEmpresa, idTipoTarifa, idTipoConcepto);
 	}
-
 
 }
