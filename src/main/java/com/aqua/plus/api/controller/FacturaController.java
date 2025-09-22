@@ -196,5 +196,21 @@ public class FacturaController {
 					.body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
 		}
 	}
+	
+	@Operation(summary = "Sugerir facturas por código")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Consulta realizada correctamente",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "204", description = "No se encontraron resultados",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "La petición contiene errores de sintaxis",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "500", description = "Error inesperado en el servidor",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+    })
+    @GetMapping("/sugerencias")
+    public ResponseEntity<ResponseDTO> getSugerencias(@RequestParam String term) {
+        return facturaServiceImpl.sugerirCodigos(term);
+    }
 
 }

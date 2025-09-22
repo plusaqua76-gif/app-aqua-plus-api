@@ -643,4 +643,70 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 		}
 	}
 
+	@Transactional
+	public ResponseEntity<ResponseDTO> actualizarValorOEstratos(Map<String, Object> payload) {
+		log.info("Invocando SP actualizar_valor_o_estratos con payload={}", payload);
+		try {
+			final String jsonString = objectMapper.writeValueAsString(payload);
+
+			final String sql = """
+					    SELECT public.actualizar_valor_o_estratos(CAST(:jsonData AS jsonb)) AS result
+					""";
+
+			MapSqlParameterSource params = new MapSqlParameterSource().addValue("jsonData", jsonString);
+
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+			Object resultObj = row.get("result");
+			String jsonResult = null;
+			if (resultObj instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonResult = pg.getValue();
+			} else if (resultObj instanceof String s) {
+				jsonResult = s;
+			} else if (resultObj != null) {
+				jsonResult = String.valueOf(resultObj);
+			}
+
+			if (jsonResult == null || jsonResult.isBlank()) {
+				ResponseDTO dto = ResponseDTO.builder().success(false).message("El SP no retornó contenido.")
+						.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+			}
+
+			// Se parsea el JSON del SP
+			Map<String, Object> result = objectMapper.readValue(jsonResult,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
+
+			int code = HttpStatus.OK.value();
+			Object codeObj = result.getOrDefault("statusCode", result.get("code"));
+			if (codeObj != null) {
+				try {
+					code = Integer.parseInt(String.valueOf(codeObj));
+				} catch (NumberFormatException ignore) {
+				}
+			}
+
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null)
+				status = HttpStatus.OK;
+
+			String message = String.valueOf(result.getOrDefault("message", "Operación realizada"));
+			boolean success = status.is2xxSuccessful();
+
+			// 6) Armar respuesta estándar
+			ResponseDTO dto = ResponseDTO.builder().success(success).message(message).code(status.value())
+					.response(result).build();
+
+			return ResponseEntity.status(status).body(dto);
+
+		} catch (Exception e) {
+			log.error("Error inesperado al ejecutar actualizar_valor_o_estratos", e);
+			ResponseDTO dto = ResponseDTO.builder().success(false)
+					.message("Error inesperado al actualizar valor/estratos")
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
+		}
+	}
+
 }
