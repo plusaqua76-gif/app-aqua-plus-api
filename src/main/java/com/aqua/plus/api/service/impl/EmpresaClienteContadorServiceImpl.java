@@ -348,7 +348,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
 
 		try {
-			// 1) SPECs: SIN filtrar por activo (queremos activos e inactivos)
 			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
 					PersonaSpecification.clienteNombreLike(nombre), PersonaSpecification.clienteCedulaIgual(cedula),
 					PersonaSpecification.clienteCodigoIgual(codigo),
@@ -357,15 +356,10 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo));
 
-			// 2) Ejecuta la consulta SIN sort por columnas de 'cliente' para no provocar
-			// DISTINCT + ORDER BY
-			// => usamos Pageable.unpaged() para traer todos los ids filtrados
 			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository.findAll((root, q, cb) -> {
-				// ¡Ojo! NO llames q.distinct(true) aquí.
 				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb);
 			});
 
-			// 3) Mapear a filas "planas" para JSON (evita proxys LAZY)
 			List<Map<String, Object>> rows = new ArrayList<>(all.size());
 			for (var ecc : all) {
 				var p = ecc.getCliente();
@@ -412,8 +406,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				rows.add(row);
 			}
 
-			// 4) ORDEN EN MEMORIA: activos primero, luego por nombre y apellido
-			// (case-insensitive)
 			Comparator<Map<String, Object>> byActivoDesc = Comparator
 					.comparing(m -> Boolean.FALSE.equals(m.get("activo"))); // false<true ⇒ activos primero
 			Comparator<Map<String, Object>> byNombreAsc = Comparator
@@ -423,7 +415,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			rows.sort(byActivoDesc.thenComparing(byNombreAsc).thenComparing(byApellidoAsc));
 
-			// 5) PAGINACIÓN EN MEMORIA
 			int pageNumber = (pageable != null ? pageable.getPageNumber() : 0);
 			int pageSize = (pageable != null ? pageable.getPageSize() : 20);
 			int fromIndex = Math.min(pageNumber * pageSize, rows.size());
@@ -640,6 +631,39 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 		} catch (Exception e) {
 			e.printStackTrace();
 			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaAndPersona(Integer idEmpresa, Integer idPersona) {
+		log.info("Buscar EmpresaClienteContador por empresa={} y persona={}", idEmpresa, idPersona);
+		try {
+			if (idEmpresa == null || idPersona == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+						.message("idEmpresa e idPersona son requeridos").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			List<EmpresaClienteContadorEntity> entities = empresaClienteContadorRepository
+					.findByEmpresaIdAndClienteId(idEmpresa, idPersona);
+
+			if (entities.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron registros para la empresa/persona indicadas")
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).build());
+			}
+
+			List<EmpresaClienteContadorDTO> dtos = entities.stream().map(empresaClienteContadorMapper::entityToDto)
+					.toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+					.code(HttpStatus.OK.value()).response(dtos).build());
+
+		} catch (Exception e) {
+			log.error("Error consultando EmpresaClienteContador por empresa/persona: {}, {}", idEmpresa, idPersona, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 

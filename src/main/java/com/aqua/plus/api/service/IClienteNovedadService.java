@@ -17,4 +17,6 @@ public interface IClienteNovedadService {
 	ResponseEntity<ResponseDTO> findAll();
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, Integer page, Integer size);
 }

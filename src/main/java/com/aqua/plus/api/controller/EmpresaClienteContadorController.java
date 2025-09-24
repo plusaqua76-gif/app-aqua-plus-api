@@ -321,4 +321,15 @@ public class EmpresaClienteContadorController {
 		return ResponseEntity.ok(resp);
 	}
 
+	@GetMapping("/empresa-persona")
+	@Operation(summary = "Listar vínculos por empresa y persona Servicio consulta para PQR")
+	@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+	@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+	@ApiResponse(responseCode = "404", description = "Sin resultados", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+	@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
+	public ResponseEntity<ResponseDTO> findByEmpresaAndPersona(@RequestParam Integer idEmpresa,
+			@RequestParam Integer idPersona) {
+		return empresaClienteContadorServiceImpl.findByEmpresaAndPersona(idEmpresa, idPersona);
+	}
+
 }
