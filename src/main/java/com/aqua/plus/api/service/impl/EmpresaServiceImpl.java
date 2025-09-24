@@ -194,14 +194,18 @@ public class EmpresaServiceImpl implements IEmpresaService {
 					if (idEmpresaCreada != null && base64Imagen != null && !base64Imagen.isBlank()) {
 						try {
 							var respDoc = documentoServiceImpl.saveDocumentoBase64(base64Imagen, idEmpresaCreada, null,
-									nombreArchivoImagen, extensionImg, usuario, categoriaCodigo);
+									nombreArchivoImagen, extensionImg, usuario, categoriaCodigo, null);
 
 							if (respDoc.getStatusCode().is2xxSuccessful() && respDoc.getBody() != null
 									&& Boolean.TRUE.equals(respDoc.getBody().getSuccess())) {
+
 								response.put("documento", respDoc.getBody().getResponse());
+
 							} else {
-								String msg = (respDoc.getBody() != null ? respDoc.getBody().getMessage()
-										: "Fallo subiendo imagen a Azure");
+								String msg = "Fallo subiendo imagen a Azure";
+								if (respDoc.getBody() != null && respDoc.getBody().getMessage() != null) {
+									msg = respDoc.getBody().getMessage();
+								}
 								response.put("warningDocumento", msg);
 							}
 						} catch (Exception exUp) {
@@ -209,6 +213,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 							response.put("warningDocumento", "No se pudo cargar la imagen en Azure");
 						}
 					}
+
 				}
 
 				return response;

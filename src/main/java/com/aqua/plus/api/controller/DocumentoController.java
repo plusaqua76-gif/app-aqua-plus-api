@@ -60,9 +60,12 @@ public class DocumentoController {
 		String extension = body.get("extension") != null ? body.get("extension").toString() : null;
 		String usuario = body.get("usuario") != null ? body.get("usuario").toString() : null;
 		String categoriaCod = body.get("categoriaCodigo") != null ? body.get("categoriaCodigo").toString() : null;
+		Integer idClienteNovedad = body.get("idClienteNovedad") != null
+				? Integer.valueOf(body.get("idClienteNovedad").toString())
+				: null;
 
 		return documentoServiceImpl.saveDocumentoBase64(base64File, idEmpresa, idPersona, nombreArchivo, extension,
-				usuario, categoriaCod);
+				usuario, categoriaCod, idClienteNovedad);
 	}
 
 	@Operation(summary = "Eliminar documento")
