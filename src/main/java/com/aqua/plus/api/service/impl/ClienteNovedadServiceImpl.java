@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aqua.plus.api.service.IClienteNovedadService;
 import com.aqua.plus.commons.dtos.ClienteNovedadDTO;
 import com.aqua.plus.commons.dtos.ClienteNovedadRequestDTO;
-import com.aqua.plus.commons.dtos.DocumentoDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ClienteNovedadEntity;
 import com.aqua.plus.commons.maps.ClienteNovedadMapper;
@@ -34,7 +33,9 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(ClienteNovedadRequestDTO req) {
 		try {
-			ClienteNovedadDTO dto = req.getNovedad();
+			ClienteNovedadDTO in = req.getNovedad();
+			ClienteNovedadEntity novedad = clienteNovedadMapper.dtoToEntity(in);
+			novedad = clienteNovedadRepository.save(novedad);
 
 			String base64 = req.getBase64File();
 			if (base64 != null && !base64.isBlank()) {
@@ -47,13 +48,11 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 									.code(HttpStatus.BAD_REQUEST.value()).build());
 				}
 
-				String nombreArchivoEntrada = req.getNombreArchivo();
-				String descripcion = (dto != null ? dto.getDescripcion() : null);
 				String candidato;
-				if (nombreArchivoEntrada != null && !nombreArchivoEntrada.isBlank()) {
-					candidato = nombreArchivoEntrada.trim();
-				} else if (descripcion != null && !descripcion.isBlank()) {
-					candidato = descripcion.trim();
+				if (req.getNombreArchivo() != null && !req.getNombreArchivo().isBlank()) {
+					candidato = req.getNombreArchivo().trim();
+				} else if (in != null && in.getDescripcion() != null && !in.getDescripcion().isBlank()) {
+					candidato = in.getDescripcion().trim();
 				} else {
 					candidato = "pqr";
 				}
@@ -61,9 +60,8 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 				String slug = java.text.Normalizer.normalize(candidato, java.text.Normalizer.Form.NFD)
 						.replaceAll("\\p{M}+", "").replaceAll("[^A-Za-z0-9\\s_-]", "").replaceAll("\\s+", "-")
 						.toLowerCase();
-				if (slug.length() > 20) {
+				if (slug.length() > 20)
 					slug = slug.substring(0, 20).replaceAll("-+$", "");
-				}
 				if (slug.isBlank())
 					slug = "pqr";
 
@@ -76,11 +74,12 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 				if (extension != null && !extension.isBlank()) {
 					extension = extension.trim().toLowerCase();
 				}
-				String usuarioCreacion = (dto != null ? dto.getUsuarioCreacion() : null);
+
+				String usuarioCreacion = (in != null ? in.getUsuarioCreacion() : null);
 				String usuario = (usuarioCreacion != null && !usuarioCreacion.isBlank()) ? usuarioCreacion : "system";
 
 				ResponseEntity<ResponseDTO> respDoc = documentoServiceImpl.saveDocumentoBase64(base64, null, idPersona,
-						nombreArchivoFinal, extension, usuario, req.getCategoriaCodigo());
+						nombreArchivoFinal, extension, usuario, req.getCategoriaCodigo(), novedad.getId());
 
 				if (!respDoc.getStatusCode().is2xxSuccessful()) {
 					return respDoc;
@@ -93,29 +92,9 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder()
 							.success(false).message(msg).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 				}
-
-				String ruta = null;
-				Object responseObj = body.getResponse();
-				if (responseObj instanceof DocumentoDTO d) {
-					ruta = d.getRuta();
-				} else if (responseObj instanceof java.util.Map<?, ?> m && m.get("ruta") != null) {
-					ruta = String.valueOf(m.get("ruta"));
-				}
-
-				if (ruta == null || ruta.isBlank()) {
-					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-							.body(ResponseDTO.builder().success(false)
-									.message("El servicio de documentos no retornó 'ruta'")
-									.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-				}
-
-				dto.setRuta(ruta);
 			}
 
-			ClienteNovedadEntity entity = clienteNovedadMapper.dtoToEntity(dto);
-			entity = clienteNovedadRepository.save(entity);
-			ClienteNovedadDTO out = clienteNovedadMapper.entityToDto(entity);
-
+			ClienteNovedadDTO out = clienteNovedadMapper.entityToDto(novedad);
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Novedad creada correctamente")
 					.code(HttpStatus.OK.value()).response(out).build());
 

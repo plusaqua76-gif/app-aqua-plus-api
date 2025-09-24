@@ -339,130 +339,118 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	 */
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(
-	        Integer idEmpresa,
-	        Pageable pageable,
-	        String nombre,
-	        String cedula,
-	        String codigo,
-	        String departamento,
-	        String ciudad,
-	        String corregimiento,
-	        String telefono,
-	        String correo) {
+	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
+			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
+			String correo) {
 
-	    log.info("Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
-	            idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
+		log.info(
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
+				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
 
-	    try {
-	        // 1) SPECs: SIN filtrar por activo (queremos activos e inactivos)
-	        var spec = Specification.allOf(
-	            PersonaSpecification.empresaId(idEmpresa),
-	            PersonaSpecification.clienteNombreLike(nombre),
-	            PersonaSpecification.clienteCedulaIgual(cedula),
-	            PersonaSpecification.clienteCodigoIgual(codigo),
-	            PersonaSpecification.direccionDepartamentoNombreLike(departamento),
-	            PersonaSpecification.direccionCiudadNombreLike(ciudad),
-	            PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
-	            PersonaSpecification.clienteTelefonoLike(telefono),
-	            PersonaSpecification.clienteCorreoLike(correo)
-	        );
+		try {
+			// 1) SPECs: SIN filtrar por activo (queremos activos e inactivos)
+			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
+					PersonaSpecification.clienteNombreLike(nombre), PersonaSpecification.clienteCedulaIgual(cedula),
+					PersonaSpecification.clienteCodigoIgual(codigo),
+					PersonaSpecification.direccionDepartamentoNombreLike(departamento),
+					PersonaSpecification.direccionCiudadNombreLike(ciudad),
+					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
+					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo));
 
-	        // 2) Ejecuta la consulta SIN sort por columnas de 'cliente' para no provocar DISTINCT + ORDER BY
-	        //    => usamos Pageable.unpaged() para traer todos los ids filtrados
-	        List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository.findAll(
-	            (root, q, cb) -> {
-	                // ¡Ojo! NO llames q.distinct(true) aquí.
-	                return (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb);
-	            }
-	        );
+			// 2) Ejecuta la consulta SIN sort por columnas de 'cliente' para no provocar
+			// DISTINCT + ORDER BY
+			// => usamos Pageable.unpaged() para traer todos los ids filtrados
+			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository.findAll((root, q, cb) -> {
+				// ¡Ojo! NO llames q.distinct(true) aquí.
+				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb);
+			});
 
-	        // 3) Mapear a filas "planas" para JSON (evita proxys LAZY)
-	        List<Map<String, Object>> rows = new ArrayList<>(all.size());
-	        for (var ecc : all) {
-	            var p = ecc.getCliente();
-	            Integer personaId = (p != null ? p.getId() : null);
+			// 3) Mapear a filas "planas" para JSON (evita proxys LAZY)
+			List<Map<String, Object>> rows = new ArrayList<>(all.size());
+			for (var ecc : all) {
+				var p = ecc.getCliente();
+				Integer personaId = (p != null ? p.getId() : null);
 
-	            Integer direccionId = null;
-	            String depNombre = null, ciudadNombre = null, corrNombre = null, dirDescripcion = null;
-	            if (p != null && p.getDireccion() != null) {
-	                var d = p.getDireccion();
-	                direccionId    = d.getId();
-	                dirDescripcion = d.getDescripcion();
-	                depNombre      = (d.getDepartamento()  != null) ? d.getDepartamento().getNombre()  : null;
-	                ciudadNombre   = (d.getCiudad()        != null) ? d.getCiudad().getNombre()        : null;
-	                corrNombre     = (d.getCorregimiento() != null) ? d.getCorregimiento().getNombre() : null;
-	            }
+				Integer direccionId = null;
+				String depNombre = null, ciudadNombre = null, corrNombre = null, dirDescripcion = null;
+				if (p != null && p.getDireccion() != null) {
+					var d = p.getDireccion();
+					direccionId = d.getId();
+					dirDescripcion = d.getDescripcion();
+					depNombre = (d.getDepartamento() != null) ? d.getDepartamento().getNombre() : null;
+					ciudadNombre = (d.getCiudad() != null) ? d.getCiudad().getNombre() : null;
+					corrNombre = (d.getCorregimiento() != null) ? d.getCorregimiento().getNombre() : null;
+				}
 
-	            String correoVal = (personaId != null)
-	                ? correoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
-	                    .map(CorreoGeneralEntity::getCorreo).orElse(null)
-	                : null;
-	            String telVal = (personaId != null)
-	                ? telefonoGeneralRepository.findByPersonaIdAndActivoTrue(personaId)
-	                    .map(TelefonoGeneralEntity::getNumero).orElse(null)
-	                : null;
+				String correoVal = (personaId != null)
+						? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+								.map(CorreoGeneralEntity::getCorreo).orElse(null)
+						: null;
 
-	            Map<String, Object> row = new LinkedHashMap<>();
-	            row.put("id", personaId);
-	            row.put("numeroCedula",   p != null ? p.getNumeroCedula()    : null);
-	            row.put("nombre",         p != null ? p.getNombre()          : null);
-	            row.put("segundoNombre",  p != null ? p.getSegundoNombre()   : null);
-	            row.put("apellido",       p != null ? p.getApellido()        : null);
-	            row.put("segundoApellido",p != null ? p.getSegundoApellido() : null);
-	            row.put("codigo",         p != null ? p.getCodigo()          : null);
-	            row.put("activo",         p != null ? p.getActivo()          : null);
-	            row.put("direccionId",          direccionId);
-	            row.put("direccionDescripcion", dirDescripcion);
-	            row.put("departamentoNombre",   depNombre);
-	            row.put("ciudadNombre",         ciudadNombre);
-	            row.put("corregimientoNombre",  corrNombre);
-	            row.put("correo",  correoVal);
-	            row.put("telefono", telVal);
+				String telVal = (personaId != null)
+						? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+								.map(TelefonoGeneralEntity::getNumero).orElse(null)
+						: null;
 
-	            rows.add(row);
-	        }
+				Map<String, Object> row = new LinkedHashMap<>();
+				row.put("id", personaId);
+				row.put("numeroCedula", p != null ? p.getNumeroCedula() : null);
+				row.put("nombre", p != null ? p.getNombre() : null);
+				row.put("segundoNombre", p != null ? p.getSegundoNombre() : null);
+				row.put("apellido", p != null ? p.getApellido() : null);
+				row.put("segundoApellido", p != null ? p.getSegundoApellido() : null);
+				row.put("codigo", p != null ? p.getCodigo() : null);
+				row.put("activo", p != null ? p.getActivo() : null);
+				row.put("direccionId", direccionId);
+				row.put("direccionDescripcion", dirDescripcion);
+				row.put("departamentoNombre", depNombre);
+				row.put("ciudadNombre", ciudadNombre);
+				row.put("corregimientoNombre", corrNombre);
+				row.put("correo", correoVal);
+				row.put("telefono", telVal);
 
-	        // 4) ORDEN EN MEMORIA: activos primero, luego por nombre y apellido (case-insensitive)
-	        Comparator<Map<String, Object>> byActivoDesc =
-	            Comparator.comparing(m -> Boolean.FALSE.equals(m.get("activo"))); // false<true ⇒ activos primero
-	        Comparator<Map<String, Object>> byNombreAsc =
-	            Comparator.comparing(m -> ((String) m.getOrDefault("nombre", "")), String.CASE_INSENSITIVE_ORDER);
-	        Comparator<Map<String, Object>> byApellidoAsc =
-	            Comparator.comparing(m -> ((String) m.getOrDefault("apellido", "")), String.CASE_INSENSITIVE_ORDER);
+				rows.add(row);
+			}
 
-	        rows.sort(byActivoDesc.thenComparing(byNombreAsc).thenComparing(byApellidoAsc));
+			// 4) ORDEN EN MEMORIA: activos primero, luego por nombre y apellido
+			// (case-insensitive)
+			Comparator<Map<String, Object>> byActivoDesc = Comparator
+					.comparing(m -> Boolean.FALSE.equals(m.get("activo"))); // false<true ⇒ activos primero
+			Comparator<Map<String, Object>> byNombreAsc = Comparator
+					.comparing(m -> ((String) m.getOrDefault("nombre", "")), String.CASE_INSENSITIVE_ORDER);
+			Comparator<Map<String, Object>> byApellidoAsc = Comparator
+					.comparing(m -> ((String) m.getOrDefault("apellido", "")), String.CASE_INSENSITIVE_ORDER);
 
-	        // 5) PAGINACIÓN EN MEMORIA
-	        int pageNumber = (pageable != null ? pageable.getPageNumber() : 0);
-	        int pageSize   = (pageable != null ? pageable.getPageSize()   : 20);
-	        int fromIndex  = Math.min(pageNumber * pageSize, rows.size());
-	        int toIndex    = Math.min(fromIndex + pageSize, rows.size());
-	        List<Map<String, Object>> pageContent = rows.subList(fromIndex, toIndex);
+			rows.sort(byActivoDesc.thenComparing(byNombreAsc).thenComparing(byApellidoAsc));
 
-	        long totalCount = rows.size();
-	        int totalPages  = (int) Math.ceil(totalCount / (double) pageSize);
+			// 5) PAGINACIÓN EN MEMORIA
+			int pageNumber = (pageable != null ? pageable.getPageNumber() : 0);
+			int pageSize = (pageable != null ? pageable.getPageSize() : 20);
+			int fromIndex = Math.min(pageNumber * pageSize, rows.size());
+			int toIndex = Math.min(fromIndex + pageSize, rows.size());
+			List<Map<String, Object>> pageContent = rows.subList(fromIndex, toIndex);
 
-	        if (pageContent.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-	                    .body(ResponseDTO.builder().success(false)
-	                            .message("No se encontraron clientes para los filtros dados")
-	                            .code(HttpStatus.NOT_FOUND.value()).response(pageContent)
-	                            .totalCount(totalCount).pageSize(pageSize)
-	                            .currentPage(pageNumber).totalPages(totalPages).build());
-	        }
+			long totalCount = rows.size();
+			int totalPages = (int) Math.ceil(totalCount / (double) pageSize);
 
-	        return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-	                .code(HttpStatus.OK.value()).response(pageContent).totalCount(totalCount)
-	                .pageSize(pageSize).currentPage(pageNumber).totalPages(totalPages).build());
+			if (pageContent.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron clientes para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).response(pageContent).totalCount(totalCount)
+								.pageSize(pageSize).currentPage(pageNumber).totalPages(totalPages).build());
+			}
 
-	    } catch (Exception e) {
-	        log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-	                .message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-	    }
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+					.code(HttpStatus.OK.value()).response(pageContent).totalCount(totalCount).pageSize(pageSize)
+					.currentPage(pageNumber).totalPages(totalPages).build());
+
+		} catch (Exception e) {
+			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
-
 
 	@Override
 	@Transactional(readOnly = true)

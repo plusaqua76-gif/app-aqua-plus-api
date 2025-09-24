@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aqua.plus.api.service.IDocumentoService;
 import com.aqua.plus.commons.dtos.DocumentoDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.ClienteNovedadEntity;
 import com.aqua.plus.commons.entities.DocumentoEntity;
 import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
@@ -122,121 +123,123 @@ public class DocumentoServiceImpl implements IDocumentoService {
 	 * archivo en Base64 (JSON), no usa Multipart.
 	 */
 	@Transactional
-	public ResponseEntity<ResponseDTO> saveDocumentoBase64(String base64File, Integer idEmpresa, Integer idPersona,
-			String nombreArchivo, String extension, String usuario, String categoriaCodigo) {
-		log.info("Subiendo documento (base64): empresa={}, persona={}, nombre={}, ext={}, categoriaCodigo={}",
-				idEmpresa, idPersona, nombreArchivo, extension, categoriaCodigo);
+	public ResponseEntity<ResponseDTO> saveDocumentoBase64(String base64File,
+	                                                       Integer idEmpresa,
+	                                                       Integer idPersona,
+	                                                       String nombreArchivo,
+	                                                       String extension,
+	                                                       String usuario,
+	                                                       String categoriaCodigo,
+	                                                       Integer idClienteNovedad) {
+	    log.info("Subiendo documento (base64): empresa={}, persona={}, nombre={}, ext={}, categoriaCodigo={}, idClienteNovedad={}",
+	            idEmpresa, idPersona, nombreArchivo, extension, categoriaCodigo, idClienteNovedad);
 
-		try {
-			/* ---- Validaciones básicas ---- */
-			if (base64File == null || base64File.isBlank()) {
-				return bad(HttpStatus.BAD_REQUEST, "Archivo (base64) vacío");
-			}
-			if ((idEmpresa == null && idPersona == null) || (idEmpresa != null && idPersona != null)) {
-				return bad(HttpStatus.BAD_REQUEST, "Debe enviar idEmpresa o idPersona (exclusivo)");
-			}
+	    try {
+	        /* ---- Validaciones básicas ---- */
+	        if (base64File == null || base64File.isBlank()) {
+	            return bad(HttpStatus.BAD_REQUEST, "Archivo (base64) vacío");
+	        }
+	        if ((idEmpresa == null && idPersona == null) || (idEmpresa != null && idPersona != null)) {
+	            return bad(HttpStatus.BAD_REQUEST, "Debe enviar idEmpresa o idPersona (exclusivo)");
+	        }
 
-			/* ---- Categoría dinámica ---- */
-			final String catCod = (categoriaCodigo == null || categoriaCodigo.isBlank()) ? "FOT"
-					: categoriaCodigo.trim().toUpperCase();
+	        /* ---- Categoría dinámica ---- */
+	        final String catCod = (categoriaCodigo == null || categoriaCodigo.isBlank())
+	                ? "FOT"
+	                : categoriaCodigo.trim().toUpperCase();
 
-			var categoria = categoriaDocumentoRepository.findFirstByCodigoAndActivoTrue(catCod).orElseGet(
-					() -> (categoriaCodigo == null) ? categoriaDocumentoRepository.findById(1).orElse(null) : null);
+	        var categoria = categoriaDocumentoRepository.findFirstByCodigoAndActivoTrue(catCod)
+	                .orElseGet(() -> (categoriaCodigo == null) ? categoriaDocumentoRepository.findById(1).orElse(null) : null);
 
-			if (categoria == null) {
-				return bad(HttpStatus.BAD_REQUEST, "La categoría de documento no existe: " + catCod);
-			}
+	        if (categoria == null) {
+	            return bad(HttpStatus.BAD_REQUEST, "La categoría de documento no existe: " + catCod);
+	        }
 
-			/* ---- Decodificar base64 ---- */
-			byte[] bytes;
-			try {
-				bytes = decodeBase64Lenient(base64File);
-			} catch (IllegalArgumentException ex) {
-				return bad(HttpStatus.BAD_REQUEST, "Base64 inválido");
-			}
-			if (bytes.length == 0) {
-				return bad(HttpStatus.BAD_REQUEST, "Archivo (base64) vacío");
-			}
+	        /* ---- Decodificar base64 ---- */
+	        byte[] bytes;
+	        try {
+	            bytes = decodeBase64Lenient(base64File);
+	        } catch (IllegalArgumentException ex) {
+	            return bad(HttpStatus.BAD_REQUEST, "Base64 inválido");
+	        }
+	        if (bytes.length == 0) {
+	            return bad(HttpStatus.BAD_REQUEST, "Archivo (base64) vacío");
+	        }
 
-			/* ---- Nombre/ext por defecto ---- */
-			if (nombreArchivo == null || nombreArchivo.isBlank())
-				nombreArchivo = "documento";
-			if (extension == null || extension.isBlank()) {
-				extension = extensionFromContentType(guessContentType(bytes));
-			}
+	        /* ---- Nombre/ext por defecto ---- */
+	        if (nombreArchivo == null || nombreArchivo.isBlank()) nombreArchivo = "documento";
+	        if (extension == null || extension.isBlank()) {
+	            extension = extensionFromContentType(guessContentType(bytes));
+	        }
 
-			/*
-			 * ---- Resolver tipo para ruta (CC persona / NI empresa) + identificador ----
-			 */
-			String tipoCodigoRuta, identificador;
-			if (idPersona != null) {
-				tipoCodigoRuta = "CC";
-				var persona = personaRepository.findById(idPersona).orElse(null);
-				if (persona == null)
-					return bad(HttpStatus.BAD_REQUEST, "Persona no existe");
-				identificador = persona.getNumeroCedula();
-				if (identificador == null || identificador.isBlank()) {
-					return bad(HttpStatus.BAD_REQUEST, "La persona no tiene número de documento (cc)");
-				}
-			} else {
-				tipoCodigoRuta = "NI";
-				var empresa = empresaRepository.findById(idEmpresa).orElse(null);
-				if (empresa == null)
-					return bad(HttpStatus.BAD_REQUEST, "Empresa no existe");
-				identificador = empresa.getNit();
-				if (identificador == null || identificador.isBlank()) {
-					return bad(HttpStatus.BAD_REQUEST, "La empresa no tiene NIT");
-				}
-			}
+	        /*
+	         * ---- Resolver tipo para ruta (CC persona / NI empresa) + identificador ----
+	         */
+	        String tipoCodigoRuta, identificador;
+	        if (idPersona != null) {
+	            tipoCodigoRuta = "CC";
+	            var persona = personaRepository.findById(idPersona).orElse(null);
+	            if (persona == null) return bad(HttpStatus.BAD_REQUEST, "Persona no existe");
+	            identificador = persona.getNumeroCedula();
+	            if (identificador == null || identificador.isBlank()) {
+	                return bad(HttpStatus.BAD_REQUEST, "La persona no tiene número de documento (cc)");
+	            }
+	        } else {
+	            tipoCodigoRuta = "NI";
+	            var empresa = empresaRepository.findById(idEmpresa).orElse(null);
+	            if (empresa == null) return bad(HttpStatus.BAD_REQUEST, "Empresa no existe");
+	            identificador = empresa.getNit();
+	            if (identificador == null || identificador.isBlank()) {
+	                return bad(HttpStatus.BAD_REQUEST, "La empresa no tiene NIT");
+	            }
+	        }
 
-			var tipoRuta = tipoDocumentoRepository.findByCodigoAndActivoTrue(tipoCodigoRuta).orElse(null);
-			Integer idTipoRuta = (tipoRuta != null ? tipoRuta.getId() : ("CC".equals(tipoCodigoRuta) ? 7 : 12));
+	        var tipoRuta = tipoDocumentoRepository.findByCodigoAndActivoTrue(tipoCodigoRuta).orElse(null);
+	        Integer idTipoRuta = (tipoRuta != null ? tipoRuta.getId() : ("CC".equals(tipoCodigoRuta) ? 7 : 12));
 
-			/* ---- Construir ruta (año actual) ---- */
-			String prefix = buildPrefix(idTipoRuta, identificador, null);
-			String blobPath = buildBlobName(prefix, nombreArchivo, extension);
+	        /* ---- Construir ruta (año actual) ---- */
+	        String prefix = buildPrefix(idTipoRuta, identificador, null);
+	        String blobPath = buildBlobName(prefix, nombreArchivo, extension);
 
-			/* ---- Subir a Azure ---- */
-			BlobClient blob = container().getBlobClient(blobPath);
-			BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(guessContentType(bytes));
-			try (var bais = new java.io.ByteArrayInputStream(bytes)) {
-				blob.upload(bais, bytes.length, true);
-				blob.setHttpHeaders(headers);
-				var tags = new java.util.HashMap<String, String>();
-				tags.put("categoriaDocumentoCodigo", categoria.getCodigo());
-				tags.put("tipoRutaCodigo", tipoCodigoRuta);
-				if (idEmpresa != null)
-					tags.put("empresaId", String.valueOf(idEmpresa));
-				if (idPersona != null)
-					tags.put("personaId", String.valueOf(idPersona));
-				try {
-					blob.setTags(tags);
-				} catch (Exception ignore) {
-				}
-			}
+	        /* ---- Subir a Azure ---- */
+	        BlobClient blob = container().getBlobClient(blobPath);
+	        BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(guessContentType(bytes));
+	        try (var bais = new java.io.ByteArrayInputStream(bytes)) {
+	            blob.upload(bais, bytes.length, true);
+	            blob.setHttpHeaders(headers);
+	            var tags = new java.util.HashMap<String, String>();
+	            tags.put("categoriaDocumentoCodigo", categoria.getCodigo());
+	            tags.put("tipoRutaCodigo", tipoCodigoRuta);
+	            if (idEmpresa != null) tags.put("empresaId", String.valueOf(idEmpresa));
+	            if (idPersona != null) tags.put("personaId", String.valueOf(idPersona));
+	            if (idClienteNovedad != null) tags.put("clienteNovedadId", String.valueOf(idClienteNovedad));
+	            try {
+	                blob.setTags(tags);
+	            } catch (Exception ignore) { }
+	        }
 
-			/* ---- Persistir en BD ---- */
-			DocumentoEntity entity = new DocumentoEntity();
-			entity.setCategoriaDocumento(categoria);
-			if (idEmpresa != null)
-				entity.setEmpresa(em.getReference(EmpresaEntity.class, idEmpresa));
-			if (idPersona != null)
-				entity.setPersona(em.getReference(PersonaEntity.class, idPersona));
-			entity.setRuta(blobPath);
-			entity.setNombre(nombreArchivo.trim());
-			entity.setExtension(extension == null ? null : extension.trim().toLowerCase());
-			entity.setActivo(Boolean.TRUE);
-			entity.setUsuarioCreacion(usuario == null ? "system" : usuario);
-			entity.setFechaCreacion(new java.util.Date());
+	        DocumentoEntity entity = new DocumentoEntity();
+	        entity.setCategoriaDocumento(categoria);
+	        if (idEmpresa != null) entity.setEmpresa(em.getReference(EmpresaEntity.class, idEmpresa));
+	        if (idPersona != null) entity.setPersona(em.getReference(PersonaEntity.class, idPersona));
+	        if (idClienteNovedad != null) {
+	            entity.setClienteNovedad(em.getReference(ClienteNovedadEntity.class, idClienteNovedad));
+	        }
+	        entity.setRuta(blobPath);
+	        entity.setNombre(nombreArchivo.trim());
+	        entity.setExtension(extension == null ? null : extension.trim().toLowerCase());
+	        entity.setActivo(Boolean.TRUE);
+	        entity.setUsuarioCreacion(usuario == null ? "system" : usuario);
+	        entity.setFechaCreacion(new java.util.Date());
 
-			entity = documentoRepository.save(entity);
-			DocumentoDTO dto = documentoMapper.entityToDto(entity);
-			return ok("Documento guardado correctamente", dto);
+	        entity = documentoRepository.save(entity);
+	        DocumentoDTO dto = documentoMapper.entityToDto(entity);
+	        return ok("Documento guardado correctamente", dto);
 
-		} catch (Exception e) {
-			log.error("Error guardando documento (base64)", e);
-			return err("Error guardando documento");
-		}
+	    } catch (Exception e) {
+	        log.error("Error guardando documento (base64)", e);
+	        return err("Error guardando documento");
+	    }
 	}
 
 	/** Soft delete en DB + intento de borrar en Azure. */
