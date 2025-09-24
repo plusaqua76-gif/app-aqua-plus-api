@@ -27,6 +27,8 @@ import com.aqua.plus.commons.maps.LecturaMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.LecturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -105,23 +107,23 @@ public class LecturaServiceImpl implements ILecturaService {
 	 * toma ese array. - Llama al SP: public.sincronizar_lecturas_a_nube(jsonb)
 	 */
 	@Transactional
-	public Map<String, Object> guardarLecturas(Map<String, Object> jsonParams) {
+	public Map<String, Object> guardarLecturas(JsonNode body) {
 		try {
-			JsonNode root = objectMapper.valueToTree(jsonParams);
 			ArrayNode payloadArray;
-
-			if (root.has("lecturas") && root.get("lecturas").isArray()) {
-				payloadArray = (ArrayNode) root.get("lecturas");
+			if (body == null) {
+				return Map.of("error", "El cuerpo no puede ser null");
+			} else if (body.isArray()) {
+				payloadArray = (ArrayNode) body;
+			} else if (body.has("lecturas") && body.get("lecturas").isArray()) {
+				payloadArray = (ArrayNode) body.get("lecturas");
+			} else if (body.isObject()) {
+				payloadArray = objectMapper.createArrayNode().add(body);
 			} else {
-				if (!root.isObject()) {
-					return Map.of("error", "El cuerpo debe ser un objeto o {\"lecturas\": [...] }");
-				}
-				payloadArray = objectMapper.createArrayNode().add(root);
+				return Map.of("error", "El cuerpo debe ser objeto, arreglo o {\"lecturas\": [...]}");
 			}
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
-
-			String sql = "SELECT public.sincronizar_lecturas_a_nube(CAST(:jsonData AS jsonb)) AS result";
+			String sql = "SELECT public.registrar_lectura(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
@@ -137,10 +139,10 @@ public class LecturaServiceImpl implements ILecturaService {
 			}
 
 			return objectMapper.readValue(jsonOut,
-					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					new TypeReference<Map<String, Object>>() {
 					});
 
-		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+		} catch (JsonProcessingException e) {
 			return Map.of("error", "Error JSON: " + e.getMessage());
 		} catch (Exception e) {
 			return Map.of("error", "Error inesperado al guardar lecturas: " + e.getMessage());

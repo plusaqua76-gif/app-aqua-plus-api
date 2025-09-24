@@ -70,10 +70,11 @@ public class LecturaController {
 			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@PostMapping("/registrar")
-	public ResponseEntity<Map<String, Object>> guardarLectura(@RequestBody Map<String, Object> jsonParams) {
+	public ResponseEntity<Map<String, Object>> guardarLectura(
+			@RequestBody com.fasterxml.jackson.databind.JsonNode body) {
 		try {
-			Map<String, Object> resultFromService = lecturaServiceImpl.guardarLecturas(jsonParams);
-			return ResponseEntity.ok(resultFromService);
+			Map<String, Object> out = lecturaServiceImpl.guardarLecturas(body);
+			return ResponseEntity.ok(out);
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));

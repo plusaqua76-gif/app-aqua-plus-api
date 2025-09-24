@@ -31,11 +31,14 @@ import com.aqua.plus.commons.maps.EstadoMapper;
 import com.aqua.plus.commons.maps.FacturaMapper;
 import com.aqua.plus.commons.maps.LecturaMapper;
 import com.aqua.plus.commons.maps.TipoPagoMapper;
+import org.springframework.dao.DataAccessException;
 import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +80,53 @@ public class FacturaServiceImpl implements IFacturaService {
 			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
 					.code(HttpStatus.BAD_REQUEST.value()).build();
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+		}
+	}
+
+	@Transactional
+	public Map<String, Object> guardarFacturas(JsonNode body) {
+		try {
+			ArrayNode payloadArray;
+
+			if (body == null) {
+				return Map.of("statusCode", 400, "message", "El cuerpo no puede ser null");
+			} else if (body.isArray()) {
+				payloadArray = (ArrayNode) body;
+			} else if (body.has("facturas") && body.get("facturas").isArray()) {
+				payloadArray = (ArrayNode) body.get("facturas");
+			} else if (body.isObject()) {
+				payloadArray = objectMapper.createArrayNode().add(body);
+			} else {
+				return Map.of("statusCode", 400, "message",
+						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}");
+			}
+
+			String jsonString = objectMapper.writeValueAsString(payloadArray);
+			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
+			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
+
+			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
+
+			Object wrapper = raw.get("result");
+			String jsonOut;
+			if (wrapper instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				jsonOut = pg.getValue();
+			} else if (wrapper instanceof String s) {
+				jsonOut = s;
+			} else {
+				return Map.of("statusCode", 500, "message", "No se pudo interpretar la respuesta del procedimiento.");
+			}
+
+			return objectMapper.readValue(jsonOut, new TypeReference<Map<String, Object>>() {
+			});
+
+		} catch (JsonProcessingException e) {
+			return Map.of("statusCode", 400, "message", "Error JSON: " + e.getMessage());
+		} catch (DataAccessException e) {
+			String msg = (e.getMostSpecificCause() != null) ? e.getMostSpecificCause().getMessage() : e.getMessage();
+			return Map.of("statusCode", 400, "message", msg);
+		} catch (Exception e) {
+			return Map.of("statusCode", 500, "message", "Error inesperado al guardar facturas: " + e.getMessage());
 		}
 	}
 
