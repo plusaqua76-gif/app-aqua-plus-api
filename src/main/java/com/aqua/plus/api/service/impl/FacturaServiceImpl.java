@@ -32,6 +32,8 @@ import com.aqua.plus.commons.maps.FacturaMapper;
 import com.aqua.plus.commons.maps.LecturaMapper;
 import com.aqua.plus.commons.maps.TipoPagoMapper;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
+
 import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -201,27 +203,27 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
-			String clienteNombreCompleto, Integer consumo, String fechaEmision, String fechaFin, String estadoNombre,
+			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
 			Boolean consumoAnormal, Double precioMin, Double precioMax, Pageable pageable) {
 
 		log.info(
-				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, consumo={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precioMin={}, precioMax={}",
-				idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmision, fechaFin, estadoNombre, consumoAnormal,
+				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precioMin={}, precioMax={}",
+				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal,
 				precioMin, precioMax);
 
 		try {
 			LocalDate emision = parseSingleDateOrNull(fechaEmision);
 			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
-			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, consumo,
-					emision, emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax);
-
-			spec = spec.and(FacturaSpecifications.activoTrue());
+			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
+					emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax)
+					.and(FacturaSpecifications.activoTrue());
 
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
 
-			var items = facturaMapper.listEntityToResumenDtoList(page.getContent());
+			var items = facturaMapper.listEntityToResponse(page.getContent());
 
 			long totalCount = page.getTotalElements();
 			int totalPages = page.getTotalPages();
@@ -269,10 +271,8 @@ public class FacturaServiceImpl implements IFacturaService {
 	}
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
-			String clienteNombreCompleto, Integer consumo, LocalDate emDesde, LocalDate emHasta,
-
-			LocalDate finDesde, LocalDate finHasta, String estadoNombre, Boolean consumoAnormal, Double precioMin,
-			Double precioMax) {
+			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
+			String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -283,7 +283,6 @@ public class FacturaServiceImpl implements IFacturaService {
 		return allOfNonNull(FacturaSpecifications.perteneceAEmpresa(idEmpresa),
 				FacturaSpecifications.codigoLike(codigo),
 				FacturaSpecifications.clienteNombreCompletoLike(clienteNombreCompleto),
-				FacturaSpecifications.consumoEquals(consumo),
 				FacturaSpecifications.fechaEmisionBetween(emDesde, emHasta),
 				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
@@ -521,6 +520,64 @@ public class FacturaServiceImpl implements IFacturaService {
 		ResponseDTO dto = ResponseDTO.builder().success(true).message("Resultados encontrados")
 				.code(HttpStatus.OK.value()).response(sugerencias).build();
 		return ResponseEntity.ok(dto);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura) {
+		String sql = "SELECT public.obtener_factura_detalle(:id) AS result";
+		MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
+
+		try {
+			String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
+				Object obj = rs.getObject("result");
+				if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+					return pg.getValue();
+				}
+				return (obj != null) ? obj.toString() : null;
+			});
+
+			if (json == null) {
+				ResponseDTO dto = new ResponseDTO();
+				dto.setSuccess(false);
+				dto.setMessage("Respuesta vacía del SP.");
+				dto.setCode(500);
+				dto.setResponse(null);
+				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+			}
+
+			ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+
+			HttpStatus status = HttpStatus.OK;
+			if (dto.getCode() != null) {
+				switch (dto.getCode()) {
+				case 404 -> status = HttpStatus.NOT_FOUND;
+				case 400 -> status = HttpStatus.BAD_REQUEST;
+				case 500 -> status = HttpStatus.INTERNAL_SERVER_ERROR;
+				default -> status = HttpStatus.OK;
+				}
+			} else if (Boolean.FALSE.equals(dto.getSuccess())) {
+				status = HttpStatus.INTERNAL_SERVER_ERROR;
+			}
+
+			return new ResponseEntity<>(dto, status);
+
+		} catch (EmptyResultDataAccessException e) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("No existe una factura con ese id.");
+			dto.setCode(404);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+
+		} catch (Exception e) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("Error inesperado: " + e.getMessage());
+			dto.setCode(500);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 }
