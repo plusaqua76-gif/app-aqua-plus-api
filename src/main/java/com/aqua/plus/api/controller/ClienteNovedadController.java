@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.ClienteNovedadServiceImpl;
@@ -60,6 +61,18 @@ public class ClienteNovedadController {
 		return clienteNovedadServiceImpl.findById(id);
 	}
 
+	@Operation(summary = "Listar novedades por empresa (paginación opcional)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "Sin resultados", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/empresa/{idEmpresa}")
+	public ResponseEntity<ResponseDTO> findByEmpresa(@PathVariable Integer idEmpresa,
+			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+		return clienteNovedadServiceImpl.findByEmpresa(idEmpresa, page, size);
+	}
+
 	@Operation(summary = "Listar todos los Cliente Novedad")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
@@ -104,4 +117,5 @@ public class ClienteNovedadController {
 	public ResponseEntity<ResponseDTO> update(@RequestBody ClienteNovedadDTO clienteNovedadDTO) {
 		return clienteNovedadServiceImpl.update(clienteNovedadDTO);
 	}
+
 }

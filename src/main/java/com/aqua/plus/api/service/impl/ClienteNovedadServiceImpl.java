@@ -1,8 +1,12 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -196,4 +200,58 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, Integer page, Integer size) {
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+						.message("idEmpresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			if (page == null || size == null) {
+				List<ClienteNovedadEntity> list = clienteNovedadRepository
+						.findByEmpresaClienteContador_Empresa_Id(idEmpresa);
+
+				if (list.isEmpty()) {
+					return ResponseEntity.status(HttpStatus.NOT_FOUND)
+							.body(ResponseDTO.builder().success(false)
+									.message("No se encontraron novedades para la empresa indicada")
+									.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L).pageSize(0)
+									.currentPage(0).totalPages(0).build());
+				}
+
+				List<ClienteNovedadDTO> content = list.stream().map(clienteNovedadMapper::entityToDtoLight).toList();
+
+				return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+						.code(HttpStatus.OK.value()).response(content).totalCount((long) content.size())
+						.pageSize(content.size()).currentPage(0).totalPages(1).build());
+			}
+
+			Pageable pageable = PageRequest.of(page, size);
+			Page<ClienteNovedadEntity> p = clienteNovedadRepository.findByEmpresaClienteContador_Empresa_Id(idEmpresa,
+					pageable);
+
+			if (p.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron novedades para la empresa indicada")
+						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
+						.pageSize(pageable.getPageSize()).currentPage(pageable.getPageNumber()).totalPages(0).build());
+			}
+
+			List<ClienteNovedadDTO> content = p.getContent().stream().map(clienteNovedadMapper::entityToDtoLight)
+					.toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
+					.code(HttpStatus.OK.value()).response(content).totalCount(p.getTotalElements())
+					.pageSize(p.getSize()).currentPage(p.getNumber()).totalPages(p.getTotalPages()).build());
+
+		} catch (Exception e) {
+			log.error("Error consultando ClienteNovedad por empresa {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
 }

@@ -58,7 +58,7 @@ public class FacturaController {
 		return facturaServiceImpl.save(facturaDTO);
 	}
 
-	@Operation(summary = "Guardar Factura(s)")
+	@Operation(summary = "Guardar Factura(s) con lecturas anidadas")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
 			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
@@ -84,12 +84,12 @@ public class FacturaController {
 	public ResponseEntity<ResponseDTO> getByEmpresaId(@PathVariable("id") Integer idEmpresa,
 			@RequestParam(required = false) String codigo,
 			@RequestParam(required = false, name = "clienteNombreCompleto") String clienteNombreCompleto,
-			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) String fechaEmision,
-			@RequestParam(required = false) String fechaFin, @RequestParam(required = false) String estadoNombre,
-			@RequestParam(required = false) Boolean consumoAnormal, @RequestParam(required = false) Double precioMin,
-			@RequestParam(required = false) Double precioMax, Pageable pageable) {
-		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, consumo, fechaEmision,
-				fechaFin, estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
+			@RequestParam(required = false) String fechaEmision, @RequestParam(required = false) String fechaFin,
+			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
+			@RequestParam(required = false) Double precioMin, @RequestParam(required = false) Double precioMax,
+			Pageable pageable) {
+		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
+				estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
 	}
 
 	@Operation(summary = "Buscar Factura por id")
@@ -223,6 +223,17 @@ public class FacturaController {
 	@GetMapping("/sugerencias")
 	public ResponseEntity<ResponseDTO> getSugerencias(@RequestParam String term) {
 		return facturaServiceImpl.sugerirCodigos(term);
+	}
+
+	@Operation(summary = "Buscar Factura por id")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/consultar/{id}")
+	public ResponseEntity<ResponseDTO> getFacturaById(@PathVariable Integer id) {
+		return facturaServiceImpl.obtenerFacturaDetalle(id);
 	}
 
 }

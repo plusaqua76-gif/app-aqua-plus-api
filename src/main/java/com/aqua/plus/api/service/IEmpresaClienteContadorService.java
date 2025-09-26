@@ -28,4 +28,6 @@ public interface IEmpresaClienteContadorService {
 
 	ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable, String serial,
 			String tipoContadorNombre, String direccionDescripcion, String nombre, String cedula);
+	
+	ResponseEntity<ResponseDTO> findByEmpresaAndPersona(Integer idEmpresa, Integer idPersona);
 }
