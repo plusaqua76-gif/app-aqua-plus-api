@@ -8,7 +8,9 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -138,9 +140,8 @@ public class LecturaServiceImpl implements ILecturaService {
 				return Map.of("error", "No se pudo interpretar la respuesta del procedimiento.");
 			}
 
-			return objectMapper.readValue(jsonOut,
-					new TypeReference<Map<String, Object>>() {
-					});
+			return objectMapper.readValue(jsonOut, new TypeReference<Map<String, Object>>() {
+			});
 
 		} catch (JsonProcessingException e) {
 			return Map.of("error", "Error JSON: " + e.getMessage());
@@ -192,7 +193,7 @@ public class LecturaServiceImpl implements ILecturaService {
 				empresaId, serial, lectura, fecha, consumoAnormal, observacion);
 
 		try {
-			LocalDate f = (fecha == null || fecha.isBlank()) ? null : LocalDate.parse(fecha);
+			LocalDate f = (fecha == null || fecha.isBlank()) ? null : LocalDate.parse(fecha); // yyyy-MM-dd
 
 			Specification<LecturaEntity> spec = allOfNonNull(LecturaSpecifications.perteneceAEmpresa(empresaId),
 					LecturaSpecifications.serialLike(serial), LecturaSpecifications.lecturaEquals(lectura),
@@ -200,9 +201,18 @@ public class LecturaServiceImpl implements ILecturaService {
 					LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
 					LecturaSpecifications.observacionLike(observacion));
 
-			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-			Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
+			Sort defaultSort = Sort.by(Sort.Order.desc("fechaLectura"), Sort.Order.desc("id"));
 
+			Pageable pageToUse;
+			if (pageable == null) {
+				pageToUse = PageRequest.of(0, 20, defaultSort);
+			} else if (pageable.getSort().isUnsorted()) {
+				pageToUse = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort);
+			} else {
+				pageToUse = pageable;
+			}
+
+			Page<LecturaEntity> page = lecturaRepository.findAll(spec, pageToUse);
 			var content = lecturaMapper.listEntityToDtoList(page.getContent());
 
 			long totalCount = page.getTotalElements();

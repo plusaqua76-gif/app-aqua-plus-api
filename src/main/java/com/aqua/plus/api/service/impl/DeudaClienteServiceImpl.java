@@ -17,8 +17,11 @@ import com.aqua.plus.api.service.IDeudaClienteService;
 import com.aqua.plus.api.service.impl.specification.DeudaClienteSpecifications;
 import com.aqua.plus.commons.dtos.DeudaClienteDTO;
 import com.aqua.plus.commons.dtos.DeudaClienteResponseDTO;
+import com.aqua.plus.commons.dtos.PlazoPagoDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.dtos.TipoDeudaDTO;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
+import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.maps.DeudaClienteMapper;
 import com.aqua.plus.commons.maps.DeudaClienteResponseMapper;
 import com.aqua.plus.commons.repositories.AbonoRepository;
@@ -98,6 +101,86 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
 					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaClienteContadorId(Integer eccId) {
+		log.info("Buscar DeudaCliente más reciente por eccId: {}", eccId);
+		try {
+			Optional<DeudaClienteEntity> opt = deudaClienteRepository
+					.findTopByEmpresaClienteContadorIdAndActivoTrueOrderByFechaCreacionDesc(eccId);
+
+			if (!opt.isPresent()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró deuda activa para el ECC con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			DeudaClienteEntity e = opt.get();
+
+			DeudaClienteResponseDTO dto = new DeudaClienteResponseDTO();
+			dto.setId(e.getId());
+			dto.setFechaDeuda(e.getFechaDeuda());
+			dto.setValor(e.getValor());
+			dto.setDescripcion(e.getDescripcion());
+			dto.setActivo(e.getActivo());
+
+			if (e.getFactura() != null) {
+				dto.setFacturaId(e.getFactura().getId());
+				dto.setFacturaCodigo(e.getFactura().getCodigo()); // ajusta si el campo se llama distinto
+			}
+
+			if (e.getEmpresaClienteContador() != null) {
+				var ecc = e.getEmpresaClienteContador();
+				dto.setEccId(ecc.getId());
+
+				if (ecc.getEmpresa() != null) {
+					dto.setEmpresaId(ecc.getEmpresa().getId());
+				}
+
+				if (ecc.getCliente() != null) {
+					PersonaEntity p = ecc.getCliente();
+					StringBuilder sb = new StringBuilder();
+					if (p.getNombre() != null)
+						sb.append(p.getNombre()).append(' ');
+					if (p.getSegundoNombre() != null)
+						sb.append(p.getSegundoNombre()).append(' ');
+					if (p.getApellido() != null)
+						sb.append(p.getApellido()).append(' ');
+					if (p.getSegundoApellido() != null)
+						sb.append(p.getSegundoApellido());
+					String nombreCompleto = sb.toString().trim().replaceAll("\\s{2,}", " ");
+					dto.setClienteNombre(nombreCompleto.isEmpty() ? null : nombreCompleto);
+				}
+			}
+
+			if (e.getTipoDeuda() != null) {
+				TipoDeudaDTO td = new TipoDeudaDTO();
+				td.setId(e.getTipoDeuda().getId());
+				td.setNombre(e.getTipoDeuda().getNombre());
+				td.setDescripcion(e.getTipoDeuda().getDescripcion());
+				td.setActivo(e.getTipoDeuda().getActivo());
+				dto.setTipoDeuda(td);
+			}
+
+			if (e.getPlazoPago() != null) {
+				PlazoPagoDTO pp = new PlazoPagoDTO();
+				pp.setId(e.getPlazoPago().getId());
+				pp.setNombre(e.getPlazoPago().getNombre());
+				pp.setActivo(e.getPlazoPago().getActivo());
+				dto.setPlazoPago(pp);
+			}
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dto).build());
+
+		} catch (Exception ex) {
+			log.error("Error al buscar DeudaCliente por eccId: {}", eccId, ex);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 

@@ -61,17 +61,11 @@ public class FacturaController {
 	@Operation(summary = "Guardar Factura(s) con lecturas anidadas")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
-			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada...", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
 	@PostMapping("/registrar")
 	public ResponseEntity<Map<String, Object>> registrarFacturas(@RequestBody JsonNode body) {
-		try {
-			Map<String, Object> out = facturaServiceImpl.guardarFacturas(body);
-			return ResponseEntity.ok(out);
-		} catch (Exception e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(Map.of("error", "Error en la operación del controlador: " + e.getMessage()));
-		}
+		return facturaServiceImpl.guardarFacturas(body);
 	}
 
 	@Operation(summary = "Buscar facturas por id de Empresa (con filtros y paginación)")

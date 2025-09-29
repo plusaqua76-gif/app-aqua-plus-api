@@ -23,5 +23,7 @@ public interface IDeudaClienteService {
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
 
 	ResponseEntity<ResponseDTO> updateDeuda(DeudaClienteDTO deudaClienteDTO);
+	
+	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorId(Integer eccId);
 
 }

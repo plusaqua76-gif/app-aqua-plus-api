@@ -86,12 +86,13 @@ public class FacturaServiceImpl implements IFacturaService {
 	}
 
 	@Transactional
-	public Map<String, Object> guardarFacturas(JsonNode body) {
+	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
 		try {
-			ArrayNode payloadArray;
-
+			final ArrayNode payloadArray;
 			if (body == null) {
-				return Map.of("statusCode", 400, "message", "El cuerpo no puede ser null");
+				Map<String, Object> res = Map.of("success", false, "message", "El cuerpo no puede ser null", "code",
+						400, "response", null);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			} else if (body.isArray()) {
 				payloadArray = (ArrayNode) body;
 			} else if (body.has("facturas") && body.get("facturas").isArray()) {
@@ -99,8 +100,9 @@ public class FacturaServiceImpl implements IFacturaService {
 			} else if (body.isObject()) {
 				payloadArray = objectMapper.createArrayNode().add(body);
 			} else {
-				return Map.of("statusCode", 400, "message",
-						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}");
+				Map<String, Object> res = Map.of("success", false, "message",
+						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
@@ -111,24 +113,40 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Object wrapper = raw.get("result");
 			String jsonOut;
-			if (wrapper instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
 				jsonOut = pg.getValue();
 			} else if (wrapper instanceof String s) {
 				jsonOut = s;
 			} else {
-				return Map.of("statusCode", 500, "message", "No se pudo interpretar la respuesta del procedimiento.");
+				Map<String, Object> res = Map.of("success", false, "message",
+						"No se pudo interpretar la respuesta del procedimiento.", "code", 500, "response", null);
+				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(res);
 			}
 
-			return objectMapper.readValue(jsonOut, new TypeReference<Map<String, Object>>() {
+			Map<String, Object> sp = objectMapper.readValue(jsonOut, new TypeReference<Map<String, Object>>() {
 			});
+			int code = ((Number) sp.getOrDefault("code", 500)).intValue();
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null)
+				status = HttpStatus.INTERNAL_SERVER_ERROR;
+
+			Map<String, Object> bodyOut = Map.of("success", sp.getOrDefault("success", code >= 200 && code < 300),
+					"message", String.valueOf(sp.getOrDefault("message", "")), "code", code, "response",
+					sp.get("response"));
+			return ResponseEntity.status(status).body(bodyOut);
 
 		} catch (JsonProcessingException e) {
-			return Map.of("statusCode", 400, "message", "Error JSON: " + e.getMessage());
+			Map<String, Object> res = Map.of("success", false, "message", "Error JSON: " + e.getMessage(), "code", 400,
+					"response", null);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 		} catch (DataAccessException e) {
 			String msg = (e.getMostSpecificCause() != null) ? e.getMostSpecificCause().getMessage() : e.getMessage();
-			return Map.of("statusCode", 400, "message", msg);
+			Map<String, Object> res = Map.of("success", false, "message", msg, "code", 400, "response", null);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 		} catch (Exception e) {
-			return Map.of("statusCode", 500, "message", "Error inesperado al guardar facturas: " + e.getMessage());
+			Map<String, Object> res = Map.of("success", false, "message",
+					"Error inesperado al guardar facturas: " + e.getMessage(), "code", 500, "response", null);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(res);
 		}
 	}
 
