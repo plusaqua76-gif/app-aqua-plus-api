@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.DocumentoServiceImpl;
+import com.aqua.plus.commons.dtos.DocumentoDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -67,6 +68,23 @@ public class DocumentoController {
 		return documentoServiceImpl.saveDocumentoBase64(base64File, idEmpresa, idPersona, nombreArchivo, extension,
 				usuario, categoriaCod, idClienteNovedad);
 	}
+	
+	@Operation(summary = "Actualizar documento por ruta (sobrescribe el blob en Azure)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+    })
+    @PostMapping("/actualizar-por-ruta")
+    public ResponseEntity<ResponseDTO> actualizarPorRuta(@RequestBody DocumentoDTO documentoDTO) {
+        return documentoServiceImpl.actualizarDocumentoPorRutaBase64(documentoDTO);
+    }
+
 
 	@Operation(summary = "Eliminar documento")
 	@ApiResponses(value = {
@@ -105,5 +123,17 @@ public class DocumentoController {
 	@GetMapping("/persona/{idPersona}")
 	public ResponseEntity<ResponseDTO> listarPorPersona(@PathVariable Integer idPersona) {
 		return documentoServiceImpl.listarPorPersona(idPersona);
+	}
+
+	@Operation(summary = "Listar documentos por categoría (Base64), con idEmpresa opcional", description = "Si se envía idEmpresa, filtra por empresa y categoría. Si no, lista por categoría global.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping({ "/empresa/{idEmpresa}/categoria/{categoriaCodigo}", "/categoria/{categoriaCodigo}" })
+	public ResponseEntity<ResponseDTO> listarPorEmpresaYCategoriaConBase64(
+			@PathVariable(value = "idEmpresa", required = false) Integer idEmpresa,
+			@PathVariable String categoriaCodigo) {
+		return documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(idEmpresa, categoriaCodigo);
 	}
 }
