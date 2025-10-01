@@ -448,20 +448,18 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			correoGeneralRepository.findCorreoPrincipalByEmpresaId(idEmpresa)
 					.ifPresent(c -> responseMap.put("correo", c));
 
-			// Orquestar documentos con base64
 			List<?> documentos = List.of();
 			Long totalDocs = 0L;
 			try {
-				var docsResp = documentoService.listarPorEmpresaConBase64(idEmpresa);
+				var docsResp = documentoService.listarPorEmpresaYCategoriaCodigo(idEmpresa, Constantes.TYPE_LOGO);
 				if (docsResp != null && docsResp.getStatusCode().is2xxSuccessful() && docsResp.getBody() != null) {
 					var body = docsResp.getBody();
 					if (Boolean.TRUE.equals(body.getSuccess())) {
 						var resp = body.getResponse();
 						if (resp instanceof List<?> lista) {
 							documentos = lista;
-							totalDocs = body.getTotalCount() != null ? body.getTotalCount() : (long) lista.size();
+							totalDocs = (body.getTotalCount() != null) ? body.getTotalCount() : (long) lista.size();
 						} else if (resp != null) {
-							// por si algún día cambia el DTO de documentos
 							responseMap.put("imagenRaw", resp);
 						}
 					} else {
@@ -469,15 +467,16 @@ public class EmpresaServiceImpl implements IEmpresaService {
 					}
 				}
 			} catch (Exception ex) {
-				log.warn("Fallo al obtener documentos con base64 para empresa {}: {}", idEmpresa, ex.getMessage());
+				log.warn("Fallo al obtener documentos (FOT) con base64 para empresa {}: {}", idEmpresa,
+						ex.getMessage());
 			}
 
-			// 👇 Cambiamos la clave 'documentos' -> 'imagen'
 			responseMap.put("imagen", documentos);
 			responseMap.put("totalImagen", totalDocs);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(responseMap).build());
+
 		} catch (Exception e) {
 			log.error("Error al buscar empresa por id de usuario: {}", idUsuario, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
