@@ -80,7 +80,7 @@ public class DocumentoController {
         @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
             @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @PostMapping("/actualizar-por-ruta")
+    @PostMapping("/actualizar")
     public ResponseEntity<ResponseDTO> actualizarPorRuta(@RequestBody DocumentoDTO documentoDTO) {
         return documentoServiceImpl.actualizarDocumentoPorRutaBase64(documentoDTO);
     }
