@@ -68,23 +68,21 @@ public class DocumentoController {
 		return documentoServiceImpl.saveDocumentoBase64(base64File, idEmpresa, idPersona, nombreArchivo, extension,
 				usuario, categoriaCod, idClienteNovedad);
 	}
-	
-	@Operation(summary = "Actualizar documento por ruta (sobrescribe el blob en Azure)")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-            @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @PostMapping("/actualizar")
-    public ResponseEntity<ResponseDTO> actualizarPorRuta(@RequestBody DocumentoDTO documentoDTO) {
-        return documentoServiceImpl.actualizarDocumentoPorRutaBase64(documentoDTO);
-    }
 
+	@Operation(summary = "Actualizar documento por ruta (sobrescribe el blob en Azure)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PostMapping("/actualizar")
+	public ResponseEntity<ResponseDTO> actualizarPorRuta(@RequestBody DocumentoDTO documentoDTO) {
+		return documentoServiceImpl.actualizarDocumentoPorRutaBase64(documentoDTO);
+	}
 
 	@Operation(summary = "Eliminar documento")
 	@ApiResponses(value = {
@@ -107,13 +105,22 @@ public class DocumentoController {
 		return documentoServiceImpl.getDocumentoBase64PorId(idDocumento);
 	}
 
-	@Operation(summary = "Listar documentos por empresa")
+	@Operation(summary = "Listar logos (FOT) de todas las empresas con paginación")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
-	@GetMapping("/empresa/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> listarPorEmpresa(@PathVariable Integer idEmpresa) {
-		return documentoServiceImpl.listarPorEmpresaConBase64(idEmpresa);
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/carrucel")
+	public ResponseEntity<ResponseDTO> listarLogosEmpresasPaginado(
+			@RequestParam(name = "page", required = false) Integer page,
+			@RequestParam(name = "size", required = false) Integer size) {
+
+		return documentoServiceImpl.listarLogosEmpresaCarrucel(page, size);
 	}
 
 	@Operation(summary = "Listar documentos por persona")

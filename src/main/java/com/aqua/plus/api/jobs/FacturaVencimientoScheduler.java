@@ -2,7 +2,6 @@ package com.aqua.plus.api.jobs;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,31 +23,34 @@ public class FacturaVencimientoScheduler {
 	@Value("${app.jobs.facturas.usuario-cron:AquaPlus}")
 	private String usuarioCron;
 
-	// llave del parámetro y valor por defecto si la empresa no lo tiene
 	@Value("${app.jobs.facturas.param.llave:DIAS}")
 	private String llaveParametro;
 
 	@Value("${app.jobs.facturas.param.default-dias:30}")
 	private int defaultDias;
 
-	@Scheduled(cron = "${app.jobs.facturas.vencidas-cron:0 0 0 * * *}", zone = "${app.jobs.tz:America/Bogota}")
+	@Value("${app.jobs.facturas.avsu.dias:60}")
+	private int avsuDias;
+
 	@Transactional
 	public void marcarFacturasVencidas() {
-		try {
-			var estadoVen = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("VEN")
-					.orElseThrow(() -> new IllegalStateException("No existe estado VEN activo"));
+		var estadoVen = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("VEN")
+				.orElseThrow(() -> new IllegalStateException("No existe estado VEN activo"));
 
-			long candidatas = facturaRepository.contarPendientesVencidasPorParametro(llaveParametro, defaultDias);
+		long candidatas = facturaRepository.contarPendientesVencidasPorParametro(llaveParametro, defaultDias);
+		int actualizadas = facturaRepository.marcarVencidasPorParametro(llaveParametro, defaultDias, estadoVen.getId(),
+				usuarioCron);
 
-			int actualizadas = facturaRepository.marcarVencidasPorParametro(llaveParametro, defaultDias,
-					estadoVen.getId(), usuarioCron);
+		log.info("Job marcarFacturasVencidas: candidatas={}, actualizadas={}, estadoVEN={}, llave={}, defaultDias={}",
+				candidatas, actualizadas, estadoVen.getId(), llaveParametro, defaultDias);
 
-			log.info(
-					"Job marcarFacturasVencidas: candidatas={}, actualizadas={}, estadoVEN={}, llave={}, defaultDias={}",
-					candidatas, actualizadas, estadoVen.getId(), llaveParametro, defaultDias);
-		} catch (Exception e) {
-			log.error("Job marcarFacturasVencidas falló", e);
-		}
+		var estadoAvsu = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("AVSU")
+				.orElseThrow(() -> new IllegalStateException("No existe estado AVSU activo"));
+
+		int promovidas = facturaRepository.promoverVencidasAAviso(avsuDias, estadoVen.getId(), estadoAvsu.getId(),
+				usuarioCron);
+
+		log.info("Job promover a AVSU: promovidasVEN->AVSU={}, dias={}", promovidas, avsuDias);
 	}
 
 	@Transactional

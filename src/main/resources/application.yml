@@ -55,4 +55,10 @@ app:
       enabled: true
       vencidas-cron: "0 0 0 * * *"
       usuario-cron: "AquaPlus"
-    tz: "America/Bogota"
+      param:
+        llave: "DIAS"
+        default-dias: 30
+
+      avsu:
+        enabled: true
+        dias: 60
