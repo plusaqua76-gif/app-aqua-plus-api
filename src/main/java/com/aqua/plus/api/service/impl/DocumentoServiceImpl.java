@@ -4,6 +4,7 @@ import java.time.Year;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -408,29 +409,40 @@ public class DocumentoServiceImpl implements IDocumentoService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> listarPorEmpresaConBase64(Integer idEmpresa) {
-		log.info("Listar documentos (con base64) por empresaId={}", idEmpresa);
+	public ResponseEntity<ResponseDTO> listarLogosEmpresaCarrucel(Integer page, Integer size) {
+		log.info("Listar logos (FOT) paginados. page={}, size={}", page, size);
 
 		try {
-			if (idEmpresa == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
-			}
+			int p = (page == null || page < 0) ? 0 : page;
+			int s = (size == null || size <= 0) ? 12 : Math.min(size, 50);
 
-			var docs = documentoRepository.findByEmpresa_Id(idEmpresa);
-			if (docs == null || docs.isEmpty()) {
+			final String CATEGORIA_LOGO = "FOT";
+			var pageable = org.springframework.data.domain.PageRequest.of(p, s);
+
+			var pageDocs = documentoRepository
+					.findByCategoriaDocumento_CodigoAndEmpresaIsNotNullAndActivoTrueOrderByFechaCreacionDesc(
+							CATEGORIA_LOGO, pageable);
+
+			var content = (pageDocs != null) ? pageDocs.getContent() : java.util.List.<DocumentoEntity>of();
+			if (content.isEmpty()) {
 				return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Sin documentos")
-						.code(HttpStatus.OK.value()).totalCount(0L).response(List.of()).build());
+						.code(HttpStatus.OK.value()).totalCount(0L).response(java.util.Map.of("items",
+								java.util.List.of(), "page", p, "size", s, "totalPages", 0, "totalElements", 0))
+						.build());
 			}
 
-			var items = new java.util.ArrayList<java.util.Map<String, Object>>(docs.size());
+			var items = new java.util.ArrayList<java.util.Map<String, Object>>(content.size());
 
-			for (var d : docs) {
-				var row = new java.util.LinkedHashMap<String, Object>(8);
-				row.put("id", d.getId());
-				row.put("ruta", d.getRuta());
-				row.put("nombre", d.getNombre());
-				row.put("extension", d.getExtension());
+			for (var d : content) {
+				var row = new LinkedHashMap<String, Object>(10);
+
+				if (d.getEmpresa() != null) {
+					try {
+						row.put("empresaId", d.getEmpresa().getId());
+						row.put("nombreEmpresa", d.getEmpresa().getNombre());
+					} catch (org.hibernate.LazyInitializationException ignore) {
+					}
+				}
 
 				try {
 					var client = container().getBlobClient(d.getRuta());
@@ -440,16 +452,14 @@ public class DocumentoServiceImpl implements IDocumentoService {
 						row.put("contentType", null);
 						row.put("error", "Blob inexistente");
 					} else {
-						var data = client.downloadContent(); // BinaryData
+						var data = client.downloadContent();
 						byte[] bytes = (data != null) ? data.toBytes() : null;
 
 						if (bytes != null && bytes.length > 0) {
 							String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
 							row.put("imagen", b64);
 
-							// 1) intentar con tu helper
 							String ct = guessContentType(bytes);
-							// 2) si no se pudo, caer al content-type por extensión
 							if (ct == null || ct.isBlank()) {
 								ct = contentTypeFallback(d.getExtension());
 							}
@@ -470,11 +480,16 @@ public class DocumentoServiceImpl implements IDocumentoService {
 				items.add(row);
 			}
 
+			long totalElements = pageDocs.getTotalElements();
+			int totalPages = pageDocs.getTotalPages();
+
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
+					.code(HttpStatus.OK.value()).totalCount(totalElements).response(java.util.Map.of("items", items,
+							"page", p, "size", s, "totalPages", totalPages, "totalElements", totalElements))
+					.build());
 
 		} catch (Exception e) {
-			log.error("Error listando/descargando documentos por empresa {}", idEmpresa, e);
+			log.error("Error listando logos (FOT) paginados", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message("Error consultando documentos").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}

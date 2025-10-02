@@ -5,6 +5,6 @@ import org.springframework.http.ResponseEntity;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 public interface IDocumentoService {
-
-	ResponseEntity<ResponseDTO> listarPorEmpresaConBase64(Integer idEmpresa);
+	
+	ResponseEntity<ResponseDTO> listarLogosEmpresaCarrucel(Integer page, Integer size);
 }
