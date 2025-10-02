@@ -59,6 +59,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
 	private final JdbcTemplate jdbcTemplate;
+	private final DocumentoServiceImpl documentoServiceImpl;
 
 	@Override
 	@Transactional
@@ -564,21 +565,78 @@ public class FacturaServiceImpl implements IFacturaService {
 				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 
-			ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-
-			HttpStatus status = HttpStatus.OK;
-			if (dto.getCode() != null) {
-				switch (dto.getCode()) {
-				case 404 -> status = HttpStatus.NOT_FOUND;
-				case 400 -> status = HttpStatus.BAD_REQUEST;
-				case 500 -> status = HttpStatus.INTERNAL_SERVER_ERROR;
-				default -> status = HttpStatus.OK;
-				}
-			} else if (Boolean.FALSE.equals(dto.getSuccess())) {
-				status = HttpStatus.INTERNAL_SERVER_ERROR;
+			// Trabajar como árbol para enriquecer
+			var root = objectMapper.readTree(json);
+			if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
 			}
 
-			return new ResponseEntity<>(dto, status);
+			// --- Localización flexible de empresa: response.data.empresa OR
+			// response.empresa
+			var responseObj = asObject(rootObj.path("response"));
+			if (responseObj == null) {
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+			}
+
+			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null; // donde reinyectaremos
+			com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
+			String empresaPathUsed = null;
+
+			// 1) response.data.empresa
+			var dataObj = asObject(responseObj.path("data"));
+			if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
+				empresaObj = asObject(dataObj.get("empresa"));
+				parentOfEmpresa = dataObj;
+				empresaPathUsed = "response.data.empresa";
+			}
+
+			// 2) response.empresa (fallback si no estaba en data)
+			if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
+				empresaObj = asObject(responseObj.get("empresa"));
+				parentOfEmpresa = responseObj;
+				empresaPathUsed = "response.empresa";
+			}
+
+			if (empresaObj == null || parentOfEmpresa == null) {
+				log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+				// Devolver tal cual
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+			}
+
+			// Obtener empresaId (int o string)
+			Integer empresaId = parseIntSafe(empresaObj.get("id"));
+			log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
+
+			// --- Inyección de puntosPago (PUPA)
+			try {
+				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, "PUPA");
+				empresaObj.set("puntosPago", puntosPagoArr);
+				log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
+			} catch (Exception ex) {
+				log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
+				empresaObj.set("puntosPago", objectMapper.createArrayNode());
+			}
+
+			// --- Inyección de codigoQr (QR) con fallback: empresa -> global
+			try {
+				var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
+				empresaObj.set("codigoQr", codigoQrObj);
+				log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
+						codigoQrObj.hasNonNull("imagen"));
+			} catch (Exception ex) {
+				log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
+				empresaObj.set("codigoQr", objectMapper.createObjectNode());
+			}
+
+			// Recolocar en el mismo parent donde se encontró
+			parentOfEmpresa.set("empresa", empresaObj);
+
+			// Reconstruir DTO y devolver con status correcto
+			ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
+			return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
 
 		} catch (EmptyResultDataAccessException e) {
 			ResponseDTO dto = new ResponseDTO();
@@ -596,6 +654,159 @@ public class FacturaServiceImpl implements IFacturaService {
 			dto.setResponse(null);
 			return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
+	}
+
+	/*
+	 * -------------------- Helpers (idénticos/compatibles con syncConfigEnterprise)
+	 * --------------------
+	 */
+
+	private com.fasterxml.jackson.databind.node.ObjectNode asObject(com.fasterxml.jackson.databind.JsonNode n) {
+		return (n instanceof com.fasterxml.jackson.databind.node.ObjectNode)
+				? (com.fasterxml.jackson.databind.node.ObjectNode) n
+				: null;
+	}
+
+	private HttpStatus httpStatusFromCode(ResponseDTO dto) {
+		if (dto == null)
+			return HttpStatus.OK;
+		if (dto.getCode() != null) {
+			return switch (dto.getCode()) {
+			case 404 -> HttpStatus.NOT_FOUND;
+			case 400 -> HttpStatus.BAD_REQUEST;
+			case 500 -> HttpStatus.INTERNAL_SERVER_ERROR;
+			default -> HttpStatus.OK;
+			};
+		}
+		return Boolean.FALSE.equals(dto.getSuccess()) ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.OK;
+	}
+
+	private Integer parseIntSafe(com.fasterxml.jackson.databind.JsonNode n) {
+		if (n == null || n.isNull())
+			return null;
+		if (n.isInt())
+			return n.intValue();
+		if (n.isTextual()) {
+			try {
+				return Integer.valueOf(n.textValue().trim());
+			} catch (Exception ignore) {
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * PUNTOS DE PAGO: TODOS los documentos de una categoría -> ARRAY [{ nombre,
+	 * imagen }, ...].
+	 */
+	private com.fasterxml.jackson.databind.node.ArrayNode buildDocsArrayNombreImagen(Integer empresaId,
+			String categoriaCodigo) {
+		ResponseEntity<ResponseDTO> resp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
+				categoriaCodigo);
+		var out = objectMapper.createArrayNode();
+
+		if (resp == null || !resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null
+				|| !Boolean.TRUE.equals(resp.getBody().getSuccess())) {
+			return out;
+		}
+
+		Object payload = resp.getBody().getResponse();
+		if (!(payload instanceof java.util.List<?> lista) || lista.isEmpty())
+			return out;
+
+		for (Object item : lista) {
+			var node = objectMapper.valueToTree(item);
+
+			String b64 = null;
+			if (node.hasNonNull("imagen"))
+				b64 = node.get("imagen").asText();
+			else if (node.hasNonNull("imagenBase64"))
+				b64 = node.get("imagenBase64").asText();
+
+			String nombre = null;
+			if (node.hasNonNull("nombre"))
+				nombre = node.get("nombre").asText();
+			else if (node.hasNonNull("ruta"))
+				nombre = extraerNombreDeRuta(node.get("ruta").asText());
+
+			if (b64 != null && !b64.isBlank()) {
+				if (nombre == null || nombre.isBlank())
+					nombre = "documento";
+				var obj = objectMapper.createObjectNode();
+				obj.put("nombre", nombre);
+				obj.put("imagen", b64);
+				out.add(obj);
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * CODIGO QR: objeto { nombre, imagen } con fallback: (empresa + "QR") -> ("QR"
+	 * global).
+	 */
+	private com.fasterxml.jackson.databind.node.ObjectNode buildCodigoQrNombreImagen(Integer empresaId) {
+		final String CATEGORIA_QR = "QR";
+		var empty = objectMapper.createObjectNode();
+
+		if (empresaId != null) {
+			ResponseEntity<ResponseDTO> respEmp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
+					CATEGORIA_QR);
+			com.fasterxml.jackson.databind.node.ObjectNode objEmp = toFirstNombreImagen(respEmp);
+			if (objEmp != null)
+				return objEmp;
+		}
+
+		ResponseEntity<ResponseDTO> respGlobal = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(null,
+				CATEGORIA_QR);
+		com.fasterxml.jackson.databind.node.ObjectNode objGlobal = toFirstNombreImagen(respGlobal);
+		return (objGlobal != null) ? objGlobal : empty;
+	}
+
+	/**
+	 * Toma el PRIMER elemento de la lista del servicio (si existe) y lo normaliza a
+	 * {nombre, imagen}.
+	 */
+	private com.fasterxml.jackson.databind.node.ObjectNode toFirstNombreImagen(ResponseEntity<ResponseDTO> resp) {
+		if (resp == null || !resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null
+				|| !Boolean.TRUE.equals(resp.getBody().getSuccess())) {
+			return null;
+		}
+		Object payload = resp.getBody().getResponse();
+		if (!(payload instanceof java.util.List<?> lista) || lista.isEmpty())
+			return null;
+
+		Object first = lista.get(0);
+		var node = objectMapper.valueToTree(first);
+
+		String b64 = null;
+		if (node.hasNonNull("imagen"))
+			b64 = node.get("imagen").asText();
+		else if (node.hasNonNull("imagenBase64"))
+			b64 = node.get("imagenBase64").asText();
+
+		String nombre = null;
+		if (node.hasNonNull("nombre"))
+			nombre = node.get("nombre").asText();
+		else if (node.hasNonNull("ruta"))
+			nombre = extraerNombreDeRuta(node.get("ruta").asText());
+
+		if (b64 == null || b64.isBlank())
+			return null;
+		if (nombre == null || nombre.isBlank())
+			nombre = "documento";
+
+		var obj = objectMapper.createObjectNode();
+		obj.put("nombre", nombre);
+		obj.put("imagen", b64);
+		return obj;
+	}
+
+	private String extraerNombreDeRuta(String ruta) {
+		if (ruta == null || ruta.isBlank())
+			return "sin_nombre";
+		int slash = Math.max(ruta.lastIndexOf('/'), ruta.lastIndexOf('\\'));
+		return (slash >= 0 && slash < ruta.length() - 1) ? ruta.substring(slash + 1) : ruta;
 	}
 
 }
