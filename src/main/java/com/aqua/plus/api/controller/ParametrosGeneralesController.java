@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.ParametrosGeneralesServiceImpl;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 		RequestMethod.PUT })
 @RequiredArgsConstructor
 public class ParametrosGeneralesController {
-	
+
 	private final ParametrosGeneralesServiceImpl parametrosGeneralesServiceImpl;
 
 	@Operation(summary = "Guardar o actualizar Parametros Generales")
@@ -92,5 +93,15 @@ public class ParametrosGeneralesController {
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
 		return parametrosGeneralesServiceImpl.deleteById(id);
 	}
-}
 
+	@Operation(summary = "Listar parámetros generales por codigoPadre")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error de servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/codigo/{codigoPadre}")
+	public ResponseEntity<ResponseDTO> findByCodigoPadre(@PathVariable String codigoPadre,
+			@RequestParam(name = "soloActivos", required = false, defaultValue = "true") boolean soloActivos) {
+		return parametrosGeneralesServiceImpl.findByCodigoPadre(codigoPadre, soloActivos);
+	}
+}
