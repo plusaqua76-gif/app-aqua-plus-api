@@ -1,6 +1,7 @@
 package com.aqua.plus.api.controller;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +57,33 @@ public class AbonoController {
 	@PostMapping
 	public ResponseEntity<ResponseDTO> save(@RequestBody AbonoDTO abonoDTO) {
 		return abonoServiceImpl.save(abonoDTO);
+	}
+
+	@Operation(summary = "Aplicar abono masivo a todas las deudas activas de un ECC", description = "Distribuye el monto total sobre las deudas activas del cliente (ECC) en orden por fecha de deuda. "
+			+ "Si una deuda tiene plazo de pago, se decrementa en 1 mes por cada abono aplicado; "
+			+ "si el saldo llega a 0, la deuda se desactiva.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Abono aplicado correctamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "Petición inválida (falta eccId o valorTotal)", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "No hay deudas activas para el ECC", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, description = "Cuerpo de la solicitud para abono masivo", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+			"eccId", "valorTotal" }, example = """
+					{
+					  "eccId": 69,
+					  "valorTotal": 75000,
+					  "usuario": "npeñafiel"
+					}
+					""")
+
+	))
+	@PostMapping("/masivo")
+	public ResponseEntity<ResponseDTO> abonoMasivo(@RequestBody Map<String, Object> body) {
+		return abonoServiceImpl.abonarATodasLasDeudas(body);
 	}
 
 	@Operation(summary = "Buscar Abono por id")
