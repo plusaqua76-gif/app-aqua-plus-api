@@ -131,6 +131,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			for (DeudaClienteEntity d : deudas) {
 				var row = new LinkedHashMap<String, Object>(10);
 
+				row.put("id", d.getId());
 				row.put("fechaDeuda", d.getFechaDeuda());
 				row.put("descripcion", d.getDescripcion());
 
