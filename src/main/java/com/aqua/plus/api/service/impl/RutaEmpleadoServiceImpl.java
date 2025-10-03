@@ -2,9 +2,12 @@ package com.aqua.plus.api.service.impl;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.postgresql.util.PGobject;
 import org.springframework.http.HttpStatus;
@@ -17,8 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aqua.plus.api.service.IRutaEmpleadoService;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RutaEmpleadoDTO;
+import com.aqua.plus.commons.entities.ParametrosEmpresaEntity;
 import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.maps.RutaEmpleadoMapper;
+import com.aqua.plus.commons.repositories.ParametrosEmpresaRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,6 +46,8 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
 	private final DocumentoServiceImpl documentoServiceImpl;
+	private final PlantillaServiceImpl plantillaService;
+	private final ParametrosEmpresaRepository parametrosEmpresaRepository;
 
 	@Override
 	@Transactional
@@ -220,14 +227,14 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 
 		try {
 			StringBuilder sql = new StringBuilder("SELECT public.sync_config_empresa(:idPersona");
-			MapSqlParameterSource params = new MapSqlParameterSource().addValue("idPersona", idPersona);
+			MapSqlParameterSource sqlParams = new MapSqlParameterSource().addValue("idPersona", idPersona);
 			if (offset != null && limit != null) {
 				sql.append(", :offset, :limit");
-				params.addValue("offset", offset).addValue("limit", limit);
+				sqlParams.addValue("offset", offset).addValue("limit", limit);
 			}
 			sql.append(")::text");
 
-			String jsonText = namedParameterJdbcTemplate.queryForObject(sql.toString(), params, String.class);
+			String jsonText = namedParameterJdbcTemplate.queryForObject(sql.toString(), sqlParams, String.class);
 			if (jsonText == null || jsonText.isBlank()) {
 				return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
 			}
@@ -253,6 +260,25 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 
 			Integer empresaId = parseIntSafe(empresaObj.get("id"));
 			if (empresaId != null) {
+				try {
+					Map<String, String> tplParams = new java.util.HashMap<>();
+					tplParams.putAll(cargarParamsEmpresaFooter(empresaId));
+
+					tplParams.put(Constantes.PARAMETRO_EMPRESAS_NOMBRE, textOrEmpty(empresaObj, "nombre"));
+					tplParams.put(Constantes.PARAMETRO_SOPORTE_TELEFONO, textOrEmpty(empresaObj, "telefonoEmpresa"));
+					tplParams.put(Constantes.PARAMETRO_SOPORTE_CORREO, textOrEmpty(empresaObj, "correoEmpresa"));
+
+					String pie = plantillaService.renderByCodigoWithDefaults(Constantes.COD_FOOTER, tplParams);
+
+					empresaObj.put("piePagina", pie);
+					log.info("piePagina inyectado para empresaId={} (len={})", empresaId,
+							(pie == null ? 0 : pie.length()));
+
+				} catch (Exception ex) {
+					log.warn("Fallo al inyectar piePagina para empresaId={}: {}", empresaId, ex.getMessage());
+					empresaObj.put("piePagina", "");
+				}
+
 				try {
 					var logoObj = buildSingleDocNombreImagen(empresaId, Constantes.TYPE_LOGO);
 					empresaObj.set("logoEmpresa", logoObj);
@@ -478,6 +504,47 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 				CATEGORIA_QR);
 		ObjectNode objGlobal = toFirstNombreImagen(respGlobal);
 		return (objGlobal != null) ? objGlobal : empty;
+	}
+
+	private Map<String, String> cargarParamsEmpresaFooter(Integer empresaId) {
+	    final Set<String> TARGET_KEYS = Set.of(
+	        Constantes.PARAMETRO_AVISO_TITULO,
+	        Constantes.PARAMETRO_AVISO_TEXTO,
+	        Constantes.PARAMETRO_SITIO_WEB
+	    );
+
+	    Map<String, String> out = new HashMap<>();
+
+	    for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findGlobalDefaultsActivos()) {
+	        if (pe.getLlave() == null) continue;
+	        String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
+	        if (TARGET_KEYS.contains(k)) {
+	            out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
+	        }
+	    }
+
+	    if (empresaId != null) {
+	        for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findByEmpresa_IdAndActivoTrue(empresaId)) {
+	            if (pe.getLlave() == null) continue;
+	            String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
+	            if (TARGET_KEYS.contains(k)) {
+	                out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
+	            }
+	        }
+	    }
+
+	    return out;
+	}
+
+
+	private static String textOrEmpty(JsonNode obj, String... keys) {
+		for (String k : keys) {
+			var n = obj.get(k);
+			if (n != null && !n.isNull() && n.isTextual() && !n.asText().isBlank()) {
+				return n.asText();
+			}
+		}
+		return "";
 	}
 
 }
