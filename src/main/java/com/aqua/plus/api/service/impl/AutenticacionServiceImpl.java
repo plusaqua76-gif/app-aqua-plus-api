@@ -3,6 +3,7 @@ package com.aqua.plus.api.service.impl;
 import java.util.ArrayList;
 import java.util.Optional;
 
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.User;
@@ -40,93 +41,97 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 
 	private final UsuarioRepository usuarioRepository;
 	private final EmpresaRepository empresaRepository;
+    private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final JwtUtil jwtTokenUtil;
 
-	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> autenticar(UsuarioDTO usuario) {
-	    log.info("Inicio metodo autenticar:{} ", usuario.getNombre());
-	    if (usuario == null || usuario.getNombre() == null || usuario.getContrasena() == null
-	            || usuario.getNombre().isEmpty() || usuario.getContrasena().isEmpty()) {
-	        return ResponseEntity.badRequest().body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.DATA_VALIDATION_MESSAGE)
-	                .code(HttpStatus.BAD_REQUEST.value())
-	                .build()
-	        );
-	    }
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> autenticar(UsuarioDTO usuario) {
+        log.info("Inicio metodo autenticar: {}", (usuario != null ? usuario.getNombre() : null));
 
-	    Optional<UsuarioEntity> responseUsuario =
-	        usuarioRepository.findByNombreAndContrasena(
-	            usuario.getNombre(),
-	            serviceEncriptacion.encriptar(usuario.getContrasena())
-	        );
+        if (usuario == null
+                || usuario.getNombre() == null || usuario.getNombre().isBlank()
+                || usuario.getContrasena() == null || usuario.getContrasena().isBlank()) {
+            return ResponseEntity.badRequest().body(
+                    ResponseDTO.builder()
+                            .success(false)
+                            .message(Constantes.DATA_VALIDATION_MESSAGE)
+                            .code(HttpStatus.BAD_REQUEST.value())
+                            .build());
+        }
 
-	    if (responseUsuario.isEmpty()) {
-	        log.info("Fin metodo autenticar:{} ", Constantes.PLEASE_VERIFY_INCORRECT_DATA);
-	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message(Constantes.PLEASE_VERIFY_INCORRECT_DATA)
-	                .code(HttpStatus.BAD_REQUEST.value())
-	                .build()
-	        );
-	    }
+        String passHash = serviceEncriptacion.encriptar(usuario.getContrasena());
+        var optUser = usuarioRepository.findByNombreAndContrasena(usuario.getNombre(), passHash);
 
-	    UsuarioEntity user = responseUsuario.get();
+        if (optUser.isEmpty()) {
+            log.info("Fin metodo autenticar (credenciales inválidas) para usuario {}", usuario.getNombre());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    ResponseDTO.builder()
+                            .success(false)
+                            .message(Constantes.PLEASE_VERIFY_INCORRECT_DATA)
+                            .code(HttpStatus.UNAUTHORIZED.value())
+                            .build());
+        }
 
-	    if (!Boolean.TRUE.equals(user.getActivo())) {
-	        log.info("Usuario {} encontrado pero no está activo", user.getNombre());
-	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	            ResponseDTO.builder()
-	                .success(false)
-	                .message("El usuario no está activo.")
-	                .code(HttpStatus.UNAUTHORIZED.value())
-	                .build()
-	        );
-	    }
-	    
-	    Integer empresaId = empresaRepository
-	            .findByUsuario_Id(user.getId())
-	            .map(EmpresaEntity::getId)
-	            .orElse(null);
+        UsuarioEntity user = optUser.get();
 
-	    final String accessToken = jwtTokenUtil.generateToken(
-	        user.getNombre(),
-	        Constantes.KEY_TOKEN,
-	        Constantes.TIEMPO_VIGENCIA_TOKEN
-	    );
+        if (!Boolean.TRUE.equals(user.getActivo())) {
+            log.info("Usuario {} encontrado pero NO activo", user.getNombre());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    ResponseDTO.builder()
+                            .success(false)
+                            .message("El usuario no está activo.")
+                            .code(HttpStatus.UNAUTHORIZED.value())
+                            .build());
+        }
 
-	    final String refreshToken = jwtTokenUtil.generateRefreshToken(
-	        user.getNombre(),
-	        Constantes.KEY_TOKEN,
-	        Constantes.TIEMPO_VIGENCIA_REFRESH
-	    );
+        Integer empresaId = empresaRepository.findByUsuario_Id(user.getId())
+                .map(EmpresaEntity::getId)
+                .orElse(null);
 
-	    AutenticacionDTO authData = AutenticacionDTO.builder()
-	        .id(user.getId())
-	        .nombre(user.getNombre())
-	        .token(Constantes.BEARER + accessToken)       // access
-	        .refreshToken(Constantes.BEARER + refreshToken) // refresh
-	        .rol(user.getRol() != null ? user.getRol().getNombre() : null)
-	        .personaId(user.getPersona() != null ? user.getPersona().getId() : null)
-	        .empresaId(empresaId)
-	        .build();
+        Integer personaId = (user.getPersona() != null ? user.getPersona().getId() : null);
+        if (empresaId == null && personaId != null) {
+            empresaId = empresaClienteContadorRepository
+                    .findTopByCliente_IdAndActivoTrueOrderByFechaCreacionDesc(personaId)
+                    .map(ecc -> (ecc.getEmpresa() != null ? ecc.getEmpresa().getId() : null))
+                    .orElse(null);
+        }
 
-	    ResponseDTO successResponse = ResponseDTO.builder()
-	        .success(true)
-	        .message(Constantes.AUTHENTICATION_SUCCESSFUL)
-	        .code(HttpStatus.OK.value())
-	        .response(authData)
-	        .build();
+        final String accessToken = jwtTokenUtil.generateToken(
+                user.getNombre(),
+                Constantes.KEY_TOKEN,
+                Constantes.TIEMPO_VIGENCIA_TOKEN
+        );
 
-	    log.info("Fin metodo autenticar:{} ", usuario.getNombre());
-	    return ResponseEntity.ok(successResponse);
-	}
+        final String refreshToken = jwtTokenUtil.generateRefreshToken(
+                user.getNombre(),
+                Constantes.KEY_TOKEN,
+                Constantes.TIEMPO_VIGENCIA_REFRESH
+        );
 
-	
-	@Transactional(readOnly = true)
+        AutenticacionDTO authData = AutenticacionDTO.builder()
+                .id(user.getId())
+                .nombre(user.getNombre())
+                .token(Constantes.BEARER + accessToken)
+                .refreshToken(Constantes.BEARER + refreshToken)
+                .rol(user.getRol() != null ? user.getRol().getNombre() : null)
+                .personaId(personaId)      // si es CLIENTE viene poblado
+                .empresaId(empresaId)      // <-- ahora SIEMPRE intentamos devolverlo
+                .build();
+
+        var ok = ResponseDTO.builder()
+                .success(true)
+                .message(Constantes.AUTHENTICATION_SUCCESSFUL)
+                .code(HttpStatus.OK.value())
+                .response(authData)
+                .build();
+
+        log.info("Fin metodo autenticar OK para usuario {} (empresaId={})", user.getNombre(), empresaId);
+        return ResponseEntity.ok(ok);
+    }
+
+
+    @Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> refreshToken(String authorizationHeader) {
 	    log.info("Inicio metodo refreshToken");
 

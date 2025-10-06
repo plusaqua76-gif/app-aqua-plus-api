@@ -260,24 +260,28 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 
 			Integer empresaId = parseIntSafe(empresaObj.get("id"));
 			if (empresaId != null) {
-				try {
-					Map<String, String> tplParams = new java.util.HashMap<>();
-					tplParams.putAll(cargarParamsEmpresaFooter(empresaId));
+                try {
+                    Map<String, String> tplParams = new java.util.HashMap<>();
+                    tplParams.putAll(cargarParamsEmpresaFooter(empresaId));
 
-					tplParams.put(Constantes.PARAMETRO_EMPRESAS_NOMBRE, textOrEmpty(empresaObj, "nombre"));
-					tplParams.put(Constantes.PARAMETRO_SOPORTE_TELEFONO, textOrEmpty(empresaObj, "telefonoEmpresa"));
-					tplParams.put(Constantes.PARAMETRO_SOPORTE_CORREO, textOrEmpty(empresaObj, "correoEmpresa"));
+                    tplParams.put(Constantes.PARAMETRO_EMPRESAS_NOMBRE, textOrEmpty(empresaObj, "nombre"));
+                    tplParams.put(Constantes.PARAMETRO_SOPORTE_TELEFONO, textOrEmpty(empresaObj, "telefonoEmpresa"));
+                    tplParams.put(Constantes.PARAMETRO_SOPORTE_CORREO,  textOrEmpty(empresaObj, "correoEmpresa"));
 
-					String pie = plantillaService.renderByCodigoWithDefaults(Constantes.COD_FOOTER, tplParams);
+                    String aviso = plantillaService.renderByCodigoWithDefaults(Constantes.COD_FOOTER, tplParams);
+                    String pie   = plantillaService.renderByCodigoWithDefaults(Constantes.COD_AVISO, tplParams);
 
-					empresaObj.put("piePagina", pie);
-					log.info("piePagina inyectado para empresaId={} (len={})", empresaId,
-							(pie == null ? 0 : pie.length()));
+                    empresaObj.put("avisoFactura", aviso != null ? aviso : "");
+                    empresaObj.put("piePagina",    pie   != null ? pie   : "");
 
-				} catch (Exception ex) {
-					log.warn("Fallo al inyectar piePagina para empresaId={}: {}", empresaId, ex.getMessage());
-					empresaObj.put("piePagina", "");
-				}
+                    log.info("avisoFactura y piePagina inyectados para empresaId={} (avisoLen={}, pieLen={})",
+                            empresaId, (aviso == null ? 0 : aviso.length()), (pie == null ? 0 : pie.length()));
+
+                } catch (Exception ex) {
+                    log.warn("Fallo al inyectar aviso/pie para empresaId={}: {}", empresaId, ex.getMessage());
+                    empresaObj.put("avisoFactura", "");
+                    empresaObj.put("piePagina", "");
+                }
 
 				try {
 					var logoObj = buildSingleDocNombreImagen(empresaId, Constantes.TYPE_LOGO);
