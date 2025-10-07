@@ -33,4 +33,7 @@ public interface IUsuarioService {
 	ResponseEntity<ResponseDTO> updatePassword(Integer idUsuario, String nuevaContrasena, String usuarioModificacion);
 
 	ResponseEntity<ResponseDTO> findMenusByEmpresaAndRol(Integer idEmpresa, Integer idRol);
+	
+	ResponseEntity<ResponseDTO> findUsuariosByEmpresa(Integer empresaId, String personaNombreLike,
+			String numeroCedulaLike, String tipoDocumentoNombre, String rolNombre);
 }

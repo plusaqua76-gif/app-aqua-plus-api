@@ -269,4 +269,19 @@ public class UsuarioController {
 		return usuarioServiceImpl.findMenusByEmpresaAndRol(empresaId, rolId);
 	}
 
+	@Operation(summary = "Listar usuarios activos por empresa (personas de ECC y EmpleadoEmpresa)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/empresa")
+	public ResponseEntity<ResponseDTO> getUsuariosByEmpresa(@RequestParam Integer empresaId,
+			@RequestParam(required = false) String nombreLike, @RequestParam(required = false) String numeroCedulaLike,
+			@RequestParam(required = false) String tipoDocumentoNombre,
+			@RequestParam(required = false) String rolNombre) {
+		return usuarioServiceImpl.findUsuariosByEmpresa(empresaId, nombreLike, numeroCedulaLike, tipoDocumentoNombre,
+				rolNombre);
+	}
+
 }

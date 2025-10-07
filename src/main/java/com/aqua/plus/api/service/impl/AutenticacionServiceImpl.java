@@ -100,8 +100,8 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 
 		AutenticacionDTO authData = AutenticacionDTO.builder().id(user.getId()).nombre(user.getNombre())
 				.token(Constantes.BEARER + accessToken).refreshToken(Constantes.BEARER + refreshToken)
-				.rol(user.getRol() != null ? user.getRol().getNombre() : null).personaId(personaId).empresaId(empresaId)
-				.build();
+				.rol(user.getRol() != null ? user.getRol().getNombre() : null).rolId(user.getRol().getId())
+				.personaId(personaId).empresaId(empresaId).build();
 
 		var ok = ResponseDTO.builder().success(true).message(Constantes.AUTHENTICATION_SUCCESSFUL)
 				.code(HttpStatus.OK.value()).response(authData).build();

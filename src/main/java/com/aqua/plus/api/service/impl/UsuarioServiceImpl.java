@@ -6,10 +6,12 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -27,6 +29,7 @@ import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.MenuItemDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
+import com.aqua.plus.commons.dtos.UsuarioListItemDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.RolEntity;
@@ -34,6 +37,8 @@ import com.aqua.plus.commons.entities.RolMenuEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.UsuarioMapper;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
+import com.aqua.plus.commons.repositories.EmpleadoEmpresaRepository;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.RolMenuRepository;
@@ -69,6 +74,8 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final EmpresaRepository empresaRepository;
 	private final RolMenuRepository rolMenuRepository;
+	private final EmpleadoEmpresaRepository empleadoEmpresaRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 
 	@Override
 	@Transactional
@@ -229,72 +236,63 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	}
 
 	private String extractRawToken(String tokenOrHeader) {
-	    if (tokenOrHeader == null) return null;
-	    String t = tokenOrHeader.trim();
-	    if (t.regionMatches(true, 0, "Bearer ", 0, 7)) {
-	        return t.substring(7).trim();
-	    }
-	    return t;
+		if (tokenOrHeader == null)
+			return null;
+		String t = tokenOrHeader.trim();
+		if (t.regionMatches(true, 0, "Bearer ", 0, 7)) {
+			return t.substring(7).trim();
+		}
+		return t;
 	}
 
 	@Transactional
 	public ResponseEntity<ResponseDTO> updatePasswordByToken(String token, UsuarioDTO usuarioDTO) {
-	    log.info("Inicio de actualización de contraseña usando token");
+		log.info("Inicio de actualización de contraseña usando token");
 
-	    token = extractRawToken(token);
-	    if (token == null || token.isBlank()) {
-	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	            ResponseDTO.builder().success(false).message("Token requerido")
-	                .code(HttpStatus.UNAUTHORIZED.value()).build());
-	    }
+		token = extractRawToken(token);
+		if (token == null || token.isBlank()) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+					.message("Token requerido").code(HttpStatus.UNAUTHORIZED.value()).build());
+		}
 
-	    try {
-	        if (!Boolean.TRUE.equals(jwtUtil.isSignatureValid(token, Constantes.KEY_TOKEN_EXTERNO))) {
-	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	                ResponseDTO.builder().success(false).message("Token inválido (firma no coincide)")
-	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
-	        }
+		try {
+			if (!Boolean.TRUE.equals(jwtUtil.isSignatureValid(token, Constantes.KEY_TOKEN_EXTERNO))) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+						.message("Token inválido (firma no coincide)").code(HttpStatus.UNAUTHORIZED.value()).build());
+			}
 
-	        if (Boolean.TRUE.equals(jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN_EXTERNO))) {
-	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	                ResponseDTO.builder().success(false).message("Token inválido o expirado")
-	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
-	        }
+			if (Boolean.TRUE.equals(jwtUtil.isTokenExpired(token, Constantes.KEY_TOKEN_EXTERNO))) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+						.message("Token inválido o expirado").code(HttpStatus.UNAUTHORIZED.value()).build());
+			}
 
-	        String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
-	        if (username == null || username.isBlank()) {
-	            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	                ResponseDTO.builder().success(false).message("Token sin usuario válido")
-	                    .code(HttpStatus.UNAUTHORIZED.value()).build());
-	        }
+			String username = jwtUtil.getUsernameFromToken(token, Constantes.KEY_TOKEN_EXTERNO);
+			if (username == null || username.isBlank()) {
+				return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+						.message("Token sin usuario válido").code(HttpStatus.UNAUTHORIZED.value()).build());
+			}
 
-	        return usuarioRepository.findByNombre(username)
-	            .map(usuario -> {
-	                String nuevaContrasena = (usuarioDTO != null) ? usuarioDTO.getContrasena() : null;
-	                if (nuevaContrasena == null || nuevaContrasena.isBlank()) {
-	                    return ResponseEntity.badRequest().body(
-	                        ResponseDTO.builder().success(false).message("Contraseña requerida")
-	                            .code(HttpStatus.BAD_REQUEST.value()).build());
-	                }
-	                usuario.setContrasena(serviceEncriptacion.encriptar(nuevaContrasena));
-	                usuario.setFechaModificacion(new Date());
-	                usuario.setUsuarioModificacion("Recuperación vía token");
-	                usuarioRepository.save(usuario);
+			return usuarioRepository.findByNombre(username).map(usuario -> {
+				String nuevaContrasena = (usuarioDTO != null) ? usuarioDTO.getContrasena() : null;
+				if (nuevaContrasena == null || nuevaContrasena.isBlank()) {
+					return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+							.message("Contraseña requerida").code(HttpStatus.BAD_REQUEST.value()).build());
+				}
+				usuario.setContrasena(serviceEncriptacion.encriptar(nuevaContrasena));
+				usuario.setFechaModificacion(new Date());
+				usuario.setUsuarioModificacion("Recuperación vía token");
+				usuarioRepository.save(usuario);
 
-	                return ResponseEntity.ok(ResponseDTO.builder().success(true)
-	                    .message("Contraseña actualizada exitosamente").code(HttpStatus.OK.value()).build());
-	            })
-	            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-	                ResponseDTO.builder().success(false).message("Usuario no encontrado")
-	                    .code(HttpStatus.NOT_FOUND.value()).build()));
+				return ResponseEntity.ok(ResponseDTO.builder().success(true)
+						.message("Contraseña actualizada exitosamente").code(HttpStatus.OK.value()).build());
+			}).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+					.message("Usuario no encontrado").code(HttpStatus.NOT_FOUND.value()).build()));
 
-	    } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
-	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-	            ResponseDTO.builder().success(false).message("Token inválido")
-	                .code(HttpStatus.UNAUTHORIZED.value()).build());
-	    }
+		} catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ResponseDTO.builder().success(false)
+					.message("Token inválido").code(HttpStatus.UNAUTHORIZED.value()).build());
+		}
 	}
-
 
 	@Override
 	@Transactional(readOnly = true)
@@ -376,9 +374,8 @@ public class UsuarioServiceImpl implements IUsuarioService {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron usuarios ACTIVO/INACTIVO para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(content)
-								.totalCount(totalCount).pageSize(pageSize).currentPage(currentPage)
-								.totalPages(totalPages).build());
+								.code(HttpStatus.NOT_FOUND.value()).response(content).totalCount(totalCount)
+								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
 			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
@@ -465,77 +462,146 @@ public class UsuarioServiceImpl implements IUsuarioService {
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
-	
+
 	@Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findMenusByEmpresaAndRol(Integer idEmpresa, Integer idRol) {
-        log.info("Listar menús por empresaId={}, rolId={}, activo=true", idEmpresa, idRol);
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findMenusByEmpresaAndRol(Integer idEmpresa, Integer idRol) {
+		log.info("Listar menús por empresaId={}, rolId={}, activo=true", idEmpresa, idRol);
 
-        if (idEmpresa == null || idRol == null) {
-            return ResponseEntity.badRequest().body(
-                ResponseDTO.builder()
-                        .success(false)
-                        .message("Los parámetros idEmpresa e idRol son requeridos.")
-                        .code(HttpStatus.BAD_REQUEST.value())
-                        .build()
-            );
-        }
+		if (idEmpresa == null || idRol == null) {
+			return ResponseEntity.badRequest()
+					.body(ResponseDTO.builder().success(false)
+							.message("Los parámetros idEmpresa e idRol son requeridos.")
+							.code(HttpStatus.BAD_REQUEST.value()).build());
+		}
 
-        try {
-            List<RolMenuEntity> filas = rolMenuRepository.findByActivoTrueAndEmpresa_IdAndRol_Id(idEmpresa, idRol);
+		try {
+			List<RolMenuEntity> filas = rolMenuRepository.findByActivoTrueAndEmpresa_IdAndRol_Id(idEmpresa, idRol);
 
-            Map<Integer, MenuItemDTO> porMenu = new LinkedHashMap<>();
+			Map<Integer, MenuItemDTO> porMenu = new LinkedHashMap<>();
 
-            for (RolMenuEntity rm : filas) {
-                var menu = rm.getMenu();
-                var rol  = rm.getRol();
-                if (menu == null || rol == null) continue;
+			for (RolMenuEntity rm : filas) {
+				var menu = rm.getMenu();
+				var rol = rm.getRol();
+				if (menu == null || rol == null)
+					continue;
 
-                Integer key = menu.getId();
+				Integer key = menu.getId();
 
-                String routeLink = menu.getLink();
-                String icon      = menu.getIcono();
-                String label     = menu.getEtiqueta();
+				String routeLink = menu.getLink();
+				String icon = menu.getIcono();
+				String label = menu.getEtiqueta();
 
-                String rolNombre = (rol.getNombre() != null ? rol.getNombre().toUpperCase() : "DESCONOCIDO");
+				String rolNombre = (rol.getNombre() != null ? rol.getNombre().toUpperCase() : "DESCONOCIDO");
 
-                MenuItemDTO existente = porMenu.get(key);
-                if (existente == null) {
-                    existente = MenuItemDTO.builder()
-                            .routeLink(routeLink)
-                            .icon(icon)
-                            .label(label)
-                            .allowedRoles(new ArrayList<>())
-                            .build();
-                    porMenu.put(key, existente);
-                }
-                if (!existente.getAllowedRoles().contains(rolNombre)) {
-                    existente.getAllowedRoles().add(rolNombre);
-                }
-            }
+				MenuItemDTO existente = porMenu.get(key);
+				if (existente == null) {
+					existente = MenuItemDTO.builder().routeLink(routeLink).icon(icon).label(label)
+							.allowedRoles(new ArrayList<>()).build();
+					porMenu.put(key, existente);
+				}
+				if (!existente.getAllowedRoles().contains(rolNombre)) {
+					existente.getAllowedRoles().add(rolNombre);
+				}
+			}
 
-            List<MenuItemDTO> items = new ArrayList<>(porMenu.values());
-            items.sort(Comparator.comparing(MenuItemDTO::getLabel, String.CASE_INSENSITIVE_ORDER));
+			List<MenuItemDTO> items = new ArrayList<>(porMenu.values());
+			items.sort(Comparator.comparing(MenuItemDTO::getLabel, String.CASE_INSENSITIVE_ORDER));
 
-            return ResponseEntity.ok(
-                    ResponseDTO.builder()
-                            .success(true)
-                            .message(Constantes.CONSULTED_SUCCESSFULLY)
-                            .code(HttpStatus.OK.value())
-                            .response(items)
-                            .build()
-            );
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(items).build());
 
-        } catch (Exception e) {
-            log.error("Error al listar menús por empresaId={}, rolId={}", idEmpresa, idRol, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ResponseDTO.builder()
-                            .success(false)
-                            .message(Constantes.CONSULTING_ERROR)
-                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                            .build()
-            );
-        }
-    }
+		} catch (Exception e) {
+			log.error("Error al listar menús por empresaId={}, rolId={}", idEmpresa, idRol, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
+					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findUsuariosByEmpresa(Integer empresaId, String personaNombreLike,
+			String numeroCedulaLike, String tipoDocumentoNombre, String rolNombre) {
+		log.info(
+				"Listar usuarios activos por empresa={}, filtros: nombreLike='{}', cedulaLike='{}', tipoDoc='{}', rol='{}'",
+				empresaId, personaNombreLike, numeroCedulaLike, tipoDocumentoNombre, rolNombre);
+
+		if (empresaId == null) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("El parámetro empresaId es requerido.").code(HttpStatus.BAD_REQUEST.value()).build());
+		}
+
+		try {
+			List<Integer> personaIdsECC = empresaClienteContadorRepository.findClientePersonaIdsByEmpresaId(empresaId);
+			List<Integer> personaIdsEmp = empleadoEmpresaRepository.findEmpleadoPersonaIdsByEmpresaId(empresaId);
+
+			Set<Integer> personaIds = new LinkedHashSet<>();
+			if (personaIdsECC != null)
+				personaIds.addAll(personaIdsECC);
+			if (personaIdsEmp != null)
+				personaIds.addAll(personaIdsEmp);
+
+			if (personaIds.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron personas asociadas a la empresa.")
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).build());
+			}
+
+			var spec = UsuarioSpecification.allOfNonNull(UsuarioSpecification.activoTrue(),
+					UsuarioSpecification.personaIdIn(personaIds),
+					UsuarioSpecification.personaNombreLike(personaNombreLike),
+					UsuarioSpecification.personaNumeroCedulaLike(numeroCedulaLike),
+					UsuarioSpecification.personaTipoDocNombreEquals(tipoDocumentoNombre),
+					UsuarioSpecification.rolNombreEquals(rolNombre), UsuarioSpecification.withFetchJoins());
+
+			var usuarios = usuarioRepository.findAll(spec);
+
+			if (usuarios.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron usuarios que cumplan los criterios.")
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).build());
+			}
+
+			var dtos = usuarios.stream().map(u -> {
+				var p = u.getPersona();
+				var td = (p != null ? p.getTipoDocumento() : null);
+
+				String nombre = (p != null ? orEmpty(p.getNombre()) : "");
+				String segundoNombre = (p != null ? orEmpty(p.getSegundoNombre()) : "");
+				String apellido = (p != null ? orEmpty(p.getApellido()) : "");
+				String segundoApellido = (p != null ? orEmpty(p.getSegundoApellido()) : "");
+				String fullName = (nombre + " " + segundoNombre + " " + apellido + " " + segundoApellido).trim()
+						.replaceAll("\\s+", " ");
+
+				return UsuarioListItemDTO.builder().id(u.getId()).username(u.getNombre()).activo(u.getActivo())
+
+						.rolId(u.getRol() != null ? u.getRol().getId() : null)
+						.rolNombre(u.getRol() != null ? u.getRol().getNombre() : null)
+
+						.estadoId(u.getEstado() != null ? u.getEstado().getId() : null)
+						.estadoNombre(u.getEstado() != null ? u.getEstado().getNombre() : null)
+
+						.personaId(p != null ? p.getId() : null)
+						.Nombre(fullName.isBlank() ? null : fullName)
+						.NumeroCedula(p != null ? p.getNumeroCedula() : null)
+						.TipoDocumento(td != null ? td.getNombre() : null).build();
+			}).toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtos).build());
+
+		} catch (Exception e) {
+			log.error("Error al listar usuarios por empresaId={} con filtros", empresaId, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	private static String orEmpty(String s) {
+		return (s == null ? "" : s);
+	}
 
 }
