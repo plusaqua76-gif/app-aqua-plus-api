@@ -19,11 +19,18 @@ import com.aqua.plus.commons.dtos.UsuarioDTO;
 public interface IUsuarioService {
 
 	ResponseEntity<ResponseDTO> save(UsuarioDTO usuarioDTO);
+
 	ResponseEntity<ResponseDTO> updateImage(Integer id, byte[] nuevaImagen, String usuarioModificacion);
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findActivosEInactivos(String nombre, String estadoNombre, Pageable pageable);
-    ResponseEntity<ResponseDTO> findAll();
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
-    ResponseEntity<ResponseDTO> updatePassword(Integer idUsuario, String nuevaContrasena, String usuarioModificacion);
-    
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findActivosEInactivos(String nombre, String estadoNombre, Pageable pageable);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> updatePassword(Integer idUsuario, String nuevaContrasena, String usuarioModificacion);
+
+	ResponseEntity<ResponseDTO> findMenusByEmpresaAndRol(Integer idEmpresa, Integer idRol);
 }

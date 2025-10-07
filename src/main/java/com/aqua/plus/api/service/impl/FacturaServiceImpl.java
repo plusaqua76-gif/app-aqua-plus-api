@@ -1,13 +1,9 @@
 package com.aqua.plus.api.service.impl;
 
 import java.time.LocalDate;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -309,7 +305,88 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.precioBetween(precioMin, precioMax));
 	}
 
-	@Override
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> findFacturasByPersona(
+            Integer idPersona,
+            String codigo,
+            String fechaEmision,
+            String fechaFin,
+            String estadoNombre,
+            Boolean consumoAnormal,
+            Double precio,
+            Pageable pageable
+    ) {
+        if (idPersona == null) {
+            return ResponseEntity.badRequest().body(ResponseDTO.builder()
+                    .success(false).message("El parámetro idPersona es requerido.")
+                    .code(HttpStatus.BAD_REQUEST.value()).build());
+        }
+
+        log.info("findFacturasByPersona -> personaId={}, filtros: codigo={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precio={}",
+                idPersona, codigo, fechaEmision, fechaFin, estadoNombre, consumoAnormal, precio);
+
+        try {
+            LocalDate emision = parseSingleDateOrNull(fechaEmision);
+            LocalDate venc    = parseSingleDateOrNull(fechaFin);
+
+            Specification<FacturaEntity> spec =
+                    java.util.stream.Stream.of(
+                                    FacturaSpecifications.activoTrue(),
+                                    FacturaSpecifications.personaIdEquals(idPersona),
+                                    FacturaSpecifications.codigoLike(codigo),
+                                    FacturaSpecifications.estadoNombreLike(estadoNombre),
+                                    // “un solo día” => between(día, día) mantiene tu semántica actual
+                                    FacturaSpecifications.fechaEmisionBetween(emision, emision),
+                                    FacturaSpecifications.fechaFinBetween(venc, venc),
+                                    FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
+                                    FacturaSpecifications.precioEquals(precio) // valor único
+                            )
+                            .filter(java.util.Objects::nonNull)
+                            .reduce((a, b) -> a.and(b))
+                            .orElse((root, q, cb) -> cb.conjunction());
+
+            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+            Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
+
+            var items = facturaMapper.listEntityToResponse(page.getContent());
+
+            if (page.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder()
+                        .success(false)
+                        .message("No se encontraron facturas para la persona " + idPersona)
+                        .code(HttpStatus.NOT_FOUND.value())
+                        .response(items)
+                        .totalCount(page.getTotalElements())
+                        .pageSize(page.getSize())
+                        .currentPage(page.getNumber())
+                        .totalPages(page.getTotalPages())
+                        .build());
+            }
+
+            return ResponseEntity.ok(ResponseDTO.builder()
+                    .success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+                    .code(HttpStatus.OK.value())
+                    .response(items)
+                    .totalCount(page.getTotalElements())
+                    .pageSize(page.getSize())
+                    .currentPage(page.getNumber())
+                    .totalPages(page.getTotalPages())
+                    .build());
+
+        } catch (java.time.format.DateTimeParseException ex) {
+            return ResponseEntity.badRequest().body(ResponseDTO.builder()
+                    .success(false).message("Formato de fecha inválido. Usa yyyy-MM-dd")
+                    .code(HttpStatus.BAD_REQUEST.value()).build());
+        } catch (Exception e) {
+            log.error("Error en findFacturasByPersona: personaId={}", idPersona, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder()
+                    .success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+        }
+    }
+
+    @Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findAll() {
 		log.info("Listar todos las facturas");
@@ -565,26 +642,22 @@ public class FacturaServiceImpl implements IFacturaService {
 				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 
-			// Trabajar como árbol para enriquecer
 			var root = objectMapper.readTree(json);
 			if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
 				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
 				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
 			}
 
-			// --- Localización flexible de empresa: response.data.empresa OR
-			// response.empresa
 			var responseObj = asObject(rootObj.path("response"));
 			if (responseObj == null) {
 				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
 				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
 			}
 
-			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null; // donde reinyectaremos
+			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
 			com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
 			String empresaPathUsed = null;
 
-			// 1) response.data.empresa
 			var dataObj = asObject(responseObj.path("data"));
 			if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
 				empresaObj = asObject(dataObj.get("empresa"));
@@ -592,7 +665,6 @@ public class FacturaServiceImpl implements IFacturaService {
 				empresaPathUsed = "response.data.empresa";
 			}
 
-			// 2) response.empresa (fallback si no estaba en data)
 			if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
 				empresaObj = asObject(responseObj.get("empresa"));
 				parentOfEmpresa = responseObj;
@@ -661,9 +733,9 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * --------------------
 	 */
 
-	private com.fasterxml.jackson.databind.node.ObjectNode asObject(com.fasterxml.jackson.databind.JsonNode n) {
-		return (n instanceof com.fasterxml.jackson.databind.node.ObjectNode)
-				? (com.fasterxml.jackson.databind.node.ObjectNode) n
+	private ObjectNode asObject(JsonNode n) {
+		return (n instanceof ObjectNode)
+				? (ObjectNode) n
 				: null;
 	}
 
@@ -699,7 +771,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * PUNTOS DE PAGO: TODOS los documentos de una categoría -> ARRAY [{ nombre,
 	 * imagen }, ...].
 	 */
-	private com.fasterxml.jackson.databind.node.ArrayNode buildDocsArrayNombreImagen(Integer empresaId,
+	private ArrayNode buildDocsArrayNombreImagen(Integer empresaId,
 			String categoriaCodigo) {
 		ResponseEntity<ResponseDTO> resp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
 				categoriaCodigo);
@@ -745,21 +817,21 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * CODIGO QR: objeto { nombre, imagen } con fallback: (empresa + "QR") -> ("QR"
 	 * global).
 	 */
-	private com.fasterxml.jackson.databind.node.ObjectNode buildCodigoQrNombreImagen(Integer empresaId) {
+	private ObjectNode buildCodigoQrNombreImagen(Integer empresaId) {
 		final String CATEGORIA_QR = "QR";
 		var empty = objectMapper.createObjectNode();
 
 		if (empresaId != null) {
 			ResponseEntity<ResponseDTO> respEmp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
 					CATEGORIA_QR);
-			com.fasterxml.jackson.databind.node.ObjectNode objEmp = toFirstNombreImagen(respEmp);
+			ObjectNode objEmp = toFirstNombreImagen(respEmp);
 			if (objEmp != null)
 				return objEmp;
 		}
 
 		ResponseEntity<ResponseDTO> respGlobal = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(null,
 				CATEGORIA_QR);
-		com.fasterxml.jackson.databind.node.ObjectNode objGlobal = toFirstNombreImagen(respGlobal);
+		ObjectNode objGlobal = toFirstNombreImagen(respGlobal);
 		return (objGlobal != null) ? objGlobal : empty;
 	}
 
@@ -767,7 +839,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * Toma el PRIMER elemento de la lista del servicio (si existe) y lo normaliza a
 	 * {nombre, imagen}.
 	 */
-	private com.fasterxml.jackson.databind.node.ObjectNode toFirstNombreImagen(ResponseEntity<ResponseDTO> resp) {
+	private ObjectNode toFirstNombreImagen(ResponseEntity<ResponseDTO> resp) {
 		if (resp == null || !resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null
 				|| !Boolean.TRUE.equals(resp.getBody().getSuccess())) {
 			return null;

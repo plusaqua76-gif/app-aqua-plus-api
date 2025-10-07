@@ -1,8 +1,11 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,16 +24,19 @@ import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IUsuarioService;
 import com.aqua.plus.api.service.impl.specification.UsuarioSpecification;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
+import com.aqua.plus.commons.dtos.MenuItemDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.RolEntity;
+import com.aqua.plus.commons.entities.RolMenuEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.UsuarioMapper;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.PersonaRepository;
+import com.aqua.plus.commons.repositories.RolMenuRepository;
 import com.aqua.plus.commons.repositories.RolRepository;
 import com.aqua.plus.commons.repositories.UsuarioRepository;
 import com.aqua.plus.commons.utils.Constantes;
@@ -62,6 +68,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 	private final EncriptarDesencriptar serviceEncriptacion;
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final EmpresaRepository empresaRepository;
+	private final RolMenuRepository rolMenuRepository;
 
 	@Override
 	@Transactional
@@ -458,5 +465,77 @@ public class UsuarioServiceImpl implements IUsuarioService {
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
+	
+	@Override
+    @Transactional(readOnly = true)
+    public ResponseEntity<ResponseDTO> findMenusByEmpresaAndRol(Integer idEmpresa, Integer idRol) {
+        log.info("Listar menús por empresaId={}, rolId={}, activo=true", idEmpresa, idRol);
+
+        if (idEmpresa == null || idRol == null) {
+            return ResponseEntity.badRequest().body(
+                ResponseDTO.builder()
+                        .success(false)
+                        .message("Los parámetros idEmpresa e idRol son requeridos.")
+                        .code(HttpStatus.BAD_REQUEST.value())
+                        .build()
+            );
+        }
+
+        try {
+            List<RolMenuEntity> filas = rolMenuRepository.findByActivoTrueAndEmpresa_IdAndRol_Id(idEmpresa, idRol);
+
+            Map<Integer, MenuItemDTO> porMenu = new LinkedHashMap<>();
+
+            for (RolMenuEntity rm : filas) {
+                var menu = rm.getMenu();
+                var rol  = rm.getRol();
+                if (menu == null || rol == null) continue;
+
+                Integer key = menu.getId();
+
+                String routeLink = menu.getLink();
+                String icon      = menu.getIcono();
+                String label     = menu.getEtiqueta();
+
+                String rolNombre = (rol.getNombre() != null ? rol.getNombre().toUpperCase() : "DESCONOCIDO");
+
+                MenuItemDTO existente = porMenu.get(key);
+                if (existente == null) {
+                    existente = MenuItemDTO.builder()
+                            .routeLink(routeLink)
+                            .icon(icon)
+                            .label(label)
+                            .allowedRoles(new ArrayList<>())
+                            .build();
+                    porMenu.put(key, existente);
+                }
+                if (!existente.getAllowedRoles().contains(rolNombre)) {
+                    existente.getAllowedRoles().add(rolNombre);
+                }
+            }
+
+            List<MenuItemDTO> items = new ArrayList<>(porMenu.values());
+            items.sort(Comparator.comparing(MenuItemDTO::getLabel, String.CASE_INSENSITIVE_ORDER));
+
+            return ResponseEntity.ok(
+                    ResponseDTO.builder()
+                            .success(true)
+                            .message(Constantes.CONSULTED_SUCCESSFULLY)
+                            .code(HttpStatus.OK.value())
+                            .response(items)
+                            .build()
+            );
+
+        } catch (Exception e) {
+            log.error("Error al listar menús por empresaId={}, rolId={}", idEmpresa, idRol, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ResponseDTO.builder()
+                            .success(false)
+                            .message(Constantes.CONSULTING_ERROR)
+                            .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .build()
+            );
+        }
+    }
 
 }

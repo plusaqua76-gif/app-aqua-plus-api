@@ -126,4 +126,9 @@ public class DeudaClienteSpecifications {
 		List<Specification<DeudaClienteEntity>> list = java.util.Arrays.stream(specs).filter(Objects::nonNull).toList();
 		return Specification.allOf(list);
 	}
+	
+	public static Specification<DeudaClienteEntity> activoTrue() {
+	    return (root, cq, cb) -> cb.isTrue(root.get("activo"));
+	}
+
 }

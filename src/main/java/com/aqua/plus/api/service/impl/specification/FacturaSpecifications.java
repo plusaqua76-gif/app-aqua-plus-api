@@ -2,6 +2,7 @@ package com.aqua.plus.api.service.impl.specification;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Date;
 
 import org.springframework.data.jpa.domain.Specification;
@@ -108,7 +109,6 @@ public final class FacturaSpecifications {
 		};
 	}
 
-	// consumoAnormal está en Lectura, no en Factura
 	public static Specification<FacturaEntity> consumoAnormalEquals(Boolean consumoAnormal) {
 		if (consumoAnormal == null)
 			return null;
@@ -138,11 +138,34 @@ public final class FacturaSpecifications {
 		return (root, query, cb) -> cb.isTrue(root.get("activo"));
 	}
 
-	/**
-	 * Variante opcional: trata NULL como activo (equivalente a IS DISTINCT FROM
-	 * FALSE).
-	 */
 	public static Specification<FacturaEntity> activoNotFalse() {
 		return (root, query, cb) -> cb.or(cb.isTrue(root.get("activo")), cb.isNull(root.get("activo")));
 	}
+
+    public static Specification<FacturaEntity> personaIdEquals(Integer idPersona) {
+        if (idPersona == null) return null;
+        return (root, query, cb) -> {
+            query.distinct(true); // evita duplicados por joins
+            var ecc = root.join("empresaClienteContador", JoinType.INNER);
+            var cliente = ecc.join("cliente", JoinType.INNER);
+            return cb.equal(cliente.get("id"), idPersona);
+        };
+    }
+
+    public static Specification<FacturaEntity> personaIdIn(Collection<Integer> personaIds) {
+        if (personaIds == null || personaIds.isEmpty()) return null;
+        return (root, query, cb) -> {
+            query.distinct(true);
+            var ecc = root.join("empresaClienteContador", JoinType.INNER);
+            var cliente = ecc.join("cliente", JoinType.INNER);
+            return cliente.get("id").in(personaIds);
+        };
+    }
+
+    public static Specification<FacturaEntity> precioEquals(Double precio) {
+        if (precio == null) return null;
+        return (root, query, cb) -> cb.equal(root.get("precio"), precio);
+    }
+
+
 }
