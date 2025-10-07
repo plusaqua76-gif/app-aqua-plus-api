@@ -20,4 +20,8 @@ public interface IRolMenuService {
 	ResponseEntity<ResponseDTO> save(RolMenuDTO rolMenuDTO);
 
 	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> findByRolAndEmpresa(Integer idRol, Integer idEmpresa);
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 }

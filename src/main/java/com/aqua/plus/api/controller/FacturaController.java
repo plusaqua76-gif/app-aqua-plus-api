@@ -86,7 +86,39 @@ public class FacturaController {
 				estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
 	}
 
-	@Operation(summary = "Buscar Factura por id")
+    @Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Consulta exitosa",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Petición inválida",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "404", description = "No se encontraron datos",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ResponseDTO.class))),
+            @ApiResponse(responseCode = "500", description = "Error inesperado",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ResponseDTO.class)))
+    })
+    @GetMapping("/persona/{personaId}")
+    public ResponseEntity<ResponseDTO> getFacturasByPersona(
+            @PathVariable("personaId") Integer idPersona,
+            @RequestParam(required = false) String codigo,
+            @RequestParam(required = false) String fechaEmision,
+            @RequestParam(required = false) String fechaFin,
+            @RequestParam(required = false) String estadoNombre,
+            @RequestParam(required = false) Boolean consumoAnormal,
+            @RequestParam(required = false) Double precio,
+            Pageable pageable
+    ) {
+        return facturaServiceImpl.findFacturasByPersona(
+                idPersona, codigo, fechaEmision, fechaFin, estadoNombre,
+                consumoAnormal, precio, pageable
+        );
+    }
+
+    @Operation(summary = "Buscar Factura por id")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),

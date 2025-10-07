@@ -221,7 +221,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			}
 
 			Specification<DeudaClienteEntity> spec = DeudaClienteSpecifications.allOfNonNull(
-					DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
+					DeudaClienteSpecifications.activoTrue(), DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
 					DeudaClienteSpecifications.fechaDeudaIgual(fechaDeuda),
 					DeudaClienteSpecifications.valorIgual(valor),
 					DeudaClienteSpecifications.descripcionLike(descripcionLike),

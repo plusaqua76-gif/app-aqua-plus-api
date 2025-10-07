@@ -24,4 +24,11 @@ public interface IFacturaService {
 	
 	ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura);
 
+    // Interface
+    ResponseEntity<ResponseDTO> findFacturasByPersona(
+            Integer idPersona, String codigo, String fechaEmision, String fechaFin, String estadoNombre,
+            Boolean consumoAnormal, Double precio, Pageable pageable
+    );
+
+
 }

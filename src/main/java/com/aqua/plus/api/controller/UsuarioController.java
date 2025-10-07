@@ -28,6 +28,7 @@ import com.aqua.plus.commons.dtos.UpdatePasswordDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -253,6 +254,19 @@ public class UsuarioController {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message("Error procesando la imagen").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
+	}
+
+	@Operation(summary = "Listar menús por empresa y rol (chucha Pipe)")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/menus")
+	public ResponseEntity<ResponseDTO> getMenusByEmpresaAndRol(
+			@Parameter(description = "ID de la empresa", required = true) @RequestParam(name = "empresaId", required = true) Integer empresaId,
+
+			@Parameter(description = "ID del rol", required = true) @RequestParam(name = "rolId", required = true) Integer rolId) {
+		return usuarioServiceImpl.findMenusByEmpresaAndRol(empresaId, rolId);
 	}
 
 }
