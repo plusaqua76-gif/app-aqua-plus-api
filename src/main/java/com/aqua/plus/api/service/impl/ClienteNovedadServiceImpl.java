@@ -17,8 +17,10 @@ import com.aqua.plus.commons.dtos.ClienteNovedadDTO;
 import com.aqua.plus.commons.dtos.ClienteNovedadRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ClienteNovedadEntity;
+import com.aqua.plus.commons.entities.ParametrosGeneralesEntity;
 import com.aqua.plus.commons.maps.ClienteNovedadMapper;
 import com.aqua.plus.commons.repositories.ClienteNovedadRepository;
+import com.aqua.plus.commons.repositories.ParametrosGeneralesRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.RequiredArgsConstructor;
@@ -32,13 +34,47 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 	private final ClienteNovedadRepository clienteNovedadRepository;
 	private final ClienteNovedadMapper clienteNovedadMapper;
 	private final DocumentoServiceImpl documentoServiceImpl;
+	private final ParametrosGeneralesRepository parametrosGeneralesRepository;
 
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(ClienteNovedadRequestDTO req) {
 		try {
 			ClienteNovedadDTO in = req.getNovedad();
+			if (in == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+						.message("El objeto 'novedad' es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			ParametrosGeneralesEntity estadoEntity = null;
+			if (in.getEstado() != null) {
+				String codigo = (in.getEstado().getCodigo() != null ? in.getEstado().getCodigo().trim() : null);
+				String codigoPadre = (in.getEstado().getCodigoPadre() != null ? in.getEstado().getCodigoPadre().trim()
+						: null);
+
+				if (codigo != null && !codigo.isBlank()) {
+
+					estadoEntity = parametrosGeneralesRepository.findByCodigoIgnoreCaseAndActivoTrue(codigo)
+							.orElse(null);
+
+					if (estadoEntity == null) {
+						return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+								.message("No existe estado activo con código"
+										+ (codigoPadre != null ? " padre '" + codigoPadre + "'" : "") + " y código '"
+										+ codigo + "'.")
+								.code(HttpStatus.BAD_REQUEST.value()).build());
+					}
+
+					in.getEstado().setId(estadoEntity.getId());
+				}
+			}
+
 			ClienteNovedadEntity novedad = clienteNovedadMapper.dtoToEntity(in);
+
+			if (estadoEntity != null) {
+				novedad.setEstado(estadoEntity);
+			}
+
 			novedad = clienteNovedadRepository.save(novedad);
 
 			String base64 = req.getBase64File();
@@ -55,7 +91,7 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 				String candidato;
 				if (req.getNombreArchivo() != null && !req.getNombreArchivo().isBlank()) {
 					candidato = req.getNombreArchivo().trim();
-				} else if (in != null && in.getDescripcion() != null && !in.getDescripcion().isBlank()) {
+				} else if (in.getDescripcion() != null && !in.getDescripcion().isBlank()) {
 					candidato = in.getDescripcion().trim();
 				} else {
 					candidato = "pqr";
@@ -79,7 +115,7 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 					extension = extension.trim().toLowerCase();
 				}
 
-				String usuarioCreacion = (in != null ? in.getUsuarioCreacion() : null);
+				String usuarioCreacion = in.getUsuarioCreacion();
 				String usuario = (usuarioCreacion != null && !usuarioCreacion.isBlank()) ? usuarioCreacion : "system";
 
 				ResponseEntity<ResponseDTO> respDoc = documentoServiceImpl.saveDocumentoBase64(base64, null, idPersona,
@@ -103,6 +139,7 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 					.code(HttpStatus.OK.value()).response(out).build());
 
 		} catch (Exception e) {
+			log.error("Error creando novedad", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message("Error creando novedad").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
@@ -110,30 +147,54 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 
 	@Override
 	@Transactional
-	public ResponseEntity<ResponseDTO> update(ClienteNovedadDTO clienteNovedadDTO) {
+	public ResponseEntity<ResponseDTO> update(ClienteNovedadDTO dto) {
 		log.info("inicio metodo Actualizando Cliente Novedad");
+
 		try {
-			if (clienteNovedadDTO.getId() == null || !clienteNovedadRepository.existsById(clienteNovedadDTO.getId())) {
-				throw new IllegalArgumentException(Constantes.CLIENT_NOT_EXIST);
+			if (dto == null || dto.getId() == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El id de la novedad es obligatorio.").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			ClienteNovedadEntity entity = clienteNovedadRepository.findById(clienteNovedadDTO.getId()).orElseThrow();
-			clienteNovedadMapper.updateEntityFromDto(clienteNovedadDTO, entity);
+			var entity = clienteNovedadRepository.findById(dto.getId()).orElse(null);
+			if (entity == null) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message(Constantes.CLIENT_NOT_EXIST).code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			if (dto.getEstado() != null) {
+				String codigo = dto.getEstado().getCodigo();
+				if (codigo != null && !codigo.isBlank()) {
+					var estadoPG = parametrosGeneralesRepository.findByCodigoIgnoreCaseAndActivoTrue(codigo.trim())
+							.orElse(null);
+
+					if (estadoPG == null) {
+						return ResponseEntity.badRequest()
+								.body(ResponseDTO.builder().success(false)
+										.message("El código de estado no existe o está inactivo: " + codigo)
+										.code(HttpStatus.BAD_REQUEST.value()).build());
+					}
+					entity.setEstado(estadoPG);
+				} else {
+					log.debug("DTO.estado presente pero sin 'codigo'; se mantiene el estado actual.");
+				}
+			}
+
+			clienteNovedadMapper.updateEntityFromDto(dto, entity);
+
 			entity.setFechaModificacion(new Date());
-			entity.setUsuarioModificacion(clienteNovedadDTO.getUsuarioModificacion());
+			entity.setUsuarioModificacion(dto.getUsuarioModificacion());
 
-			ClienteNovedadEntity updated = clienteNovedadRepository.save(entity);
-			ClienteNovedadDTO updatedDTO = clienteNovedadMapper.entityToDto(updated);
+			var updated = clienteNovedadRepository.save(entity);
+			var out = clienteNovedadMapper.entityToDto(updated);
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.UPDATED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(updatedDTO).build();
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.UPDATED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(out).build());
 
-			return ResponseEntity.status(HttpStatus.OK).body(responseDTO);
 		} catch (Exception e) {
 			log.error("Error actualizando el Cliente Novedad", e);
-			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.UPDATE_ERROR)
-					.code(HttpStatus.BAD_REQUEST.value()).build();
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+					.message(Constantes.UPDATE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
 		}
 	}
 
