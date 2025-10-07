@@ -602,7 +602,7 @@ public class FacturaServiceImpl implements IFacturaService {
 		List<Map<String, Object>> sugerencias = facturaRepository
 				.findTop5ByCodigoStartingWithIgnoreCaseOrderByCodigoAsc(term.trim()).stream().map(f -> {
 					Map<String, Object> map = new HashMap<>();
-					map.put("id", f.getId());
+					map.put("empresaClienteContadorId", f.getEmpresaClienteContador());
 					map.put("codigo", f.getCodigo());
 					return map;
 				}).toList();
