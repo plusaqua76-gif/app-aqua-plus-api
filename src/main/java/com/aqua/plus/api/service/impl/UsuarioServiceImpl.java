@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -565,29 +566,31 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			}
 
 			var dtos = usuarios.stream().map(u -> {
-				var p = u.getPersona();
-				var td = (p != null ? p.getTipoDocumento() : null);
+			    var p  = u.getPersona();
+			    var td = (p != null ? p.getTipoDocumento() : null);
 
-				String nombre = (p != null ? orEmpty(p.getNombre()) : "");
-				String segundoNombre = (p != null ? orEmpty(p.getSegundoNombre()) : "");
-				String apellido = (p != null ? orEmpty(p.getApellido()) : "");
-				String segundoApellido = (p != null ? orEmpty(p.getSegundoApellido()) : "");
-				String fullName = (nombre + " " + segundoNombre + " " + apellido + " " + segundoApellido).trim()
-						.replaceAll("\\s+", " ");
+			    String nombre          = (p != null ? orEmpty(p.getNombre()) : "");
+			    String segundoNombre   = (p != null ? orEmpty(p.getSegundoNombre()) : "");
+			    String apellido        = (p != null ? orEmpty(p.getApellido()) : "");
+			    String segundoApellido = (p != null ? orEmpty(p.getSegundoApellido()) : "");
+			    String fullName = (nombre + " " + segundoNombre + " " + apellido + " " + segundoApellido)
+			            .trim().replaceAll("\\s+", " ");
 
-				return UsuarioListItemDTO.builder().id(u.getId()).username(u.getNombre()).activo(u.getActivo())
+			    return UsuarioListItemDTO.builder()
+			            .id(u.getId())
+			            .username(u.getNombre())
+			            .activo(u.getActivo())
+			            .rolId(u.getRol() != null ? u.getRol().getId() : null)
+			            .rolNombre(u.getRol() != null ? u.getRol().getNombre() : null)
+			            .estadoId(u.getEstado() != null ? u.getEstado().getId() : null)
+			            .estadoNombre(u.getEstado() != null ? u.getEstado().getNombre() : null)
+			            .personaId(p != null ? p.getId() : null)
+			            .Nombre(fullName.isBlank() ? null : fullName)
+			            .NumeroCedula(p != null ? p.getNumeroCedula() : null)
+			            .TipoDocumento(td != null ? td.getNombre() : null)
+			            .build();
+			}).collect(Collectors.toList());
 
-						.rolId(u.getRol() != null ? u.getRol().getId() : null)
-						.rolNombre(u.getRol() != null ? u.getRol().getNombre() : null)
-
-						.estadoId(u.getEstado() != null ? u.getEstado().getId() : null)
-						.estadoNombre(u.getEstado() != null ? u.getEstado().getNombre() : null)
-
-						.personaId(p != null ? p.getId() : null)
-						.Nombre(fullName.isBlank() ? null : fullName)
-						.NumeroCedula(p != null ? p.getNumeroCedula() : null)
-						.TipoDocumento(td != null ? td.getNombre() : null).build();
-			}).toList();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(dtos).build());

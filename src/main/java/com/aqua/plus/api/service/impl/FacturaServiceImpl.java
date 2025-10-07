@@ -305,88 +305,64 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.precioBetween(precioMin, precioMax));
 	}
 
-    @Override
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> findFacturasByPersona(
-            Integer idPersona,
-            String codigo,
-            String fechaEmision,
-            String fechaFin,
-            String estadoNombre,
-            Boolean consumoAnormal,
-            Double precio,
-            Pageable pageable
-    ) {
-        if (idPersona == null) {
-            return ResponseEntity.badRequest().body(ResponseDTO.builder()
-                    .success(false).message("El parámetro idPersona es requerido.")
-                    .code(HttpStatus.BAD_REQUEST.value()).build());
-        }
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findFacturasByPersona(Integer idPersona, String codigo, String fechaEmision,
+			String fechaFin, String estadoNombre, Boolean consumoAnormal, Double precio, Pageable pageable) {
+		if (idPersona == null) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("El parámetro idPersona es requerido.").code(HttpStatus.BAD_REQUEST.value()).build());
+		}
 
-        log.info("findFacturasByPersona -> personaId={}, filtros: codigo={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precio={}",
-                idPersona, codigo, fechaEmision, fechaFin, estadoNombre, consumoAnormal, precio);
+		log.info(
+				"findFacturasByPersona -> personaId={}, filtros: codigo={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precio={}",
+				idPersona, codigo, fechaEmision, fechaFin, estadoNombre, consumoAnormal, precio);
 
-        try {
-            LocalDate emision = parseSingleDateOrNull(fechaEmision);
-            LocalDate venc    = parseSingleDateOrNull(fechaFin);
+		try {
+			LocalDate emision = parseSingleDateOrNull(fechaEmision);
+			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
-            Specification<FacturaEntity> spec =
-                    java.util.stream.Stream.of(
-                                    FacturaSpecifications.activoTrue(),
-                                    FacturaSpecifications.personaIdEquals(idPersona),
-                                    FacturaSpecifications.codigoLike(codigo),
-                                    FacturaSpecifications.estadoNombreLike(estadoNombre),
-                                    // “un solo día” => between(día, día) mantiene tu semántica actual
-                                    FacturaSpecifications.fechaEmisionBetween(emision, emision),
-                                    FacturaSpecifications.fechaFinBetween(venc, venc),
-                                    FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
-                                    FacturaSpecifications.precioEquals(precio) // valor único
-                            )
-                            .filter(java.util.Objects::nonNull)
-                            .reduce((a, b) -> a.and(b))
-                            .orElse((root, q, cb) -> cb.conjunction());
+			Specification<FacturaEntity> spec = java.util.stream.Stream
+					.of(FacturaSpecifications.activoTrue(), FacturaSpecifications.personaIdEquals(idPersona),
+							FacturaSpecifications.codigoLike(codigo),
+							FacturaSpecifications.estadoNombreLike(estadoNombre),
+							FacturaSpecifications.fechaEmisionBetween(emision, emision),
+							FacturaSpecifications.fechaFinBetween(venc, venc),
+							FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
+							FacturaSpecifications.precioEquals(precio))
+					.filter(java.util.Objects::nonNull).reduce((a, b) -> a.and(b))
+					.orElse((root, q, cb) -> cb.conjunction());
 
-            Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-            Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
+			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
+			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
 
-            var items = facturaMapper.listEntityToResponse(page.getContent());
+			var items = facturaMapper.listEntityToResponse(page.getContent());
 
-            if (page.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder()
-                        .success(false)
-                        .message("No se encontraron facturas para la persona " + idPersona)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .response(items)
-                        .totalCount(page.getTotalElements())
-                        .pageSize(page.getSize())
-                        .currentPage(page.getNumber())
-                        .totalPages(page.getTotalPages())
-                        .build());
-            }
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron facturas para la persona " + idPersona)
+								.code(HttpStatus.NOT_FOUND.value()).response(items).totalCount(page.getTotalElements())
+								.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages())
+								.build());
+			}
 
-            return ResponseEntity.ok(ResponseDTO.builder()
-                    .success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .response(items)
-                    .totalCount(page.getTotalElements())
-                    .pageSize(page.getSize())
-                    .currentPage(page.getNumber())
-                    .totalPages(page.getTotalPages())
-                    .build());
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(items).totalCount(page.getTotalElements())
+					.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
 
-        } catch (java.time.format.DateTimeParseException ex) {
-            return ResponseEntity.badRequest().body(ResponseDTO.builder()
-                    .success(false).message("Formato de fecha inválido. Usa yyyy-MM-dd")
-                    .code(HttpStatus.BAD_REQUEST.value()).build());
-        } catch (Exception e) {
-            log.error("Error en findFacturasByPersona: personaId={}", idPersona, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder()
-                    .success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-        }
-    }
+		} catch (java.time.format.DateTimeParseException ex) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
+		} catch (Exception e) {
+			log.error("Error en findFacturasByPersona: personaId={}", idPersona, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
 
-    @Override
+	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findAll() {
 		log.info("Listar todos las facturas");
@@ -602,7 +578,7 @@ public class FacturaServiceImpl implements IFacturaService {
 		List<Map<String, Object>> sugerencias = facturaRepository
 				.findTop5ByCodigoStartingWithIgnoreCaseOrderByCodigoAsc(term.trim()).stream().map(f -> {
 					Map<String, Object> map = new HashMap<>();
-					map.put("empresaClienteContadorId", f.getEmpresaClienteContador());
+					map.put("empresaClienteContadorId", f.getEmpresaClienteContador().getId());
 					map.put("codigo", f.getCodigo());
 					return map;
 				}).toList();
@@ -673,18 +649,16 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			if (empresaObj == null || parentOfEmpresa == null) {
 				log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
-				// Devolver tal cual
+
 				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
 				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
 			}
 
-			// Obtener empresaId (int o string)
 			Integer empresaId = parseIntSafe(empresaObj.get("id"));
 			log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
 
-			// --- Inyección de puntosPago (PUPA)
 			try {
-				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, "PUPA");
+				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
 				empresaObj.set("puntosPago", puntosPagoArr);
 				log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
 			} catch (Exception ex) {
@@ -692,7 +666,6 @@ public class FacturaServiceImpl implements IFacturaService {
 				empresaObj.set("puntosPago", objectMapper.createArrayNode());
 			}
 
-			// --- Inyección de codigoQr (QR) con fallback: empresa -> global
 			try {
 				var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
 				empresaObj.set("codigoQr", codigoQrObj);
@@ -703,10 +676,8 @@ public class FacturaServiceImpl implements IFacturaService {
 				empresaObj.set("codigoQr", objectMapper.createObjectNode());
 			}
 
-			// Recolocar en el mismo parent donde se encontró
 			parentOfEmpresa.set("empresa", empresaObj);
 
-			// Reconstruir DTO y devolver con status correcto
 			ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
 			return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
 
@@ -734,9 +705,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	 */
 
 	private ObjectNode asObject(JsonNode n) {
-		return (n instanceof ObjectNode)
-				? (ObjectNode) n
-				: null;
+		return (n instanceof ObjectNode) ? (ObjectNode) n : null;
 	}
 
 	private HttpStatus httpStatusFromCode(ResponseDTO dto) {
@@ -771,8 +740,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * PUNTOS DE PAGO: TODOS los documentos de una categoría -> ARRAY [{ nombre,
 	 * imagen }, ...].
 	 */
-	private ArrayNode buildDocsArrayNombreImagen(Integer empresaId,
-			String categoriaCodigo) {
+	private ArrayNode buildDocsArrayNombreImagen(Integer empresaId, String categoriaCodigo) {
 		ResponseEntity<ResponseDTO> resp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
 				categoriaCodigo);
 		var out = objectMapper.createArrayNode();
@@ -818,19 +786,18 @@ public class FacturaServiceImpl implements IFacturaService {
 	 * global).
 	 */
 	private ObjectNode buildCodigoQrNombreImagen(Integer empresaId) {
-		final String CATEGORIA_QR = "QR";
 		var empty = objectMapper.createObjectNode();
 
 		if (empresaId != null) {
 			ResponseEntity<ResponseDTO> respEmp = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(empresaId,
-					CATEGORIA_QR);
+					Constantes.TYPE_COD_QR);
 			ObjectNode objEmp = toFirstNombreImagen(respEmp);
 			if (objEmp != null)
 				return objEmp;
 		}
 
 		ResponseEntity<ResponseDTO> respGlobal = documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(null,
-				CATEGORIA_QR);
+				Constantes.TYPE_COD_QR);
 		ObjectNode objGlobal = toFirstNombreImagen(respGlobal);
 		return (objGlobal != null) ? objGlobal : empty;
 	}
