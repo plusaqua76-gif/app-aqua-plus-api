@@ -13,7 +13,7 @@ public interface IEmpresaService {
 	
     ResponseEntity<ResponseDTO> findById(Integer id);
     
-    ResponseEntity<ResponseDTO> findByUsuarioId(Integer idUsuario);
+    ResponseEntity<ResponseDTO> findByEmpresaId(Integer idEmpresa);
     
     ResponseEntity<ResponseDTO> getAllEnterpriseResponseId();
     

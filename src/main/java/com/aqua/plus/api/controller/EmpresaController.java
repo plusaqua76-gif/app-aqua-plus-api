@@ -82,7 +82,7 @@ public class EmpresaController {
 	    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(resp);
 	}
 
-    @Operation(summary = "Buscar Empresa por id de usuario")
+    @Operation(summary = "Buscar logo empresa por id de empresa")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -93,9 +93,9 @@ public class EmpresaController {
             @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
     })
-    @GetMapping("/usuario/{id}")
+    @GetMapping("/config/{id}")
     public ResponseEntity<ResponseDTO> getUserById(@PathVariable Integer id) {
-        return empresaServiceImpl.findByUsuarioId(id);
+        return empresaServiceImpl.findByEmpresaId(id);
     }
     
     @Operation(summary = "Buscar Empresa por id")
