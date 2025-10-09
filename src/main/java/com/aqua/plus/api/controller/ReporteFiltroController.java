@@ -54,6 +54,12 @@ public class ReporteFiltroController {
 	}
 
 
+	@Operation(summary = "Ejecutar Sp parametrizado")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@PostMapping("/fn-list/{schema}/{nombre}")
 	public ResponseEntity<List<Map<String, Object>>> ejecutarFnJsonLista(@PathVariable String schema,
 			@PathVariable String nombre, @RequestBody(required = false) Map<String, Object> filtros) {

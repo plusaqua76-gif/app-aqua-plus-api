@@ -1,7 +1,10 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,10 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.aqua.plus.api.service.IRolMenuService;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RolMenuDTO;
+import com.aqua.plus.commons.dtos.RolMenuRequestDTO;
+import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.MenuEntity;
 import com.aqua.plus.commons.entities.RolEntity;
 import com.aqua.plus.commons.entities.RolMenuEntity;
 import com.aqua.plus.commons.maps.RolMenuMapper;
+import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.MenuRepository;
 import com.aqua.plus.commons.repositories.RolMenuRepository;
 import com.aqua.plus.commons.repositories.RolRepository;
@@ -39,6 +45,7 @@ public class RolMenuServiceImpl implements IRolMenuService {
 	private final RolRepository rolRepository;
 	private final MenuRepository menuRepository;
 	private final RolMenuMapper rolMenuMapper;
+	private final EmpresaRepository empresaRepository;
 
 	@Override
 	@Transactional
@@ -100,6 +107,96 @@ public class RolMenuServiceImpl implements IRolMenuService {
 	}
 
 	@Override
+	@Transactional
+	public ResponseEntity<ResponseDTO> createMenusForRole(RolMenuRequestDTO req) {
+		if (req == null) {
+			return bad("Body requerido");
+		}
+		if (req.getRolId() == null) {
+			return bad("rolId es requerido");
+		}
+		if (req.getMenuIds() == null || req.getMenuIds().isEmpty()) {
+			return bad("menuIds es requerido y no puede estar vacío");
+		}
+		if (req.getUsuarioCreacion() == null || req.getUsuarioCreacion().isBlank()) {
+			return bad("usuarioCreacion es requerido");
+		}
+
+		final Integer rolId = req.getRolId();
+		final Integer empresaId = req.getEmpresaId();
+
+		List<Integer> menuIds = req.getMenuIds().stream().filter(Objects::nonNull).distinct().toList();
+
+		if (menuIds.isEmpty()) {
+			return bad("menuIds no puede quedar vacío tras limpiar nulos/duplicados");
+		}
+
+		RolEntity rolRef = rolRepository.getReferenceById(rolId);
+
+		List<MenuEntity> menus = menuRepository.findAllById(menuIds);
+		if (menus.size() != menuIds.size()) {
+			return bad("Uno o más menuIds no existen");
+		}
+
+		EmpresaEntity empresaRef = null;
+		if (empresaId != null) {
+			empresaRef = empresaRepository.getReferenceById(empresaId);
+		}
+
+		List<Integer> duplicados = new ArrayList<>();
+		for (Integer mid : menuIds) {
+			boolean existe = (empresaId != null)
+					? rolMenuRepository.existsByRol_IdAndMenu_IdAndEmpresa_Id(req.getRolId(), mid, empresaId)
+					: rolMenuRepository.existsByRolIdAndMenuId(req.getRolId(), mid);
+
+			if (existe) {
+				duplicados.add(mid);
+			}
+		}
+
+		if (!duplicados.isEmpty()) {
+			Map<String, Object> payload = Map.of("rolId", rolId, "empresaId", empresaId, "menuIdsDuplicados",
+					duplicados);
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(ResponseDTO.builder().success(false).code(HttpStatus.CONFLICT.value())
+							.message("Ya existen vínculos para algunos menús; no se realizó guardado").response(payload)
+							.build());
+		}
+
+		Date ahora = new Date();
+		List<RolMenuEntity> nuevos = new ArrayList<>();
+
+		for (Integer mid : menuIds) {
+			MenuEntity menuRef = menuRepository.getReferenceById(mid);
+
+			RolMenuEntity e = new RolMenuEntity();
+			e.setRol(rolRef);
+			e.setMenu(menuRef);
+			e.setActivo(true); // requerido
+			e.setUsuarioCreacion(req.getUsuarioCreacion()); // requerido
+			e.setFechaCreacion(ahora); // requerido
+
+			if (empresaRef != null) {
+				e.setEmpresa(empresaRef); // relación @ManyToOne Empresa
+			}
+
+			nuevos.add(e);
+		}
+
+		List<RolMenuEntity> guardados = rolMenuRepository.saveAll(nuevos);
+		List<RolMenuDTO> out = guardados.stream().map(rolMenuMapper::entityToDto).toList();
+
+		return ResponseEntity.status(HttpStatus.CREATED).body(ResponseDTO.builder().success(true)
+				.code(HttpStatus.CREATED.value()).message(Constantes.SAVED_SUCCESSFULLY).response(out).build());
+	}
+
+	// Helper
+	private ResponseEntity<ResponseDTO> bad(String msg) {
+		return ResponseEntity.badRequest()
+				.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value()).message(msg).build());
+	}
+
+	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findAll() {
 		log.info("Listar rol-menu con activo = true");
@@ -153,36 +250,27 @@ public class RolMenuServiceImpl implements IRolMenuService {
 					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
-	
+
 	@Override
-    @Transactional
-    public ResponseEntity<ResponseDTO> deleteById(Integer id) {
-        log.info("Inicio método para eliminar tipo de tarifa por id: {}", id);
-        try {
-            if (!rolMenuRepository.existsById(id)) {
-                ResponseDTO responseDTO = ResponseDTO.builder()
-                        .success(false)
-                        .message(Constantes.RECORD_NOT_FOUND)
-                        .code(HttpStatus.NOT_FOUND.value())
-                        .build();
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-            }
-            rolMenuRepository.deleteById(id);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(true)
-                    .message(Constantes.DELETED_SUCCESSFULLY)
-                    .code(HttpStatus.OK.value())
-                    .build();
-            return ResponseEntity.ok(responseDTO);
-        } catch (Exception e) {
-            log.error("Error al eliminar el tipo de tarifa con id: {}", id, e);
-            ResponseDTO responseDTO = ResponseDTO.builder()
-                    .success(false)
-                    .message(Constantes.DELETE_ERROR)
-                    .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-        }
-    }
+	@Transactional
+	public ResponseEntity<ResponseDTO> deleteById(Integer id) {
+		log.info("Inicio método para eliminar tipo de tarifa por id: {}", id);
+		try {
+			if (!rolMenuRepository.existsById(id)) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.RECORD_NOT_FOUND)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+			rolMenuRepository.deleteById(id);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.DELETED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).build();
+			return ResponseEntity.ok(responseDTO);
+		} catch (Exception e) {
+			log.error("Error al eliminar el tipo de tarifa con id: {}", id, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
 
 }

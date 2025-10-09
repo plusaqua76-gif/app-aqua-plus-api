@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aqua.plus.api.service.impl.RolMenuServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RolMenuDTO;
+import com.aqua.plus.commons.dtos.RolMenuRequestDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -58,6 +59,18 @@ public class RolMenuController {
 	@PostMapping
 	public ResponseEntity<ResponseDTO> save(@RequestBody RolMenuDTO rolMenuDTO) {
 		return rolMenuServiceImpl.save(rolMenuDTO);
+	}
+
+	@Operation(summary = "Crear vínculos rol–menú (solo guardado)", description = "Crea múltiples vínculos rol–menú en una sola operación. "
+			+ "Si existe cualquier duplicado, no guarda nada y responde 409.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Guardado exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "409", description = "Duplicados detectados; no se guardó", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@PostMapping("/rol-menu")
+	public ResponseEntity<ResponseDTO> createMenusForRole(@RequestBody RolMenuRequestDTO req) {
+		return rolMenuServiceImpl.createMenusForRole(req);
 	}
 
 	@Operation(summary = "Listar todos los roles menus")

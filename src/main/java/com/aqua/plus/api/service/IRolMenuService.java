@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RolMenuDTO;
+import com.aqua.plus.commons.dtos.RolMenuRequestDTO;
 
 /**
  * @author nicope
@@ -24,4 +25,6 @@ public interface IRolMenuService {
 	ResponseEntity<ResponseDTO> findByRolAndEmpresa(Integer idRol, Integer idEmpresa);
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
+	
+	ResponseEntity<ResponseDTO> createMenusForRole(RolMenuRequestDTO req);
 }
