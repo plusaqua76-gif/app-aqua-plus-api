@@ -111,6 +111,9 @@ public class InventarioServiceImpl implements IInventarioService{
 	                        .precioUnitario(entity.getPrecioUnitario())
 	                        .precioVenta(entity.getPrecioVenta())
 	                        .porcentaje(entity.getPorcentaje())
+	                        .descripcion(entity.getDescripcion())
+	                        .activo(entity.getActivo())
+	                        .fechaCreacion(entity.getFechaCreacion())
 	                        .build()
 	                ).toList();
 
