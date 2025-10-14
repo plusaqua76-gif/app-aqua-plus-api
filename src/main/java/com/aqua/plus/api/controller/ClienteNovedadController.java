@@ -1,5 +1,8 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,11 +22,13 @@ import com.aqua.plus.commons.dtos.ClienteNovedadRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -61,16 +66,26 @@ public class ClienteNovedadController {
 		return clienteNovedadServiceImpl.findById(id);
 	}
 
-	@Operation(summary = "Listar novedades por empresa (paginación opcional)")
+	@Operation(summary = "Listar novedades por empresa (con filtros y paginación)", description = "El parámetro idEmpresa es obligatorio. Los demás filtros son opcionales.")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "404", description = "Sin resultados", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/empresa/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> findByEmpresa(@PathVariable Integer idEmpresa,
-			@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
-		return clienteNovedadServiceImpl.findByEmpresa(idEmpresa, page, size);
+	public ResponseEntity<ResponseDTO> findByEmpresa(
+			@Parameter(description = "ID de la empresa (requerido)", required = true) @PathVariable("idEmpresa") @NotNull Integer idEmpresa,
+			@RequestParam(value = "novedad", required = false) String novedad,
+			@RequestParam(value = "clienteNombre", required = false) String clienteNombre,
+			@RequestParam(value = "contadorSerial", required = false) String contadorSerial,
+			@RequestParam(value = "estadoDescripcion", required = false) String estadoDescripcion,
+			@RequestParam(value = "codigo", required = false) String codigo,
+			@RequestParam(value = "descripcion", required = false) String descripcion,
+			@RequestParam(value = "activo", required = false) Boolean activo,
+			@Parameter(description = "Fecha de creación exacta (yyyy-MM-dd)", example = "2025-10-08") @RequestParam(value = "fechaCreacion", required = false) String fechaCreacion,
+			@PageableDefault(size = 20, sort = "fechaCreacion", direction = Sort.Direction.DESC) Pageable pageable) {
+		return clienteNovedadServiceImpl.findByEmpresa(idEmpresa, novedad, clienteNombre, contadorSerial,
+				estadoDescripcion, codigo, descripcion, activo, fechaCreacion, pageable);
 	}
 
 	@Operation(summary = "Listar todos los Cliente Novedad")

@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.ClienteNovedadDTO;
@@ -18,5 +19,7 @@ public interface IClienteNovedadService {
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
 
-	ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, Integer page, Integer size);
+	ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, String novedad, String clienteNombre,
+			String contadorSerial, String estadoDescripcion, String codigo, String descripcion, Boolean activo,
+			String fechaCreacion, Pageable pageable);
 }

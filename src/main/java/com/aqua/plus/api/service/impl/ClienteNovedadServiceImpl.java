@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -7,12 +8,15 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IClienteNovedadService;
+import com.aqua.plus.api.service.impl.specification.ClienteNovedadSpecifications;
 import com.aqua.plus.commons.dtos.ClienteNovedadDTO;
 import com.aqua.plus.commons.dtos.ClienteNovedadRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
@@ -264,50 +268,72 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, Integer page, Integer size) {
+	public ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, String novedad, String clienteNombre,
+			String contadorSerial, String estadoDescripcion, String codigo, String descripcion, Boolean activo,
+			String fechaCreacion, Pageable pageable) {
+
 		try {
 			if (idEmpresa == null) {
-				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
 						.message("idEmpresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			if (page == null || size == null) {
-				List<ClienteNovedadEntity> list = clienteNovedadRepository
-						.findByEmpresaClienteContador_Empresa_Id(idEmpresa);
+			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
+			Pageable pageToUse = (pageable == null) ? PageRequest.of(0, 20, defaultSort)
+					: (pageable.getSort().isUnsorted()
+							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+							: pageable);
 
-				if (list.isEmpty()) {
-					return ResponseEntity.status(HttpStatus.NOT_FOUND)
-							.body(ResponseDTO.builder().success(false)
-									.message("No se encontraron novedades para la empresa indicada")
-									.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L).pageSize(0)
-									.currentPage(0).totalPages(0).build());
-				}
+			Page<ClienteNovedadEntity> base = clienteNovedadRepository
+					.findByEmpresaClienteContador_Empresa_Id(idEmpresa, pageToUse);
 
-				List<ClienteNovedadDTO> content = list.stream().map(clienteNovedadMapper::entityToDtoLight).toList();
-
-				return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-						.code(HttpStatus.OK.value()).response(content).totalCount((long) content.size())
-						.pageSize(content.size()).currentPage(0).totalPages(1).build());
+			if (base.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron novedades para la empresa indicada")
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
+								.pageSize(pageToUse.getPageSize()).currentPage(pageToUse.getPageNumber()).totalPages(0)
+								.build());
 			}
 
-			Pageable pageable = PageRequest.of(page, size);
-			Page<ClienteNovedadEntity> p = clienteNovedadRepository.findByEmpresaClienteContador_Empresa_Id(idEmpresa,
-					pageable);
+			LocalDate fecha = (fechaCreacion == null || fechaCreacion.isBlank()) ? null
+					: LocalDate.parse(fechaCreacion);
 
-			if (p.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
-						.message("No se encontraron novedades para la empresa indicada")
-						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
-						.pageSize(pageable.getPageSize()).currentPage(pageable.getPageNumber()).totalPages(0).build());
+			boolean hayFiltros = (novedad != null && !novedad.isBlank())
+					|| (clienteNombre != null && !clienteNombre.isBlank())
+					|| (contadorSerial != null && !contadorSerial.isBlank())
+					|| (estadoDescripcion != null && !estadoDescripcion.isBlank())
+					|| (codigo != null && !codigo.isBlank()) || (descripcion != null && !descripcion.isBlank())
+					|| (activo != null) || (fecha != null);
+
+			Page<ClienteNovedadEntity> page;
+
+			if (!hayFiltros) {
+				page = base;
+			} else {
+				Specification<ClienteNovedadEntity> spec = Specification.allOf(
+						ClienteNovedadSpecifications.empresaId(idEmpresa),
+						ClienteNovedadSpecifications.tipoNovedadNombreLike(novedad),
+						ClienteNovedadSpecifications.clienteNombreLike(clienteNombre),
+						ClienteNovedadSpecifications.contadorSerialLike(contadorSerial),
+						ClienteNovedadSpecifications.estadoDescripcionLike(estadoDescripcion),
+						ClienteNovedadSpecifications.codigoLike(codigo),
+						ClienteNovedadSpecifications.descripcionLike(descripcion),
+						ClienteNovedadSpecifications.activoEquals(activo),
+						ClienteNovedadSpecifications.fechaCreacionEquals(fecha));
+				page = clienteNovedadRepository.findAll(spec, pageToUse);
 			}
 
-			List<ClienteNovedadDTO> content = p.getContent().stream().map(clienteNovedadMapper::entityToDtoLight)
+			List<ClienteNovedadDTO> content = page.getContent().stream().map(clienteNovedadMapper::entityToDtoLight)
 					.toList();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).response(content).totalCount(p.getTotalElements())
-					.pageSize(p.getSize()).currentPage(p.getNumber()).totalPages(p.getTotalPages()).build());
+					.code(HttpStatus.OK.value()).response(content).totalCount(page.getTotalElements())
+					.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
 
+		} catch (java.time.format.DateTimeParseException ex) {
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 		} catch (Exception e) {
 			log.error("Error consultando ClienteNovedad por empresa {}", idEmpresa, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
