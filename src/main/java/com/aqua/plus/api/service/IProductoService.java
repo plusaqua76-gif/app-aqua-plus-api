@@ -19,8 +19,13 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IProductoService {
 
 	ResponseEntity<ResponseDTO> save(ProductoDTO productoDTO);
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable);
-    ResponseEntity<ResponseDTO> findAll();
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo, String nombre, String descripcion,
+			String categoriaNombre, Pageable pageable);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 }

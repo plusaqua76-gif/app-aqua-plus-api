@@ -19,8 +19,14 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IInventarioService {
 
 	ResponseEntity<ResponseDTO> save(InventarioDTO inventarioDTO);
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Pageable pageable);
-    ResponseEntity<ResponseDTO> findAll();
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Integer cantidad, Double precioUnitario,
+			Double precioVenta, Integer porcentaje, String codigo, String nombre, String descripcion,
+			Pageable pageable);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
 }
