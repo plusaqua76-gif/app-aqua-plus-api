@@ -148,5 +148,14 @@ public final class PersonaSpecification {
 			return cb.exists(sub);
 		};
 	}
+	
+	public static Specification<EmpresaClienteContadorEntity> clienteTipoDocumentoNombreLike(String tdNombre) {
+	    if (tdNombre == null || tdNombre.isBlank()) return null;
+	    return (root, q, cb) -> {
+	        var cli = root.join("cliente");
+	        var td  = cli.join("tipoDocumento", JoinType.LEFT);
+	        return cb.like(cb.lower(td.get("nombre")), "%" + tdNombre.toLowerCase().trim() + "%");
+	    };
+	}
 
 }

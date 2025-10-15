@@ -40,52 +40,51 @@ public final class ContadorSpecification {
 		};
 	}
 
-	// Filtro por nombre de tipoContador
-	public static Specification<ContadorEntity> tipoContadorNombreLike(String nombre) {
-		return (root, q, cb) -> {
-			if (nombre == null || nombre.isBlank())
-				return cb.conjunction();
-			var tc = root.join("tipoContador", JoinType.LEFT);
-			return cb.like(cb.lower(tc.get("nombre")), "%" + nombre.toLowerCase().trim() + "%");
-		};
-	}
-
-	// Filtra por descripción de la dirección (tu campo se llama 'descripcion' pero
-	// es una DireccionEntity)
-	public static Specification<ContadorEntity> direccionDescripcionLike(String desc) {
-		return (root, q, cb) -> {
-			if (desc == null || desc.isBlank())
-				return cb.conjunction();
-			var dir = root.join("descripcion", JoinType.LEFT); // es DireccionEntity
-			return cb.like(cb.lower(dir.get("descripcion")), "%" + desc.toLowerCase().trim() + "%");
-		};
-	}
-
-	// Filtra por nombre completo del cliente (Persona): primer/segundo nombre y
-	// apellidos
-	public static Specification<ContadorEntity> personaNombreLike(String nombreLike) {
-		return (root, q, cb) -> {
-			if (nombreLike == null || nombreLike.isBlank())
-				return cb.conjunction();
-			String p = "%" + nombreLike.toLowerCase().trim() + "%";
-			var per = root.join("cliente", JoinType.LEFT); // PersonaEntity
-			return cb.or(cb.like(cb.lower(per.get("primerNombre")), p), cb.like(cb.lower(per.get("segundoNombre")), p),
-					cb.like(cb.lower(per.get("primerApellido")), p), cb.like(cb.lower(per.get("segundoApellido")), p));
-		};
-	}
-
-	// Filtra por cédula del cliente (Persona)
-	public static Specification<ContadorEntity> personaCedulaEquals(String cedula) {
-		return (root, q, cb) -> {
-			if (cedula == null || cedula.isBlank())
-				return cb.conjunction();
-			var per = root.join("cliente", JoinType.LEFT);
-			return cb.equal(cb.lower(per.get("numeroCedula")), cedula.toLowerCase().trim());
-		};
-	}
-
 	public static Specification<ContadorEntity> isActivoTrue() {
 		return (root, query, cb) -> cb.isTrue(root.get("activo"));
 	}
+	
+	/** Filtro por nombre de TipoContador */
+    public static Specification<ContadorEntity> tipoContadorNombreLike(String nombre) {
+        return (root, q, cb) -> {
+            if (nombre == null || nombre.isBlank()) return cb.conjunction();
+            var tc = root.join("tipoContador", JoinType.LEFT);
+            return cb.like(cb.lower(tc.get("nombre")), "%" + nombre.toLowerCase().trim() + "%");
+        };
+    }
+
+    /** La propiedad 'descripcion' en ContadorEntity es una DireccionEntity */
+    public static Specification<ContadorEntity> direccionDescripcionLike(String desc) {
+        return (root, q, cb) -> {
+            if (desc == null || desc.isBlank()) return cb.conjunction();
+            var dir = root.join("descripcion", JoinType.LEFT); // DireccionEntity
+            return cb.like(cb.lower(cb.coalesce(dir.get("descripcion"), "")),
+                           "%" + desc.toLowerCase().trim() + "%");
+        };
+    }
+
+    /** Nombre de persona: match por cualquiera de sus partes (LIKE) */
+    public static Specification<ContadorEntity> personaNombreLike(String nombreLike) {
+        return (root, q, cb) -> {
+            if (nombreLike == null || nombreLike.isBlank()) return cb.conjunction();
+            String p = "%" + nombreLike.toLowerCase().trim() + "%";
+            var per = root.join("cliente", JoinType.LEFT); // PersonaEntity
+            return cb.or(
+                cb.like(cb.lower(per.get("nombre")), p),
+                cb.like(cb.lower(per.get("segundoNombre")), p),
+                cb.like(cb.lower(per.get("apellido")), p),
+                cb.like(cb.lower(per.get("segundoApellido")), p)
+            );
+        };
+    }
+
+    /** Cédula exacta (case-insensitive por si acaso) */
+    public static Specification<ContadorEntity> personaCedulaEquals(String cedula) {
+        return (root, q, cb) -> {
+            if (cedula == null || cedula.isBlank()) return cb.conjunction();
+            var per = root.join("cliente", JoinType.LEFT);
+            return cb.equal(cb.lower(per.get("numeroCedula")), cedula.toLowerCase().trim());
+        };
+    }
 
 }
