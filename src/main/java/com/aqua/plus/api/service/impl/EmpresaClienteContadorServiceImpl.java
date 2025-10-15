@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -27,10 +28,10 @@ import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
-import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
@@ -57,7 +58,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final NotificacionServiceImpl notificacionServiceImpl;
-	private final ContadorMapper contadorMapper;
 	private final ContadorRepository contadorRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
@@ -341,11 +341,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo) {
+			String correo, String tipoDocumentoNombre) {
 
 		log.info(
-				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}]",
-				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo);
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}]",
+				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
+				tipoDocumentoNombre);
 
 		try {
 			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
@@ -354,25 +355,45 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.direccionDepartamentoNombreLike(departamento),
 					PersonaSpecification.direccionCiudadNombreLike(ciudad),
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
-					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo));
+					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
+					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
 
-			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository.findAll((root, q, cb) -> {
-				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb);
-			});
+			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository
+					.findAll((root, q, cb) -> (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb));
 
 			List<Map<String, Object>> rows = new ArrayList<>(all.size());
 			for (var ecc : all) {
 				var p = ecc.getCliente();
 				Integer personaId = (p != null ? p.getId() : null);
 
-				Integer direccionId = null;
+				Integer tipoDocId = null;
+				String tipoDocNombreVal = null;
+				if (p != null && p.getTipoDocumento() != null) {
+					tipoDocId = p.getTipoDocumento().getId();
+					tipoDocNombreVal = p.getTipoDocumento().getNombre();
+				}
+				
+				String nombreCompleto = null;
+				if (p != null) {
+				    StringBuilder full = new StringBuilder();
+				    if (p.getNombre() != null) full.append(p.getNombre()).append(' ');
+				    if (p.getSegundoNombre() != null) full.append(p.getSegundoNombre()).append(' ');
+				    if (p.getApellido() != null) full.append(p.getApellido()).append(' ');
+				    if (p.getSegundoApellido() != null) full.append(p.getSegundoApellido());
+				    nombreCompleto = full.toString().trim().replaceAll("\\s+", " ");
+				}
+
+				Integer direccionId = null, depId = null, ciuId = null, corrId = null;
 				String depNombre = null, ciudadNombre = null, corrNombre = null, dirDescripcion = null;
 				if (p != null && p.getDireccion() != null) {
 					var d = p.getDireccion();
 					direccionId = d.getId();
 					dirDescripcion = d.getDescripcion();
+					depId = (d.getDepartamento() != null) ? d.getDepartamento().getId() : null;
 					depNombre = (d.getDepartamento() != null) ? d.getDepartamento().getNombre() : null;
+					ciuId = (d.getCiudad() != null) ? d.getCiudad().getId() : null;
 					ciudadNombre = (d.getCiudad() != null) ? d.getCiudad().getNombre() : null;
+					corrId = (d.getCorregimiento() != null) ? d.getCorregimiento().getId() : null;
 					corrNombre = (d.getCorregimiento() != null) ? d.getCorregimiento().getNombre() : null;
 				}
 
@@ -389,31 +410,30 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("id", personaId);
 				row.put("numeroCedula", p != null ? p.getNumeroCedula() : null);
-				row.put("nombre", p != null ? p.getNombre() : null);
-				row.put("segundoNombre", p != null ? p.getSegundoNombre() : null);
-				row.put("apellido", p != null ? p.getApellido() : null);
-				row.put("segundoApellido", p != null ? p.getSegundoApellido() : null);
+				row.put("nombreCompleto", nombreCompleto);
 				row.put("codigo", p != null ? p.getCodigo() : null);
 				row.put("activo", p != null ? p.getActivo() : null);
+				row.put("tipoDocumentoId", tipoDocId);
+				row.put("tipoDocumentoNombre", tipoDocNombreVal);
 				row.put("direccionId", direccionId);
 				row.put("direccionDescripcion", dirDescripcion);
 				row.put("departamentoNombre", depNombre);
+				row.put("departamentoId", depId);
 				row.put("ciudadNombre", ciudadNombre);
+				row.put("ciudadId", ciuId);
 				row.put("corregimientoNombre", corrNombre);
+				row.put("corregimientoId", corrId);
 				row.put("correo", correoVal);
 				row.put("telefono", telVal);
-
 				rows.add(row);
 			}
 
-			Comparator<Map<String, Object>> byActivoDesc = Comparator
-					.comparing(m -> Boolean.FALSE.equals(m.get("activo"))); // false<true ⇒ activos primero
-			Comparator<Map<String, Object>> byNombreAsc = Comparator
-					.comparing(m -> ((String) m.getOrDefault("nombre", "")), String.CASE_INSENSITIVE_ORDER);
-			Comparator<Map<String, Object>> byApellidoAsc = Comparator
-					.comparing(m -> ((String) m.getOrDefault("apellido", "")), String.CASE_INSENSITIVE_ORDER);
+			Comparator<Map<String, Object>> byActivoDesc =
+			        Comparator.comparing(m -> Boolean.FALSE.equals(m.get("activo")));
+			Comparator<Map<String, Object>> byNombreCompletoAsc =
+			        Comparator.comparing(m -> ((String) m.getOrDefault("nombreCompleto", "")), String.CASE_INSENSITIVE_ORDER);
 
-			rows.sort(byActivoDesc.thenComparing(byNombreAsc).thenComparing(byApellidoAsc));
+			rows.sort(byActivoDesc.thenComparing(byNombreCompletoAsc));
 
 			int pageNumber = (pageable != null ? pageable.getPageNumber() : 0);
 			int pageSize = (pageable != null ? pageable.getPageSize() : 20);
@@ -461,9 +481,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					ContadorSpecification.personaCedulaEquals(cedula));
 
 			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-			var page = contadorRepository.findAll(spec, pageToUse);
-
-			var dtoList = contadorMapper.listEntityToDtoList(page.getContent());
+			Page<ContadorEntity> page = contadorRepository.findAll(spec, pageToUse);
 
 			long totalCount = page.getTotalElements();
 			int pageSize = page.getSize();
@@ -474,12 +492,98 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron contadores para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(dtoList).totalCount(totalCount)
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(totalCount)
 								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
 			}
 
+			List<Map<String, Object>> rows = new ArrayList<>(page.getNumberOfElements());
+
+			for (ContadorEntity c : page.getContent()) {
+				Map<String, Object> item = new LinkedHashMap<>();
+
+				item.put("id", c.getId());
+				item.put("serial", c.getSerial());
+				item.put("activo", c.getActivo());
+
+				Map<String, Object> tipoCont = new LinkedHashMap<>();
+				if (c.getTipoContador() != null) {
+					tipoCont.put("id", c.getTipoContador().getId());
+					tipoCont.put("nombre", c.getTipoContador().getNombre());
+				} else {
+					tipoCont.put("id", null);
+					tipoCont.put("nombre", null);
+				}
+				item.put("tipoContador", tipoCont);
+
+				Map<String, Object> dir = new LinkedHashMap<>();
+				if (c.getDescripcion() != null) {
+					var d = c.getDescripcion();
+					dir.put("id", d.getId());
+
+					Map<String, Object> dep = new LinkedHashMap<>();
+					if (d.getDepartamento() != null) {
+						dep.put("id", d.getDepartamento().getId());
+						dep.put("nombre", d.getDepartamento().getNombre());
+					} else {
+						dep.put("id", null);
+						dep.put("nombre", null);
+					}
+					dir.put("departamento", dep);
+
+					Map<String, Object> city = new LinkedHashMap<>();
+					if (d.getCiudad() != null) {
+						city.put("id", d.getCiudad().getId());
+						city.put("nombre", d.getCiudad().getNombre());
+					} else {
+						city.put("id", null);
+						city.put("nombre", null);
+					}
+					dir.put("ciudad", city);
+
+					Map<String, Object> corr = new LinkedHashMap<>();
+					if (d.getCorregimiento() != null) {
+						corr.put("id", d.getCorregimiento().getId());
+						corr.put("nombre", d.getCorregimiento().getNombre());
+					} else {
+						corr.put("id", null);
+						corr.put("nombre", null);
+					}
+					dir.put("corregimiento", corr);
+
+					dir.put("descripcion", d.getDescripcion());
+				} else {
+					dir.put("id", null);
+					dir.put("departamento", Map.of("id", null, "nombre", null));
+					dir.put("ciudad", Map.of("id", null, "nombre", null));
+					dir.put("corregimiento", Map.of("id", null, "nombre", null));
+					dir.put("descripcion", null);
+				}
+				item.put("descripcion", dir);
+
+				String clienteNombreCompleto = null;
+				String clienteCedula = null;
+				var p = c.getCliente();
+				if (p != null) {
+					StringBuilder full = new StringBuilder();
+					if (p.getNombre() != null)
+						full.append(p.getNombre()).append(' ');
+					if (p.getSegundoNombre() != null)
+						full.append(p.getSegundoNombre()).append(' ');
+					if (p.getApellido() != null)
+						full.append(p.getApellido()).append(' ');
+					if (p.getSegundoApellido() != null)
+						full.append(p.getSegundoApellido());
+					clienteNombreCompleto = full.toString().trim().replaceAll("\\s+", " ");
+					clienteCedula = p.getNumeroCedula();
+				}
+				item.put("clienteNombreCompleto", clienteNombreCompleto);
+				item.put("clienteCedula", clienteCedula);
+
+				rows.add(item);
+			}
+
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(dtoList).totalCount(totalCount).pageSize(pageSize)
+					.code(HttpStatus.OK.value()).response(rows).totalCount(totalCount).pageSize(pageSize)
 					.currentPage(currentPage).totalPages(totalPages).build());
 
 		} catch (Exception e) {
