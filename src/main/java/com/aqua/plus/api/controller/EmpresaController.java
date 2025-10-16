@@ -237,7 +237,7 @@ public class EmpresaController {
 	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 	})
-	@GetMapping("/por-usuario/{usuarioId}")
+	@GetMapping("/usuario/{usuarioId}")
 	public ResponseEntity<ResponseDTO> getEmpresaIdByUsuario(
 	        @PathVariable Integer usuarioId) {
 	    return empresaServiceImpl.findEmpresaIdByUsuarioId(usuarioId);

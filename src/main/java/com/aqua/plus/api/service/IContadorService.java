@@ -18,8 +18,13 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IContadorService {
 
 	ResponseEntity<ResponseDTO> save(ContadorDTO contadorDTO);
-    ResponseEntity<ResponseDTO> findById(Integer id);
-    ResponseEntity<ResponseDTO> findAll();
-    ResponseEntity<ResponseDTO> deleteById(Integer id);
-    
+
+	ResponseEntity<ResponseDTO> findById(Integer id);
+
+	ResponseEntity<ResponseDTO> findAll();
+
+	ResponseEntity<ResponseDTO> deleteById(Integer id);
+
+	ResponseEntity<ResponseDTO> findContadorPorSerial(String serial);
+
 }

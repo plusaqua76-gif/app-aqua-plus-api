@@ -10,10 +10,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +52,6 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final EstadoMapper estadoMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
-	private final JdbcTemplate jdbcTemplate;
 	private final DocumentoServiceImpl documentoServiceImpl;
 
 	@Override
@@ -449,41 +446,36 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<Map<String, Object>> metricasConsumoMes(Integer empresaId, Integer anio, Integer mes) {
 		try {
-			SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate).withSchemaName("public")
-					.withFunctionName("fn_metricas_consumo_mes").withoutProcedureColumnMetaDataAccess()
-					.declareParameters(
-							new org.springframework.jdbc.core.SqlParameter("p_id_empresa", java.sql.Types.INTEGER),
-							new org.springframework.jdbc.core.SqlParameter("p_anio", java.sql.Types.INTEGER),
-							new org.springframework.jdbc.core.SqlParameter("p_mes", java.sql.Types.INTEGER));
+			final String sql = """
+					    SELECT public.fn_metricas_consumo_mes(:idEmpresa, :anio, :mes)::text AS payload
+					""";
 
-			Map<String, Object> in = Map.of("p_id_empresa", empresaId, "p_anio", anio, "p_mes", mes);
+			MapSqlParameterSource params = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+					.addValue("anio", anio).addValue("mes", mes);
 
-			String payload = call.executeFunction(String.class, in);
-			if (payload == null) {
-				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-						.body(Map.of("success", false, "code", 500, "message", "Sin respuesta de la función"));
-			}
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+			String payload = (String) row.get("payload");
 
 			Map<String, Object> body = objectMapper.readValue(payload,
 					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
 					});
 
-			HttpStatus status = HttpStatus.resolve(Integer.parseInt(String.valueOf(body.getOrDefault("code", 200))));
-			if (status == null) {
-				status = Boolean.TRUE.equals(body.get("success")) ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR;
-			}
+			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
+			boolean success = Boolean.TRUE.equals(body.getOrDefault("success", true));
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null)
+				status = success ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR;
 
 			return ResponseEntity.status(status).body(body);
 
-		} catch (org.springframework.jdbc.BadSqlGrammarException ex) {
-			Throwable root = ex.getMostSpecificCause();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(Map.of("success", false, "code", 500, "message",
-							"SQL inválido al invocar fn_metricas_consumo_mes", "detalle",
-							root != null ? root.getMessage() : ex.getMessage()));
-		} catch (Exception e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(Map.of("success", false, "code", 500, "message", "Error inesperado: " + e.getMessage()));
+		} catch (org.springframework.dao.EmptyResultDataAccessException ex) {
+			return ResponseEntity.ok(Map.of("success", true, "code", 200, "message", "Sin datos", "data", Map.of()));
+		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "code", 500,
+					"message", "JSON inválido desde la función", "detalle", ex.getMessage()));
+		} catch (Exception ex) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+					Map.of("success", false, "code", 500, "message", "Error inesperado", "detalle", ex.getMessage()));
 		}
 	}
 
