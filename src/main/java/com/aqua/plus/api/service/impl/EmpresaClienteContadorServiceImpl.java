@@ -8,7 +8,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,11 +33,13 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
+import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
+import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -61,6 +65,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final ContadorRepository contadorRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
+	private RutaEmpleadoRepository rutaEmpleadoRepository;
 	private final JwtUtil jwtUtil;
 
 	@Override
@@ -361,6 +366,16 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository
 					.findAll((root, q, cb) -> (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb));
 
+			List<Integer> eccIds = all.stream().map(EmpresaClienteContadorEntity::getId).filter(Objects::nonNull)
+					.toList();
+
+			Map<Integer, RutaEmpleadoEntity> rutaPorEcc = Collections.emptyMap();
+			if (!eccIds.isEmpty()) {
+				List<RutaEmpleadoEntity> rutas = rutaEmpleadoRepository.findActivasByEmpresaClienteContadorIdIn(eccIds);
+				rutaPorEcc = rutas.stream().collect(Collectors.toMap(re -> re.getEmpresaClienteContador().getId(),
+						re -> re, (a, b) -> (a.getFechaCreacion().after(b.getFechaCreacion()) ? a : b)));
+			}
+
 			List<Map<String, Object>> rows = new ArrayList<>(all.size());
 			for (var ecc : all) {
 				var p = ecc.getCliente();
@@ -372,15 +387,19 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					tipoDocId = p.getTipoDocumento().getId();
 					tipoDocNombreVal = p.getTipoDocumento().getNombre();
 				}
-				
+
 				String nombreCompleto = null;
 				if (p != null) {
-				    StringBuilder full = new StringBuilder();
-				    if (p.getNombre() != null) full.append(p.getNombre()).append(' ');
-				    if (p.getSegundoNombre() != null) full.append(p.getSegundoNombre()).append(' ');
-				    if (p.getApellido() != null) full.append(p.getApellido()).append(' ');
-				    if (p.getSegundoApellido() != null) full.append(p.getSegundoApellido());
-				    nombreCompleto = full.toString().trim().replaceAll("\\s+", " ");
+					StringBuilder full = new StringBuilder();
+					if (p.getNombre() != null)
+						full.append(p.getNombre()).append(' ');
+					if (p.getSegundoNombre() != null)
+						full.append(p.getSegundoNombre()).append(' ');
+					if (p.getApellido() != null)
+						full.append(p.getApellido()).append(' ');
+					if (p.getSegundoApellido() != null)
+						full.append(p.getSegundoApellido());
+					nombreCompleto = full.toString().trim().replaceAll("\\s+", " ");
 				}
 
 				Integer direccionId = null, depId = null, ciuId = null, corrId = null;
@@ -407,7 +426,29 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 								.map(TelefonoGeneralEntity::getNumero).orElse(null)
 						: null;
 
+				Integer empleadoEmpresaId = null;
+				String empleadoNombreCompleto = null;
+
+				RutaEmpleadoEntity ruta = rutaPorEcc.get(ecc.getId());
+				if (ruta != null && ruta.getEmpleadoEmpresa() != null
+						&& ruta.getEmpleadoEmpresa().getPersona() != null) {
+					var pe = ruta.getEmpleadoEmpresa().getPersona();
+					empleadoEmpresaId = ruta.getEmpleadoEmpresa().getId();
+
+					StringBuilder fullEmp = new StringBuilder();
+					if (pe.getNombre() != null)
+						fullEmp.append(pe.getNombre()).append(' ');
+					if (pe.getSegundoNombre() != null)
+						fullEmp.append(pe.getSegundoNombre()).append(' ');
+					if (pe.getApellido() != null)
+						fullEmp.append(pe.getApellido()).append(' ');
+					if (pe.getSegundoApellido() != null)
+						fullEmp.append(pe.getSegundoApellido());
+					empleadoNombreCompleto = fullEmp.toString().trim().replaceAll("\\s+", " ");
+				}
+
 				Map<String, Object> row = new LinkedHashMap<>();
+				row.put("empresaClienteContadorId", ecc.getId());
 				row.put("id", personaId);
 				row.put("numeroCedula", p != null ? p.getNumeroCedula() : null);
 				row.put("nombreCompleto", nombreCompleto);
@@ -425,13 +466,16 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				row.put("corregimientoId", corrId);
 				row.put("correo", correoVal);
 				row.put("telefono", telVal);
+				row.put("empleadoEmpresaId", empleadoEmpresaId);
+				row.put("empleadoNombreCompleto", empleadoNombreCompleto);
+
 				rows.add(row);
 			}
 
-			Comparator<Map<String, Object>> byActivoDesc =
-			        Comparator.comparing(m -> Boolean.FALSE.equals(m.get("activo")));
-			Comparator<Map<String, Object>> byNombreCompletoAsc =
-			        Comparator.comparing(m -> ((String) m.getOrDefault("nombreCompleto", "")), String.CASE_INSENSITIVE_ORDER);
+			Comparator<Map<String, Object>> byActivoDesc = Comparator
+					.comparing(m -> Boolean.FALSE.equals(m.get("activo")));
+			Comparator<Map<String, Object>> byNombreCompletoAsc = Comparator
+					.comparing(m -> ((String) m.getOrDefault("nombreCompleto", "")), String.CASE_INSENSITIVE_ORDER);
 
 			rows.sort(byActivoDesc.thenComparing(byNombreCompletoAsc));
 
