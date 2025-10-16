@@ -157,5 +157,14 @@ public final class PersonaSpecification {
 	        return cb.like(cb.lower(td.get("nombre")), "%" + tdNombre.toLowerCase().trim() + "%");
 	    };
 	}
+	
+	public static Specification<EmpresaClienteContadorEntity> contadorSerialLike(String serialLike) {
+        if (serialLike == null || serialLike.isBlank()) return null;
+        return (root, q, cb) -> {
+            var cont = root.join("contador", jakarta.persistence.criteria.JoinType.LEFT);
+            return cb.like(cb.lower(cont.get("serial")), "%" + serialLike.toLowerCase().trim() + "%");
+        };
+    }
+
 
 }

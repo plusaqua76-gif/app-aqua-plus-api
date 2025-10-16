@@ -65,7 +65,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final ContadorRepository contadorRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
-	private RutaEmpleadoRepository rutaEmpleadoRepository;
+	private final RutaEmpleadoRepository rutaEmpleadoRepository;
 	private final JwtUtil jwtUtil;
 
 	@Override
@@ -346,12 +346,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre) {
+			String correo, String tipoDocumentoNombre, String serialContador) {
 
 		log.info(
-				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}]",
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, serialContador={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
-				tipoDocumentoNombre);
+				tipoDocumentoNombre, serialContador);
 
 		try {
 			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
@@ -361,11 +361,14 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.direccionCiudadNombreLike(ciudad),
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
-					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
+					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre),
+					PersonaSpecification.contadorSerialLike(serialContador) // <-- NUEVO filtro
+			);
 
 			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository
 					.findAll((root, q, cb) -> (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb));
 
+			// batch de rutas (igual que ya lo tienes)
 			List<Integer> eccIds = all.stream().map(EmpresaClienteContadorEntity::getId).filter(Objects::nonNull)
 					.toList();
 
@@ -447,6 +450,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					empleadoNombreCompleto = fullEmp.toString().trim().replaceAll("\\s+", " ");
 				}
 
+				// ====== NUEVO: serial del contador desde ECC ======
+				String contadorSerial = (ecc.getContador() != null ? ecc.getContador().getSerial() : null);
+
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("empresaClienteContadorId", ecc.getId());
 				row.put("id", personaId);
@@ -468,6 +474,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				row.put("telefono", telVal);
 				row.put("empleadoEmpresaId", empleadoEmpresaId);
 				row.put("empleadoNombreCompleto", empleadoNombreCompleto);
+
+				// 👉 Campo NUEVO en el response:
+				row.put("contadorSerial", contadorSerial);
 
 				rows.add(row);
 			}
