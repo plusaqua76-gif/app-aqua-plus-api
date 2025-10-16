@@ -20,4 +20,6 @@ public interface IEmpresaService {
     ResponseEntity<ResponseDTO> findAll();
     
     ResponseEntity<ResponseDTO> deleteById(Integer id);
+    
+    ResponseEntity<ResponseDTO> findEmpresaIdByUsuarioId(Integer usuarioId);
 }
