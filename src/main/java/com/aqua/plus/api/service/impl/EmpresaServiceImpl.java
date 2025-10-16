@@ -533,30 +533,30 @@ public class EmpresaServiceImpl implements IEmpresaService {
 		log.info("Buscar idEmpresa por usuarioId: {}", usuarioId);
 		try {
 			if (usuarioId == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).message("El parámetro usuarioId es requerido.")
-								.code(org.springframework.http.HttpStatus.BAD_REQUEST.value()).build());
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El parámetro usuarioId es requerido.").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			var empresaIdOpt = empresaRepository.findByUsuario_Id(usuarioId);
-			if (empresaIdOpt.isEmpty()) {
-				return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+			var empresaOpt = empresaRepository.findByUsuario_Id(usuarioId);
+			if (empresaOpt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontró empresa para el usuario indicado.")
-								.code(org.springframework.http.HttpStatus.NOT_FOUND.value()).build());
+								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			var payload = Map.of("empresaId", empresaIdOpt.get());
+			Integer empresaId = empresaOpt.get().getId();
+			var payload = Map.of("empresaId", empresaId);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa.")
-					.code(org.springframework.http.HttpStatus.OK.value()).response(payload).build());
+					.code(HttpStatus.OK.value()).response(payload).build());
 
 		} catch (Exception e) {
 			log.error("Error al buscar idEmpresa por usuarioId: {}", usuarioId, e);
-			return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false)
 							.message("Error inesperado al consultar la empresa por usuario.")
-							.code(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
 
