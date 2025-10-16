@@ -1,19 +1,26 @@
 package com.aqua.plus.api.controller;
 
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.FiltroParametroServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,4 +54,20 @@ public class FiltroParametroController {
 	public ResponseEntity<ResponseDTO> getFiltrosByReporte(@PathVariable("id") Integer idReporte) {
 		return filtroParametroServiceImpl.findByReporteId(idReporte);
 	}
+
+	@Operation(summary = "Consultar Listas", description = "Invoca reportes.run_list_param_select(codigo, params) y retorna un arreglo JSON.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json")),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@PostMapping("/reportes/run-list")
+	public ResponseEntity<List<Map<String, Object>>> runListParamSelect(
+			@Parameter(description = "Código del SQL parametrizado a ejecutar", required = true) @RequestParam String codigo,
+			@Parameter(description = "Parámetros de reemplazo para el SQL guardado (json)", required = false) @RequestBody(required = false) Map<String, Object> params) {
+
+		List<Map<String, Object>> resp = filtroParametroServiceImpl.runListParamSelect(codigo, params);
+		return ResponseEntity.ok(resp);
+	}
+
 }

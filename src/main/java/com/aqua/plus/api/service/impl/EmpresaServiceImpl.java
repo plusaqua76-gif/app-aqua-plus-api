@@ -428,79 +428,64 @@ public class EmpresaServiceImpl implements IEmpresaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer idEmpresa) {
-	    log.info("Buscar Empresa por idEmpresa: {}", idEmpresa);
-	    try {
-	        if (idEmpresa == null) {
-	            return ResponseEntity.badRequest().body(
-	                ResponseDTO.builder()
-	                    .success(false)
-	                    .message("El parámetro idEmpresa es requerido.")
-	                    .code(HttpStatus.BAD_REQUEST.value())
-	                    .build()
-	            );
-	        }
+		log.info("Buscar Empresa por idEmpresa: {}", idEmpresa);
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El parámetro idEmpresa es requerido.").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
 
-	        var empresaOpt = empresaRepository.findById(idEmpresa);
-	        if (empresaOpt.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-	                    .body(ResponseDTO.builder()
-	                            .success(false)
-	                            .message("No se encontró la empresa con el id suministrado")
-	                            .code(HttpStatus.NOT_FOUND.value())
-	                            .build());
-	        }
+			var empresaOpt = empresaRepository.findById(idEmpresa);
+			if (empresaOpt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró la empresa con el id suministrado")
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
 
-	        var empresa = empresaOpt.get();
-	        var responseMap = new LinkedHashMap<String, Object>();
-	        responseMap.put("nombre", empresa.getNombre());
+			var empresa = empresaOpt.get();
+			var responseMap = new LinkedHashMap<String, Object>();
+			responseMap.put("nombre", empresa.getNombre());
 
-	        correoGeneralRepository.findCorreoPrincipalByEmpresaId(empresa.getId())
-	                .ifPresent(c -> responseMap.put("correo", c));
+			correoGeneralRepository.findCorreoPrincipalByEmpresaId(empresa.getId())
+					.ifPresent(c -> responseMap.put("correo", c));
 
-	        List<?> documentos = List.of();
-	        Long totalDocs = 0L;
-	        try {
-	            var docsResp = documentoService.listarPorEmpresaYCategoriaCodigo(empresa.getId(), Constantes.TYPE_LOGO);
-	            if (docsResp != null && docsResp.getStatusCode().is2xxSuccessful() && docsResp.getBody() != null) {
-	                var body = docsResp.getBody();
-	                if (Boolean.TRUE.equals(body.getSuccess())) {
-	                    var resp = body.getResponse();
-	                    if (resp instanceof List<?> lista) {
-	                        documentos = lista;
-	                        totalDocs = (body.getTotalCount() != null) ? body.getTotalCount() : (long) lista.size();
-	                    } else if (resp != null) {
-	                        responseMap.put("imagenRaw", resp);
-	                    }
-	                } else {
-	                    log.warn("DocumentoService devolvió success=false: {}", body.getMessage());
-	                }
-	            }
-	        } catch (Exception ex) {
-	            log.warn("Fallo al obtener documentos (FOT) con base64 para empresa {}: {}", empresa.getId(), ex.getMessage());
-	        }
+			List<?> documentos = List.of();
+			Long totalDocs = 0L;
+			try {
+				var docsResp = documentoService.listarPorEmpresaYCategoriaCodigo(empresa.getId(), Constantes.TYPE_LOGO);
+				if (docsResp != null && docsResp.getStatusCode().is2xxSuccessful() && docsResp.getBody() != null) {
+					var body = docsResp.getBody();
+					if (Boolean.TRUE.equals(body.getSuccess())) {
+						var resp = body.getResponse();
+						if (resp instanceof List<?> lista) {
+							documentos = lista;
+							totalDocs = (body.getTotalCount() != null) ? body.getTotalCount() : (long) lista.size();
+						} else if (resp != null) {
+							responseMap.put("imagenRaw", resp);
+						}
+					} else {
+						log.warn("DocumentoService devolvió success=false: {}", body.getMessage());
+					}
+				}
+			} catch (Exception ex) {
+				log.warn("Fallo al obtener documentos (FOT) con base64 para empresa {}: {}", empresa.getId(),
+						ex.getMessage());
+			}
 
-	        responseMap.put("imagen", documentos);
-	        responseMap.put("totalImagen", totalDocs);
+			responseMap.put("imagen", documentos);
+			responseMap.put("totalImagen", totalDocs);
 
-	        return ResponseEntity.ok(
-	                ResponseDTO.builder()
-	                        .success(true)
-	                        .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                        .code(HttpStatus.OK.value())
-	                        .response(responseMap)
-	                        .build());
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(responseMap).build());
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar empresa por idEmpresa: {}", idEmpresa, e);
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                .body(ResponseDTO.builder()
-	                        .success(false)
-	                        .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                        .build());
-	    }
+		} catch (Exception e) {
+			log.error("Error al buscar empresa por idEmpresa: {}", idEmpresa, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
 	}
-
 
 	@Override
 	@Transactional(readOnly = true)
@@ -541,4 +526,38 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findEmpresaIdByUsuarioId(Integer usuarioId) {
+		log.info("Buscar idEmpresa por usuarioId: {}", usuarioId);
+		try {
+			if (usuarioId == null) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false).message("El parámetro usuarioId es requerido.")
+								.code(org.springframework.http.HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			var empresaIdOpt = empresaRepository.findByUsuario_Id(usuarioId);
+			if (empresaIdOpt.isEmpty()) {
+				return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró empresa para el usuario indicado.")
+								.code(org.springframework.http.HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			var payload = Map.of("empresaId", empresaIdOpt.get());
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa.")
+					.code(org.springframework.http.HttpStatus.OK.value()).response(payload).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar idEmpresa por usuarioId: {}", usuarioId, e);
+			return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error inesperado al consultar la empresa por usuario.")
+							.code(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
 }

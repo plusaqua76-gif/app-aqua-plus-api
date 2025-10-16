@@ -285,37 +285,30 @@ public class LecturaServiceImpl implements ILecturaService {
 	@Transactional(readOnly = true)
 	public Map<String, Object> metricasLecturasMes(Integer empresaId, Integer anio, Integer mes, Integer idCiudad,
 			Integer idCorregimiento) {
+
+		String sql = """
+				    SELECT public.fn_metricas_lecturas_mes(:idEmpresa, :anio, :mes, :idCiudad, :idCorreg)::text AS payload
+				""";
+
+		MapSqlParameterSource params = new MapSqlParameterSource()
+				.addValue("idEmpresa", empresaId, java.sql.Types.INTEGER).addValue("anio", anio, java.sql.Types.INTEGER)
+				.addValue("mes", mes, java.sql.Types.INTEGER).addValue("idCiudad", idCiudad, java.sql.Types.INTEGER)
+				.addValue("idCorreg", idCorregimiento, java.sql.Types.INTEGER);
+
 		try {
-			String sql = "SELECT public.fn_metricas_lecturas_mes(:idEmpresa, :anio, :mes, :idCiudad, :idCorreg) AS payload";
-
-			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
-					.addValue("anio", anio).addValue("mes", mes).addValue("idCiudad", idCiudad)
-					.addValue("idCorreg", idCorregimiento);
-
-			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-			Object payload = raw.get("payload");
-
-			if (payload instanceof org.postgresql.util.PGobject pg
-					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
-				return objectMapper.readValue(pg.getValue(),
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-						});
+			String json = namedParameterJdbcTemplate.queryForObject(sql, params, String.class);
+			if (json == null) {
+				return Map.of("error", "SIN_DATOS");
 			}
-			if (payload instanceof String s) {
-				return objectMapper.readValue(s,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-						});
-			}
-			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
-
+			return objectMapper.readValue(json,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
 		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-			e.printStackTrace();
-			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
-					Constantes.PROCCESSING_ERROR + e.getMessage());
+			log.error("Error parseando JSON de fn_metricas_lecturas_mes", e);
+			return Map.of("error", "PROCESAMIENTO_JSON", "detalle", e.getMessage());
 		} catch (Exception e) {
-			e.printStackTrace();
-			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
-					Constantes.UNEXPECTED_ERROR + e.getMessage());
+			log.error("Error ejecutando fn_metricas_lecturas_mes", e);
+			return Map.of("error", "ERROR_INESPERADO", "detalle", e.getMessage());
 		}
 	}
 
