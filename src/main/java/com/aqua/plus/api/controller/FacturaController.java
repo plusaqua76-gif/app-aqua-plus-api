@@ -86,39 +86,23 @@ public class FacturaController {
 				estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
 	}
 
-    @Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Consulta exitosa",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ResponseDTO.class))),
-            @ApiResponse(responseCode = "400", description = "Petición inválida",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "No se encontraron datos",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ResponseDTO.class))),
-            @ApiResponse(responseCode = "500", description = "Error inesperado",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ResponseDTO.class)))
-    })
-    @GetMapping("/persona/{personaId}")
-    public ResponseEntity<ResponseDTO> getFacturasByPersona(
-            @PathVariable("personaId") Integer idPersona,
-            @RequestParam(required = false) String codigo,
-            @RequestParam(required = false) String fechaEmision,
-            @RequestParam(required = false) String fechaFin,
-            @RequestParam(required = false) String estadoNombre,
-            @RequestParam(required = false) Boolean consumoAnormal,
-            @RequestParam(required = false) Double precio,
-            Pageable pageable
-    ) {
-        return facturaServiceImpl.findFacturasByPersona(
-                idPersona, codigo, fechaEmision, fechaFin, estadoNombre,
-                consumoAnormal, precio, pageable
-        );
-    }
+	@Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/persona/{personaId}")
+	public ResponseEntity<ResponseDTO> getFacturasByPersona(@PathVariable("personaId") Integer idPersona,
+			@RequestParam(required = false) String codigo, @RequestParam(required = false) String fechaEmision,
+			@RequestParam(required = false) String fechaFin, @RequestParam(required = false) String estadoNombre,
+			@RequestParam(required = false) Boolean consumoAnormal, @RequestParam(required = false) Double precio,
+			Pageable pageable) {
+		return facturaServiceImpl.findFacturasByPersona(idPersona, codigo, fechaEmision, fechaFin, estadoNombre,
+				consumoAnormal, precio, pageable);
+	}
 
-    @Operation(summary = "Buscar Factura por id")
+	@Operation(summary = "Buscar Factura por id")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -207,7 +191,7 @@ public class FacturaController {
 			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))) })
 	@GetMapping("/consumo-mes")
 	public ResponseEntity<Map<String, Object>> metricasConsumoMes(@RequestParam Integer empresaId,
-			@RequestParam Integer anio, @RequestParam Integer mes) {
+			@RequestParam Integer anio, Integer mes) {
 		return facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
 	}
 
@@ -219,7 +203,7 @@ public class FacturaController {
 	public ResponseEntity<Map<String, Object>> metricasFacturasMes(
 			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam Integer empresaId,
 			@Parameter(description = "Año", required = true, example = "2025") @RequestParam Integer anio,
-			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam Integer mes) {
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") Integer mes) {
 		Map<String, Object> resp = facturaServiceImpl.metricasFacturaMes(empresaId, anio, mes);
 		return ResponseEntity.ok(resp);
 	}
