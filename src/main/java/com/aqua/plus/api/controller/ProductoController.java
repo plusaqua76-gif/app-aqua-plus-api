@@ -92,7 +92,7 @@ public class ProductoController {
 	        @ApiResponse(responseCode = "500", description = "Error interno del servidor",
 	            content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
 	    })
-	    @GetMapping("/empresa/{id}")
+	    @GetMapping("/empresa/{idEmpresa}")
 	    public ResponseEntity<ResponseDTO> getProductosByEmpresa(
 	            @PathVariable("idEmpresa") @NotNull Integer idEmpresa,
 	            @RequestParam(required = false) String codigo,
