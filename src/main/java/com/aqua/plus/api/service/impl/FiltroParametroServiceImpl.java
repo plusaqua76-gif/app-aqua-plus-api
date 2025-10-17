@@ -78,7 +78,7 @@ public class FiltroParametroServiceImpl implements IFiltroParametroService {
 				: objectMapper.valueToTree(paramsJson).toString();
 
 		String sql = """
-				    SELECT reportes.run_list_param_select(:codigo, :params::jsonb)::text AS payload
+				    SELECT reportes.run_list_param_select_text(:codigo, :params) AS payload
 				""";
 
 		MapSqlParameterSource p = new MapSqlParameterSource().addValue("codigo", codigo, java.sql.Types.VARCHAR)
@@ -86,15 +86,23 @@ public class FiltroParametroServiceImpl implements IFiltroParametroService {
 
 		try {
 			String json = namedParameterJdbcTemplate.queryForObject(sql, p, String.class);
-			if (json == null)
+			if (json == null || json.isBlank())
 				return List.of();
 
-			return objectMapper.readValue(json,
-					new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {
-					});
+			try {
+				return objectMapper.readValue(json,
+						new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {
+						});
+			} catch (com.fasterxml.jackson.databind.JsonMappingException ex) {
+				Map<String, Object> single = objectMapper.readValue(json,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+				return List.of(single);
+			}
+
 		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
 			log.error("Error parseando JSON de run_list_param_select [{}]", codigo, e);
-			return List.of(Map.of("error", "PROCESAMIENTO_JSON", "detalle", e.getMessage()));
+			return List.of(Map.of("error", "PROCESAMIENTO_JSON", "detalle", e.getOriginalMessage()));
 		} catch (org.springframework.dao.DataAccessException e) {
 			log.error("Error de acceso a datos en run_list_param_select [{}]", codigo, e);
 			return List.of(Map.of("error", "ACCESO_DATOS", "detalle", e.getMessage()));

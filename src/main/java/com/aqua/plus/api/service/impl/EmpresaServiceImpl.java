@@ -287,10 +287,9 @@ public class EmpresaServiceImpl implements IEmpresaService {
 				return response;
 			}
 
-			String nombreEmpresa = (jsonParams.get("nombreEmpresa") == null) ? null
-					: String.valueOf(jsonParams.get("nombreEmpresa"));
-			String usuarioEmpresa = (jsonParams.get("usuario") == null) ? null
-					: String.valueOf(jsonParams.get("usuario"));
+			String nombreEmpresa = String.valueOf(response.get("nombreEmpresa"));
+			String usuarioEmpresa = String.valueOf(response.get("usuarioEmpresa"));
+
 			if (usuarioEmpresa == null || usuarioEmpresa.isBlank()) {
 				response.put("notice",
 						"'usuario' es requerido para generar el token de recuperación. No se envió notificación.");
