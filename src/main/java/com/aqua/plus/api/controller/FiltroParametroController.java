@@ -1,8 +1,10 @@
 package com.aqua.plus.api.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,14 +12,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.FiltroParametroServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
@@ -61,13 +61,11 @@ public class FiltroParametroController {
 			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
 			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
-	@PostMapping("/reportes/run-list")
-	public ResponseEntity<List<Map<String, Object>>> runListParamSelect(
-			@Parameter(description = "Código del SQL parametrizado a ejecutar", required = true) @RequestParam String codigo,
-			@Parameter(description = "Parámetros de reemplazo para el SQL guardado (json)", required = false) @RequestBody(required = false) Map<String, Object> params) {
-
-		List<Map<String, Object>> resp = filtroParametroServiceImpl.runListParamSelect(codigo, params);
-		return ResponseEntity.ok(resp);
+	@PostMapping(value = "/run-list/{codigo}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<List<Map<String, Object>>> runList(@PathVariable String codigo,
+			@RequestBody LinkedHashMap<String, Object> params) {
+		List<Map<String, Object>> out = filtroParametroServiceImpl.runListParamSelect(codigo, params);
+		return ResponseEntity.ok(out);
 	}
 
 }
