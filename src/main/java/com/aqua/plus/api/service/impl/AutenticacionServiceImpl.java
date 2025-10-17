@@ -17,7 +17,6 @@ import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.AutenticacionDTO;
 import com.aqua.plus.commons.dtos.CiudadDTO;
-import com.aqua.plus.commons.dtos.CorregimientoDTO;
 import com.aqua.plus.commons.dtos.DepartamentoDTO;
 import com.aqua.plus.commons.dtos.DireccionDTO;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
