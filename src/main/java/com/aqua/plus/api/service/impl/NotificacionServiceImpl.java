@@ -62,17 +62,20 @@ public class NotificacionServiceImpl {
 	}
 	
 	public String fillValuesPlantilla(String textPlantilla, Map<String,Object> userValues) {
-		log.info("Inicio metodo fillValuesPlantilla : {},{} ", textPlantilla, userValues);
-		Map<String,Object> placeholdersPlantilla = this.tokenizePlantilla(textPlantilla);
-		String finalText = textPlantilla;
-		for(String item: userValues.keySet()) {
-			if(placeholdersPlantilla.get(this.formatStringPlaceholder(item))!=null) {
-				finalText=finalText.replace(this.formatStringPlaceholder(item), userValues.get(item).toString());
-			}
-		}
-		log.info("Fin metodo fillValuesPlantilla");
-		return finalText;
+	    log.info("Inicio metodo fillValuesPlantilla : {},{} ", textPlantilla, userValues);
+	    Map<String,Object> placeholdersPlantilla = this.tokenizePlantilla(textPlantilla);
+	    String finalText = textPlantilla;
+	    for (String item : userValues.keySet()) {
+	        if (placeholdersPlantilla.get(this.formatStringPlaceholder(item)) != null) {
+	            Object val = userValues.get(item);
+	            finalText = finalText.replace(this.formatStringPlaceholder(item),
+	                    (val == null) ? "" : val.toString());
+	        }
+	    }
+	    log.info("Fin metodo fillValuesPlantilla");
+	    return finalText;
 	}
+
 	
 	/**
 	 * Convierte un tiempo en milisegundos obtenido por llave desde la base de datos
