@@ -49,99 +49,86 @@ public class InventarioServiceImpl implements IInventarioService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(InventarioDTO inventarioDTO) {
-	    log.info("Guardar/Actualizar Inventario ");
-	    try {
-	        // ===== Validaciones básicas =====
-	        if (inventarioDTO == null) {
-	            return ResponseEntity.badRequest().body(ResponseDTO.builder()
-	                    .success(false).message("Body requerido: inventario")
-	                    .code(HttpStatus.BAD_REQUEST.value()).build());
-	        }
-	        if (inventarioDTO.getProducto() == null || inventarioDTO.getProducto().getId() == null) {
-	            return ResponseEntity.badRequest().body(ResponseDTO.builder()
-	                    .success(false).message("El id del producto es requerido")
-	                    .code(HttpStatus.BAD_REQUEST.value()).build());
-	        }
+		log.info("Guardar/Actualizar Inventario ");
+		try {
+			if (inventarioDTO == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Body requerido: inventario").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+			if (inventarioDTO.getProducto() == null || inventarioDTO.getProducto().getId() == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El id del producto es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
 
-	        final Integer targetProductoId = inventarioDTO.getProducto().getId();
+			final Integer targetProductoId = inventarioDTO.getProducto().getId();
 
-	        // Nombre real del producto (no confíes en el DTO del request)
-	        final String productoNombre = productoRepository.findById(targetProductoId)
-	                .map(ProductoEntity::getNombre)
-	                .filter(n -> !n.isBlank())
-	                .orElse("(producto sin nombre)");
+			final String productoNombre = productoRepository.findById(targetProductoId).map(ProductoEntity::getNombre)
+					.filter(n -> !n.isBlank()).orElse("(producto sin nombre)");
 
-	        final boolean isUpdate = inventarioDTO.getId() != null
-	                && inventarioRepository.existsById(inventarioDTO.getId());
+			final boolean isUpdate = inventarioDTO.getId() != null
+					&& inventarioRepository.existsById(inventarioDTO.getId());
 
-	        // ===== Unicidad por producto =====
-	        if (!isUpdate) {
-	            // CREAR: no debe existir inventario para ese producto
-	            if (inventarioRepository.existsByProducto_Id(targetProductoId)) {
-	                // 🔁 Solo en conflicto devolvemos el id del inventario existente
-	                Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
+			if (!isUpdate) {
+				if (inventarioRepository.existsByProducto_Id(targetProductoId)) {
+					Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
 
-	                Map<String, Object> payload = new java.util.HashMap<>();
-	                payload.put("id", existenteId); // <-- SOLO aquí
+					Map<String, Object> payload = new java.util.HashMap<>();
+					payload.put("id", existenteId);
 
-	                String msg = String.format(
-	                        "Inventario del producto '%s' ya existente. Actualice el inventario.", productoNombre);
+					String msg = String.format("Inventario del producto '%s' ya existente. Actualice el inventario.",
+							productoNombre);
 
-	                return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder()
-	                        .success(false).message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
-	            }
-	        } else {
-	            // UPDATE: si cambió el producto, validar que el nuevo no tenga ya inventario
-	            InventarioEntity actual = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
-	            Integer currentProductoId = (actual.getProducto() != null ? actual.getProducto().getId() : null);
+					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+							.message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
+				}
+			} else {
+				InventarioEntity actual = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
+				Integer currentProductoId = (actual.getProducto() != null ? actual.getProducto().getId() : null);
 
-	            boolean changedProducto = !java.util.Objects.equals(currentProductoId, targetProductoId);
-	            if (changedProducto && inventarioRepository.existsByProducto_Id(targetProductoId)) {
-	                Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
+				boolean changedProducto = !java.util.Objects.equals(currentProductoId, targetProductoId);
+				if (changedProducto && inventarioRepository.existsByProducto_Id(targetProductoId)) {
+					Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
 
-	                Map<String, Object> payload = new java.util.HashMap<>();
-	                payload.put("id", existenteId); // <-- SOLO aquí
+					Map<String, Object> payload = new java.util.HashMap<>();
+					payload.put("id", existenteId);
 
-	                String msg = String.format(
-	                        "Inventario del producto '%s' ya existente. Actualice el inventario.", productoNombre);
+					String msg = String.format("Inventario del producto '%s' ya existente. Actualice el inventario.",
+							productoNombre);
 
-	                return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder()
-	                        .success(false).message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
-	            }
-	        }
+					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+							.message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
+				}
+			}
 
-	        // ===== Persistencia =====
-	        InventarioEntity entity;
-	        if (isUpdate) {
-	            entity = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
-	            inventarioMapper.updateEntityFromDto(inventarioDTO, entity);
-	            entity.setFechaModificacion(new Date());
-	            entity.setUsuarioModificacion(inventarioDTO.getUsuarioModificacion());
-	        } else {
-	            entity = inventarioMapper.dtoToEntity(inventarioDTO);
-	            entity.setFechaCreacion(new Date());
-	            entity.setUsuarioCreacion(inventarioDTO.getUsuarioCreacion());
-	            if (entity.getActivo() == null) entity.setActivo(true);
-	        }
+			InventarioEntity entity;
+			if (isUpdate) {
+				entity = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
+				inventarioMapper.updateEntityFromDto(inventarioDTO, entity);
+				entity.setFechaModificacion(new Date());
+				entity.setUsuarioModificacion(inventarioDTO.getUsuarioModificacion());
+			} else {
+				entity = inventarioMapper.dtoToEntity(inventarioDTO);
+				entity.setFechaCreacion(new Date());
+				entity.setUsuarioCreacion(inventarioDTO.getUsuarioCreacion());
+				if (entity.getActivo() == null)
+					entity.setActivo(true);
+			}
 
-	        InventarioEntity saved  = inventarioRepository.save(entity);
-	        InventarioDTO   savedDTO = inventarioMapper.entityToDto(saved);
+			InventarioEntity saved = inventarioRepository.save(entity);
+			InventarioDTO savedDTO = inventarioMapper.entityToDto(saved);
 
-	        // ✅ En éxito: NO devolvemos el id como campo suelto, solo el DTO (o lo que ya retornabas)
-	        String message   = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
-	        int    statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
+			String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
+			int statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
 
-	        return ResponseEntity.status(statusCode).body(ResponseDTO.builder()
-	                .success(true).message(message).code(statusCode).response(savedDTO).build());
+			return ResponseEntity.status(statusCode).body(
+					ResponseDTO.builder().success(true).message(message).code(statusCode).response(savedDTO).build());
 
-	    } catch (Exception e) {
-	        log.error("Error guardando el inventario", e);
-	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder()
-	                .success(false).message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
-	    }
+		} catch (Exception e) {
+			log.error("Error guardando el inventario", e);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
+		}
 	}
-
-
 
 	@Override
 	@Transactional(readOnly = true)
