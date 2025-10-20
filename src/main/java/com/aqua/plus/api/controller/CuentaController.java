@@ -98,7 +98,7 @@ public class CuentaController {
 			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "404", description = "Sin resultados", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
-	@GetMapping("/empresa/{id}")
+	@GetMapping("/empresa/{idEmpresa}")
 	public ResponseEntity<ResponseDTO> getCuentasByEmpresa(
 			@PathVariable("idEmpresa") @jakarta.validation.constraints.NotNull Integer idEmpresa,
 			@RequestParam(value = "codigo", required = false) String cuentaCodigo,
