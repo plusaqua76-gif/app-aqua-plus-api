@@ -1,8 +1,11 @@
 package com.aqua.plus.api.service.impl;
 
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
+import org.postgresql.util.PGobject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -17,6 +20,7 @@ import com.aqua.plus.commons.entities.FiltroParametroEntity;
 import com.aqua.plus.commons.maps.FiltroParametroMapper;
 import com.aqua.plus.commons.repositories.FiltroParametroRepository;
 import com.aqua.plus.commons.utils.Constantes;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -74,29 +78,37 @@ public class FiltroParametroServiceImpl implements IFiltroParametroService {
 
 	@Transactional(readOnly = true)
 	public List<Map<String, Object>> runListParamSelect(String codigo, Map<String, Object> paramsJson) {
-		String jsonParams = (paramsJson == null || paramsJson.isEmpty()) ? "{}"
-				: objectMapper.valueToTree(paramsJson).toString();
-
-		String sql = """
-				    SELECT reportes.run_list_param_select_text(:codigo, :params) AS payload
-				""";
-
-		MapSqlParameterSource p = new MapSqlParameterSource().addValue("codigo", codigo, java.sql.Types.VARCHAR)
-				.addValue("params", jsonParams, java.sql.Types.VARCHAR);
-
 		try {
+			String jsonParams = (paramsJson == null) ? "{}" : objectMapper.writeValueAsString(paramsJson);
+
+			if (log.isDebugEnabled()) {
+				log.debug("[runListParamSelect] codigo={} jsonParams={}", codigo, jsonParams);
+			}
+
+			PGobject jsonbParam = new PGobject();
+			jsonbParam.setType("jsonb");
+			try {
+				jsonbParam.setValue(jsonParams);
+			} catch (SQLException e) {
+				throw new IllegalArgumentException("JSON inválido para jsonb: " + jsonParams, e);
+			}
+
+			String sql = "SELECT reportes.run_list_param_select(:codigo, :params)::text AS payload";
+
+			MapSqlParameterSource p = new MapSqlParameterSource().addValue("codigo", codigo, Types.VARCHAR)
+					.addValue("params", jsonbParam, Types.OTHER);
+
 			String json = namedParameterJdbcTemplate.queryForObject(sql, p, String.class);
-			if (json == null || json.isBlank())
+			if (json == null || json.isBlank()) {
 				return List.of();
+			}
 
 			try {
-				return objectMapper.readValue(json,
-						new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {
-						});
+				return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {
+				});
 			} catch (com.fasterxml.jackson.databind.JsonMappingException ex) {
-				Map<String, Object> single = objectMapper.readValue(json,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
-						});
+				Map<String, Object> single = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+				});
 				return List.of(single);
 			}
 
