@@ -44,11 +44,64 @@ public class ProductoServiceImpl implements IProductoService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(ProductoDTO productoDTO) {
-		log.info("Guardar/Actualizar Producto ");
-		try {
-			boolean isUpdate = productoDTO.getId() != null && productoRepository.existsById(productoDTO.getId());
-			ProductoEntity entity;
+		log.info("Guardar/Actualizar Producto");
 
+		try {
+			// ===== Validaciones básicas =====
+			if (productoDTO == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Body requerido: producto").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+			if (productoDTO.getEmpresa() == null || productoDTO.getEmpresa().getId() == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El id de la empresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+			if (productoDTO.getCodigo() == null || productoDTO.getCodigo().isBlank()) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("El código del producto es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			final Integer targetEmpresaId = productoDTO.getEmpresa().getId();
+			final String targetCodigo = productoDTO.getCodigo().trim();
+			final String targetNombre = (productoDTO.getNombre() == null || productoDTO.getNombre().isBlank())
+					? "(sin nombre)"
+					: productoDTO.getNombre().trim();
+
+			final boolean isUpdate = (productoDTO.getId() != null
+					&& productoRepository.existsById(productoDTO.getId()));
+
+			// ===== Validación de unicidad (empresa + código) =====
+			if (!isUpdate) {
+				// CREATE
+				if (productoRepository.existsByEmpresa_IdAndCodigoIgnoreCase(targetEmpresaId, targetCodigo)) {
+					String msg = String.format("Producto '%s' ya existente con el código '%s'", targetNombre,
+							targetCodigo);
+					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+							.message(msg).code(HttpStatus.CONFLICT.value()).build());
+				}
+			} else {
+				// UPDATE: comparar cambios de empresa/código
+				ProductoEntity actual = productoRepository.findById(productoDTO.getId()).orElseThrow();
+
+				Integer currentEmpresaId = (actual.getEmpresa() != null ? actual.getEmpresa().getId() : null);
+				String currentCodigo = (actual.getCodigo() != null ? actual.getCodigo().trim() : null);
+
+				boolean changedEmpresa = !java.util.Objects.equals(currentEmpresaId, targetEmpresaId);
+				boolean changedCodigo = (currentCodigo == null && targetCodigo != null)
+						|| (currentCodigo != null && !currentCodigo.equalsIgnoreCase(targetCodigo));
+
+				if (changedEmpresa || changedCodigo) {
+					if (productoRepository.existsByEmpresa_IdAndCodigoIgnoreCase(targetEmpresaId, targetCodigo)) {
+						String msg = String.format("Producto '%s' ya existente con el código '%s'", targetNombre,
+								targetCodigo);
+						return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+								.message(msg).code(HttpStatus.CONFLICT.value()).build());
+					}
+				}
+			}
+
+			// ===== Persistencia =====
+			ProductoEntity entity;
 			if (isUpdate) {
 				entity = productoRepository.findById(productoDTO.getId()).orElseThrow();
 				productoMapper.updateEntityFromDto(productoDTO, entity);
@@ -58,8 +111,12 @@ public class ProductoServiceImpl implements IProductoService {
 				entity = productoMapper.dtoToEntity(productoDTO);
 				entity.setFechaCreacion(new Date());
 				entity.setUsuarioCreacion(productoDTO.getUsuarioCreacion());
-				entity.setActivo(true);
+				if (entity.getActivo() == null)
+					entity.setActivo(true);
 			}
+
+			// normaliza el código
+			entity.setCodigo(targetCodigo);
 
 			ProductoEntity saved = productoRepository.save(entity);
 			ProductoDTO savedDTO = productoMapper.entityToDto(saved);
@@ -67,17 +124,13 @@ public class ProductoServiceImpl implements IProductoService {
 			String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
 			int statusCode = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(message).code(statusCode)
-					.response(savedDTO).build();
-
-			return ResponseEntity.status(statusCode).body(responseDTO);
+			return ResponseEntity.status(statusCode).body(
+					ResponseDTO.builder().success(true).message(message).code(statusCode).response(savedDTO).build());
 
 		} catch (Exception e) {
-			log.error("Error guardando la cuenta", e);
-			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
-					.code(HttpStatus.BAD_REQUEST.value()).build();
-
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+			log.error("Error guardando el producto", e);
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
 		}
 	}
 
