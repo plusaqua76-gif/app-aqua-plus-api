@@ -716,19 +716,15 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			var ecc = opt.get();
 
-			// Persona
 			var personaEntity = ecc.getCliente();
 			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
 
-			// Contadores de la persona
 			var contadores = (personaId != null) ? contadorRepository.findByCliente_Id(personaId)
 					: java.util.Collections.<ContadorEntity>emptyList();
 
-			// Mapear a DTOs (sin eccDTO, ya no lo usamos)
 			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
 			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
 
-			// RutaEmpleado por ECC -> empleado asignado
 			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
 
 			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
@@ -737,7 +733,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
 					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
 
-			// Payload sin redundancias
 			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
 					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).build();
 
