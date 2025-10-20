@@ -8,9 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,14 +26,21 @@ import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
 import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
+import com.aqua.plus.commons.dtos.ContadorDTO;
+import com.aqua.plus.commons.dtos.EccDetalleDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
+import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
+import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
+import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
+import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
+import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
@@ -59,6 +64,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final EmpresaClienteContadorMapper empresaClienteContadorMapper;
+	private final PersonaMapper personaMapper;
+	private final ContadorMapper contadorMapper;
 	private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final NotificacionServiceImpl notificacionServiceImpl;
@@ -346,12 +353,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre, String serialContador) {
+			String correo, String tipoDocumentoNombre) {
 
 		log.info(
 				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, serialContador={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
-				tipoDocumentoNombre, serialContador);
+				tipoDocumentoNombre);
 
 		try {
 			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
@@ -361,26 +368,69 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.direccionCiudadNombreLike(ciudad),
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
-					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre),
-					PersonaSpecification.contadorSerialLike(serialContador) // <-- NUEVO filtro
-			);
+					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
 
 			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository
 					.findAll((root, q, cb) -> (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb));
 
-			// batch de rutas (igual que ya lo tienes)
-			List<Integer> eccIds = all.stream().map(EmpresaClienteContadorEntity::getId).filter(Objects::nonNull)
-					.toList();
-
-			Map<Integer, RutaEmpleadoEntity> rutaPorEcc = Collections.emptyMap();
-			if (!eccIds.isEmpty()) {
-				List<RutaEmpleadoEntity> rutas = rutaEmpleadoRepository.findActivasByEmpresaClienteContadorIdIn(eccIds);
-				rutaPorEcc = rutas.stream().collect(Collectors.toMap(re -> re.getEmpresaClienteContador().getId(),
-						re -> re, (a, b) -> (a.getFechaCreacion().after(b.getFechaCreacion()) ? a : b)));
+			if (all.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron clientes para los filtros dados").code(HttpStatus.NOT_FOUND.value())
+						.response(List.of()).totalCount(0L).pageSize(pageable != null ? pageable.getPageSize() : 20)
+						.currentPage(pageable != null ? pageable.getPageNumber() : 0).totalPages(0).build());
 			}
 
-			List<Map<String, Object>> rows = new ArrayList<>(all.size());
+			// === 3) De-duplicar por cédula (tipoDocumento + numeroCedula). Fallback:
+			// personaId ===
+			Map<String, EmpresaClienteContadorEntity> bestByDoc = new LinkedHashMap<>();
+
 			for (var ecc : all) {
+				var p = ecc.getCliente();
+				if (p == null)
+					continue;
+
+				String numero = (p.getNumeroCedula() != null) ? p.getNumeroCedula().trim() : null;
+				Integer tipoDocIdKey = (p.getTipoDocumento() != null ? p.getTipoDocumento().getId() : null);
+
+				String key;
+				if (numero != null && !numero.isBlank()) {
+					key = "DOC:" + (tipoDocIdKey != null ? tipoDocIdKey : "NULL") + ":" + numero.toLowerCase();
+				} else {
+					if (p.getId() == null)
+						continue;
+					key = "PID:" + p.getId();
+				}
+
+				var current = bestByDoc.get(key);
+				if (current == null) {
+					bestByDoc.put(key, ecc);
+					continue;
+				}
+
+				boolean eccActivo = Boolean.TRUE.equals(ecc.getActivo());
+				boolean curActivo = Boolean.TRUE.equals(current.getActivo());
+
+				if (eccActivo && !curActivo) {
+					bestByDoc.put(key, ecc);
+				} else if (eccActivo == curActivo) {
+					Date eccFecha = ecc.getFechaCreacion();
+					Date curFecha = current.getFechaCreacion();
+					int cmp;
+					if (eccFecha != null && curFecha != null) {
+						cmp = eccFecha.compareTo(curFecha);
+					} else {
+						cmp = Integer.compare((ecc.getId() != null ? ecc.getId() : Integer.MIN_VALUE),
+								(current.getId() != null ? current.getId() : Integer.MIN_VALUE));
+					}
+					if (cmp > 0) {
+						bestByDoc.put(key, ecc);
+					}
+				}
+			}
+
+			// === 4) Construir rows a partir del ECC elegido por cédula/persona ===
+			List<Map<String, Object>> rows = new ArrayList<>(bestByDoc.size());
+			for (var ecc : bestByDoc.values()) {
 				var p = ecc.getCliente();
 				Integer personaId = (p != null ? p.getId() : null);
 
@@ -411,12 +461,18 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					var d = p.getDireccion();
 					direccionId = d.getId();
 					dirDescripcion = d.getDescripcion();
-					depId = (d.getDepartamento() != null) ? d.getDepartamento().getId() : null;
-					depNombre = (d.getDepartamento() != null) ? d.getDepartamento().getNombre() : null;
-					ciuId = (d.getCiudad() != null) ? d.getCiudad().getId() : null;
-					ciudadNombre = (d.getCiudad() != null) ? d.getCiudad().getNombre() : null;
-					corrId = (d.getCorregimiento() != null) ? d.getCorregimiento().getId() : null;
-					corrNombre = (d.getCorregimiento() != null) ? d.getCorregimiento().getNombre() : null;
+					if (d.getDepartamento() != null) {
+						depId = d.getDepartamento().getId();
+						depNombre = d.getDepartamento().getNombre();
+					}
+					if (d.getCiudad() != null) {
+						ciuId = d.getCiudad().getId();
+						ciudadNombre = d.getCiudad().getNombre();
+					}
+					if (d.getCorregimiento() != null) {
+						corrId = d.getCorregimiento().getId();
+						corrNombre = d.getCorregimiento().getNombre();
+					}
 				}
 
 				String correoVal = (personaId != null)
@@ -428,30 +484,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
 								.map(TelefonoGeneralEntity::getNumero).orElse(null)
 						: null;
-
-				Integer empleadoEmpresaId = null;
-				String empleadoNombreCompleto = null;
-
-				RutaEmpleadoEntity ruta = rutaPorEcc.get(ecc.getId());
-				if (ruta != null && ruta.getEmpleadoEmpresa() != null
-						&& ruta.getEmpleadoEmpresa().getPersona() != null) {
-					var pe = ruta.getEmpleadoEmpresa().getPersona();
-					empleadoEmpresaId = ruta.getEmpleadoEmpresa().getId();
-
-					StringBuilder fullEmp = new StringBuilder();
-					if (pe.getNombre() != null)
-						fullEmp.append(pe.getNombre()).append(' ');
-					if (pe.getSegundoNombre() != null)
-						fullEmp.append(pe.getSegundoNombre()).append(' ');
-					if (pe.getApellido() != null)
-						fullEmp.append(pe.getApellido()).append(' ');
-					if (pe.getSegundoApellido() != null)
-						fullEmp.append(pe.getSegundoApellido());
-					empleadoNombreCompleto = fullEmp.toString().trim().replaceAll("\\s+", " ");
-				}
-
-				// ====== NUEVO: serial del contador desde ECC ======
-				String contadorSerial = (ecc.getContador() != null ? ecc.getContador().getSerial() : null);
 
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("empresaClienteContadorId", ecc.getId());
@@ -472,11 +504,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				row.put("corregimientoId", corrId);
 				row.put("correo", correoVal);
 				row.put("telefono", telVal);
-				row.put("empleadoEmpresaId", empleadoEmpresaId);
-				row.put("empleadoNombreCompleto", empleadoNombreCompleto);
-
-				// 👉 Campo NUEVO en el response:
-				row.put("contadorSerial", contadorSerial);
 
 				rows.add(row);
 			}
@@ -679,24 +706,77 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
 		log.info("Buscar Empresa Cliente Contador por id: {}", id);
 		try {
-			Optional<EmpresaClienteContadorEntity> empresaClienteContador = empresaClienteContadorRepository
-					.findById(id);
-			if (empresaClienteContador.isPresent()) {
-				EmpresaClienteContadorDTO dto = empresaClienteContadorMapper.entityToDto(empresaClienteContador.get());
-				ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-						.code(HttpStatus.OK.value()).response(dto).build();
-				return ResponseEntity.ok(responseDTO);
-			} else {
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
-						.code(HttpStatus.NOT_FOUND.value()).build();
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			var opt = empresaClienteContadorRepository.findById(id);
+			if (opt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró Empresa-Cliente-Contador con id " + id)
+								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
+
+			var ecc = opt.get();
+
+			// Persona
+			var personaEntity = ecc.getCliente();
+			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
+
+			// Contadores de la persona
+			var contadores = (personaId != null) ? contadorRepository.findByCliente_Id(personaId)
+					: java.util.Collections.<ContadorEntity>emptyList();
+
+			// Mapear a DTOs (sin eccDTO, ya no lo usamos)
+			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
+			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
+
+			// RutaEmpleado por ECC -> empleado asignado
+			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
+
+			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+					.map(EmpleadoEmpresaEntity::getId).orElse(null);
+
+			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
+
+			// Payload sin redundancias
+			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
+					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).build();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(payload).build());
+
 		} catch (Exception e) {
-			log.error("Error al buscar  Empresa Cliente Contador por id: {}", id, e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
+	}
+
+	private String resolveEmpleadoNombreSeguro(EmpleadoEmpresaEntity ee) {
+		if (ee == null)
+			return null;
+		try {
+			Object emp = ee.getPersona();
+			if (emp instanceof PersonaEntity persona) {
+				return nombreCompleto(persona.getNombre(), persona.getSegundoNombre(), persona.getApellido(),
+						persona.getSegundoApellido());
+			}
+		} catch (Exception ignore) {
+		}
+		return null;
+	}
+
+	private String nombreCompleto(String n, String sn, String a, String sa) {
+		StringBuilder sb = new StringBuilder();
+		if (n != null && !n.isBlank())
+			sb.append(n).append(' ');
+		if (sn != null && !sn.isBlank())
+			sb.append(sn).append(' ');
+		if (a != null && !a.isBlank())
+			sb.append(a).append(' ');
+		if (sa != null && !sa.isBlank())
+			sb.append(sa);
+		return sb.toString().trim().replaceAll("\\s+", " ");
 	}
 
 	@Override
