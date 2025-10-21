@@ -24,7 +24,7 @@ public interface IInventarioService {
 
 	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Integer cantidad, Double precioUnitario,
 			Double precioVenta, Integer porcentaje, String codigo, String nombre, String descripcion,
-			Pageable pageable);
+			String descripcionProducto, String categoriaNombre, Pageable pageable);
 
 	ResponseEntity<ResponseDTO> findAll();
 

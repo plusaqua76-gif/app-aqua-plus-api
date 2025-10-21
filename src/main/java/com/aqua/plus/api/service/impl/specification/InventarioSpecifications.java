@@ -53,10 +53,27 @@ public class InventarioSpecifications {
 				"%" + nombre.trim().toUpperCase() + "%");
 	}
 
+	/** NUEVO: descripción del PRODUCTO (distinta a inventario.descripcion) */
+	public static Specification<InventarioEntity> descripcionProductoLike(String descripcionProducto) {
+		if (descripcionProducto == null || descripcionProducto.isBlank())
+			return null;
+		return (root, q, cb) -> cb.like(cb.upper(root.join("producto").get("descripcion")),
+				"%" + descripcionProducto.trim().toUpperCase() + "%");
+	}
+
+	/** Ya tienes esta, y apunta a inventario.descripcion */
 	public static Specification<InventarioEntity> descripcionLike(String descripcion) {
 		if (descripcion == null || descripcion.isBlank())
 			return null;
 		return (root, q, cb) -> cb.like(cb.upper(root.get("descripcion")),
 				"%" + descripcion.trim().toUpperCase() + "%");
+	}
+
+	/** NUEVO: categoría del PRODUCTO */
+	public static Specification<InventarioEntity> categoriaNombreLike(String categoriaNombre) {
+		if (categoriaNombre == null || categoriaNombre.isBlank())
+			return null;
+		return (root, q, cb) -> cb.like(cb.upper(root.join("producto").join("categoria").get("nombre")),
+				"%" + categoriaNombre.trim().toUpperCase() + "%");
 	}
 }

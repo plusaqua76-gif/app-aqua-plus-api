@@ -2,7 +2,6 @@ package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -49,7 +48,7 @@ public class InventarioServiceImpl implements IInventarioService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(InventarioDTO inventarioDTO) {
-		log.info("Guardar/Actualizar Inventario ");
+		log.info("Guardar/Actualizar Inventario (upsert por id/producto, sumando cantidad)");
 		try {
 			if (inventarioDTO == null) {
 				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
@@ -62,59 +61,65 @@ public class InventarioServiceImpl implements IInventarioService {
 
 			final Integer targetProductoId = inventarioDTO.getProducto().getId();
 
-			final String productoNombre = productoRepository.findById(targetProductoId).map(ProductoEntity::getNombre)
-					.filter(n -> !n.isBlank()).orElse("(producto sin nombre)");
+			InventarioEntity target = null;
+			boolean isUpdate = false;
 
-			final boolean isUpdate = inventarioDTO.getId() != null
-					&& inventarioRepository.existsById(inventarioDTO.getId());
+			if (inventarioDTO.getId() != null && inventarioRepository.existsById(inventarioDTO.getId())) {
+				target = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
+				isUpdate = true;
 
-			if (!isUpdate) {
-				if (inventarioRepository.existsByProducto_Id(targetProductoId)) {
-					Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
-
-					Map<String, Object> payload = new java.util.HashMap<>();
-					payload.put("id", existenteId);
-
-					String msg = String.format("Inventario del producto '%s' ya existente. Actualice el inventario.",
-							productoNombre);
-
-					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
-							.message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
+				Optional<Integer> invIdByProductOpt = inventarioRepository.findIdByProductoId(targetProductoId);
+				if (invIdByProductOpt.isPresent() && !invIdByProductOpt.get().equals(target.getId())) {
+					Integer otherId = invIdByProductOpt.get();
+					log.info(
+							"[INV] DTO trae id={}, pero el producto {} ya tiene inventario id={}. Se actualizará id={}.",
+							target.getId(), targetProductoId, otherId, otherId);
+					target = inventarioRepository.findById(otherId).orElseThrow();
+				} else {
+					if (target.getProducto() == null || !targetProductoId.equals(target.getProducto().getId())) {
+						ProductoEntity prod = productoRepository.findById(targetProductoId).orElseThrow();
+						target.setProducto(prod);
+					}
 				}
+
 			} else {
-				InventarioEntity actual = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
-				Integer currentProductoId = (actual.getProducto() != null ? actual.getProducto().getId() : null);
+				Optional<Integer> invIdByProductOpt = inventarioRepository.findIdByProductoId(targetProductoId);
+				if (invIdByProductOpt.isPresent()) {
+					Integer existingId = invIdByProductOpt.get();
+					target = inventarioRepository.findById(existingId).orElseThrow();
+					isUpdate = true;
+					log.info("[INV] Upsert por producto: {} → update id={}", targetProductoId, existingId);
+				} else {
+					target = inventarioMapper.dtoToEntity(inventarioDTO);
+					isUpdate = false;
+					target.setFechaCreacion(new Date());
+					target.setUsuarioCreacion(inventarioDTO.getUsuarioCreacion());
+					if (target.getActivo() == null)
+						target.setActivo(true);
 
-				boolean changedProducto = !java.util.Objects.equals(currentProductoId, targetProductoId);
-				if (changedProducto && inventarioRepository.existsByProducto_Id(targetProductoId)) {
-					Integer existenteId = inventarioRepository.findIdByProductoId(targetProductoId).orElse(null);
-
-					Map<String, Object> payload = new java.util.HashMap<>();
-					payload.put("id", existenteId);
-
-					String msg = String.format("Inventario del producto '%s' ya existente. Actualice el inventario.",
-							productoNombre);
-
-					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
-							.message(msg).code(HttpStatus.CONFLICT.value()).response(payload).build());
+					if (target.getProducto() == null || !targetProductoId.equals(target.getProducto().getId())) {
+						ProductoEntity prod = productoRepository.findById(targetProductoId).orElseThrow();
+						target.setProducto(prod);
+					}
+					log.info("[INV] Crear inventario nuevo para producto {}", targetProductoId);
 				}
 			}
 
-			InventarioEntity entity;
+			if (inventarioDTO.getCantidad() != null && inventarioDTO.getCantidad() < 0) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false)
+								.message("La cantidad no puede ser negativa. Solo se permiten incrementos.")
+								.code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			applyPartialUpdateSoloSumas(target, inventarioDTO, isUpdate);
+
 			if (isUpdate) {
-				entity = inventarioRepository.findById(inventarioDTO.getId()).orElseThrow();
-				inventarioMapper.updateEntityFromDto(inventarioDTO, entity);
-				entity.setFechaModificacion(new Date());
-				entity.setUsuarioModificacion(inventarioDTO.getUsuarioModificacion());
-			} else {
-				entity = inventarioMapper.dtoToEntity(inventarioDTO);
-				entity.setFechaCreacion(new Date());
-				entity.setUsuarioCreacion(inventarioDTO.getUsuarioCreacion());
-				if (entity.getActivo() == null)
-					entity.setActivo(true);
+				target.setFechaModificacion(new Date());
+				target.setUsuarioModificacion(inventarioDTO.getUsuarioModificacion());
 			}
 
-			InventarioEntity saved = inventarioRepository.save(entity);
+			InventarioEntity saved = inventarioRepository.save(target);
 			InventarioDTO savedDTO = inventarioMapper.entityToDto(saved);
 
 			String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
@@ -130,15 +135,39 @@ public class InventarioServiceImpl implements IInventarioService {
 		}
 	}
 
+	private void applyPartialUpdateSoloSumas(InventarioEntity entity, InventarioDTO dto, boolean isUpdate) {
+		if (dto.getCantidad() != null) {
+			if (isUpdate) {
+				int base = (entity.getCantidad() != null ? entity.getCantidad() : 0);
+				int delta = dto.getCantidad();
+				entity.setCantidad(base + delta);
+			} else {
+				entity.setCantidad(dto.getCantidad());
+			}
+		}
+
+		if (dto.getPrecioUnitario() != null)
+			entity.setPrecioUnitario(dto.getPrecioUnitario());
+		if (dto.getPrecioVenta() != null)
+			entity.setPrecioVenta(dto.getPrecioVenta());
+		if (dto.getPorcentaje() != null)
+			entity.setPorcentaje(dto.getPorcentaje());
+		if (dto.getDescripcion() != null)
+			entity.setDescripcion(dto.getDescripcion());
+		if (dto.getActivo() != null)
+			entity.setActivo(dto.getActivo());
+	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, Integer cantidad, Double precioUnitario,
 			Double precioVenta, Integer porcentaje, String codigo, String nombre, String descripcion,
-			Pageable pageable) {
+			String descripcionProducto, String categoriaNombre, Pageable pageable) {
 
 		log.info(
-				"Buscar inventario empresa={}, filtros: cantidad={}, pUnit={}, pVenta={}, %={}, codigo={}, nombre={}, desc={}",
-				idEmpresa, cantidad, precioUnitario, precioVenta, porcentaje, codigo, nombre, descripcion);
+				"Buscar inventario empresa={}, filtros: cantidad={}, pUnit={}, pVenta={}, %={}, codigo={}, nombre={}, descInv={}, descProd={}, categoria={}",
+				idEmpresa, cantidad, precioUnitario, precioVenta, porcentaje, codigo, nombre, descripcion,
+				descripcionProducto, categoriaNombre);
 
 		try {
 			if (idEmpresa == null) {
@@ -146,7 +175,9 @@ public class InventarioServiceImpl implements IInventarioService {
 						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
+			Sort defaultSort = Sort.by(Sort.Order.asc("producto.nombre"), Sort.Order.desc("fechaCreacion"),
+					Sort.Order.desc("id"));
+
 			Pageable pageToUse = (pageable == null) ? PageRequest.of(0, 20, defaultSort)
 					: (pageable.getSort().isUnsorted()
 							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
@@ -162,25 +193,19 @@ public class InventarioServiceImpl implements IInventarioService {
 								.build());
 			}
 
-			boolean hayFiltros = cantidad != null || precioUnitario != null || precioVenta != null || porcentaje != null
-					|| (codigo != null && !codigo.isBlank()) || (nombre != null && !nombre.isBlank())
-					|| (descripcion != null && !descripcion.isBlank());
+			Specification<InventarioEntity> spec = Specification.allOf(
+					InventarioSpecifications.perteneceAEmpresa(idEmpresa),
+					InventarioSpecifications.cantidadEquals(cantidad),
+					InventarioSpecifications.precioUnitarioEquals(precioUnitario),
+					InventarioSpecifications.precioVentaEquals(precioVenta),
+					InventarioSpecifications.porcentajeEquals(porcentaje),
+					InventarioSpecifications.codigoProductoLike(codigo),
+					InventarioSpecifications.nombreProductoLike(nombre),
+					InventarioSpecifications.descripcionLike(descripcion),
+					InventarioSpecifications.descripcionProductoLike(descripcionProducto),
+					InventarioSpecifications.categoriaNombreLike(categoriaNombre));
 
-			Page<InventarioEntity> page;
-
-			if (!hayFiltros) {
-				page = inventarioRepository.findByProducto_Empresa_Id(idEmpresa, pageToUse);
-			} else {
-				Specification<InventarioEntity> spec = Specification.allOf(
-						InventarioSpecifications.cantidadEquals(cantidad),
-						InventarioSpecifications.precioUnitarioEquals(precioUnitario),
-						InventarioSpecifications.precioVentaEquals(precioVenta),
-						InventarioSpecifications.porcentajeEquals(porcentaje),
-						InventarioSpecifications.codigoProductoLike(codigo),
-						InventarioSpecifications.nombreProductoLike(nombre),
-						InventarioSpecifications.descripcionLike(descripcion));
-				page = inventarioRepository.findAll(spec, pageToUse);
-			}
+			Page<InventarioEntity> page = inventarioRepository.findAll(spec, pageToUse);
 
 			if (page.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -191,14 +216,21 @@ public class InventarioServiceImpl implements IInventarioService {
 								.build());
 			}
 
-			List<InventarioResponseDTO> dtoList = page.getContent().stream()
-					.map(entity -> InventarioResponseDTO.builder().id(entity.getId())
-							.productoId(entity.getProducto().getId()).codigo(entity.getProducto().getCodigo())
-							.nombre(entity.getProducto().getNombre()).cantidad(entity.getCantidad())
-							.precioUnitario(entity.getPrecioUnitario()).precioVenta(entity.getPrecioVenta())
-							.porcentaje(entity.getPorcentaje()).descripcion(entity.getDescripcion())
-							.activo(entity.getActivo()).fechaCreacion(entity.getFechaCreacion()).build())
-					.toList();
+			// ===== Mapeo a DTO de respuesta (incluye datos del producto) =====
+			List<InventarioResponseDTO> dtoList = page.getContent().stream().map(entity -> {
+				var prod = entity.getProducto();
+				String categoria = null;
+				if (prod != null && prod.getCategoria() != null) {
+					categoria = prod.getCategoria().getNombre();
+				}
+				return InventarioResponseDTO.builder().id(entity.getId()).productoId(prod != null ? prod.getId() : null)
+						.codigo(prod != null ? prod.getCodigo() : null).nombre(prod != null ? prod.getNombre() : null)
+						.descripcionProducto(prod != null ? prod.getDescripcion() : null).categoriaNombre(categoria)
+						.cantidad(entity.getCantidad()).precioUnitario(entity.getPrecioUnitario())
+						.precioVenta(entity.getPrecioVenta()).porcentaje(entity.getPorcentaje())
+						.descripcion(entity.getDescripcion()).activo(entity.getActivo())
+						.fechaCreacion(entity.getFechaCreacion()).build();
+			}).toList();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(dtoList).totalCount(page.getTotalElements())

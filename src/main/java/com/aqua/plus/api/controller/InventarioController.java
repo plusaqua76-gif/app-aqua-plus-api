@@ -79,9 +79,11 @@ public class InventarioController {
 			@RequestParam(value = "codigo", required = false) String codigo,
 			@RequestParam(value = "nombre", required = false) String nombre,
 			@RequestParam(value = "descripcion", required = false) String descripcion,
+			@RequestParam(value = "descripcionProducto", required = false) String descripcionProducto,
+			@RequestParam(value = "categoriaNombre", required = false) String categoriaNombre,
 			@PageableDefault(size = 20, sort = "fechaCreacion", direction = Sort.Direction.DESC) Pageable pageable) {
 		return inventarioServiceImpl.findByEnterpriseId(idEmpresa, cantidad, precioUnitario, precioVenta, porcentaje,
-				codigo, nombre, descripcion, pageable);
+				codigo, nombre, descripcion, descripcionProducto, categoriaNombre, pageable);
 	}
 
 	@Operation(summary = "Buscar inventario por id")
