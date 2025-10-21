@@ -478,6 +478,42 @@ public class FacturaServiceImpl implements IFacturaService {
 					Map.of("success", false, "code", 500, "message", "Error inesperado", "detalle", ex.getMessage()));
 		}
 	}
+	
+	@Transactional(readOnly = true)
+	public ResponseEntity<Map<String, Object>> metricasConsumoMesEmpresa(Integer empresaId, Integer anio, Integer mes) {
+		try {
+			final String sql = """
+					    SELECT public.fn_metricas_consumo_mes_empresa(:idEmpresa, :anio, :mes)::text AS payload
+					""";
+
+			MapSqlParameterSource params = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+					.addValue("anio", anio).addValue("mes", mes);
+
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+			String payload = (String) row.get("payload");
+
+			Map<String, Object> body = objectMapper.readValue(payload,
+					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					});
+
+			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
+			boolean success = Boolean.TRUE.equals(body.getOrDefault("success", true));
+			HttpStatus status = HttpStatus.resolve(code);
+			if (status == null)
+				status = success ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR;
+
+			return ResponseEntity.status(status).body(body);
+
+		} catch (org.springframework.dao.EmptyResultDataAccessException ex) {
+			return ResponseEntity.ok(Map.of("success", true, "code", 200, "message", "Sin datos", "data", Map.of()));
+		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "code", 500,
+					"message", "JSON inválido desde la función", "detalle", ex.getMessage()));
+		} catch (Exception ex) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+					Map.of("success", false, "code", 500, "message", "Error inesperado", "detalle", ex.getMessage()));
+		}
+	}
 
 	@Transactional(readOnly = true)
 	public Map<String, Object> metricasFacturaMes(Integer empresaId, Integer anio, Integer mes) {
