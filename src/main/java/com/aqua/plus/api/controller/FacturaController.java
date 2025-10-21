@@ -189,10 +189,23 @@ public class FacturaController {
 			@ApiResponse(responseCode = "404", description = "No encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
 			@ApiResponse(responseCode = "422", description = "Entidad no procesable", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
 			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))) })
-	@GetMapping("/consumo-mes")
+	@GetMapping("/consumo-clientes")
 	public ResponseEntity<Map<String, Object>> metricasConsumoMes(@RequestParam Integer empresaId,
 			@RequestParam Integer anio, Integer mes) {
 		return facturaServiceImpl.metricasConsumoMes(empresaId, anio, mes);
+	}
+
+	@Operation(summary = "Métricas de consumo por mes", description = "Invoca la función public.fn_metricas_consumo_mes_empresa para obtener m³ Contador Padre Empresa e importes del periodo.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "OK", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "400", description = "Solicitud inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "404", description = "No encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "422", description = "Entidad no procesable", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))) })
+	@GetMapping("/consumo-empresas") 
+	public ResponseEntity<Map<String, Object>> metricasConsumoMesEmpresa(@RequestParam Integer empresaId,
+			@RequestParam Integer anio, Integer mes) {
+		return facturaServiceImpl.metricasConsumoMesEmpresa(empresaId, anio, mes);
 	}
 
 	@Operation(summary = "Métricas de factura por mes", description = "Invoca el SP public.fn_metricas_facturas_mes para obtener m³ totales e importes del mes.")
