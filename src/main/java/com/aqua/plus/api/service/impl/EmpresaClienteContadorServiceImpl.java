@@ -725,6 +725,16 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
 			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
 
+			String correoVal = (personaId != null)
+					? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(CorreoGeneralEntity::getCorreo).orElse(null)
+					: null;
+
+			String telVal = (personaId != null)
+					? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(TelefonoGeneralEntity::getNumero).orElse(null)
+					: null;
+
 			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
 
 			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
@@ -734,7 +744,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
 
 			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
-					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).build();
+					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal) // NUEVO
+					.telefono(telVal).build();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(payload).build());
