@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpleadoEmpresaService;
 import com.aqua.plus.api.service.impl.specification.EmpleadoEmpresaSpecification;
+import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.commons.dtos.EmpleadoEmpresaResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
@@ -53,30 +54,68 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
+	private final NotificacionServiceImpl notificacionServiceImpl;
+	private final EncriptarDesencriptar encriptarDesencriptar;
 
 	@Transactional
 	public Map<String, Object> save(Map<String, Object> jsonParams) {
 		try {
-			String jsonString = objectMapper.writeValueAsString(jsonParams);
-
-			String sql = "SELECT * FROM public.guardar_empleado_completo(CAST(:jsonData AS jsonb))";
-
-			MapSqlParameterSource parameters = new MapSqlParameterSource();
-			parameters.addValue("jsonData", jsonString);
-
-			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
-			Object wrappedValue = rawResult.get("guardar_empleado_completo");
-			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-				String jsonValue = pgObject.getValue();
-				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
-				});
+			String plainPassword = (String) jsonParams.get("password");
+			if (plainPassword != null && !plainPassword.isBlank()) {
+				String encodedPassword = encriptarDesencriptar.encriptar(plainPassword);
+				jsonParams.put("password", encodedPassword);
 			}
 
-			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+			String jsonString = objectMapper.writeValueAsString(jsonParams);
+			String sql = "SELECT public.guardar_empleado_completo(CAST(:jsonData AS jsonb)) AS result";
 
-		} catch (JsonProcessingException e) {
-			log.error("Error de procesamiento JSON", e);
+			MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
+
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+			Object wrapped = row.get("result");
+
+			if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+				String jsonValue = pg.getValue();
+
+				Map<String, Object> response = objectMapper.readValue(jsonValue,
+						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						});
+
+				Object statusObj = response.get("statusCode");
+				Integer statusCode = (statusObj != null ? Integer.valueOf(String.valueOf(statusObj)) : null);
+
+				String correoEmpleado = (String) jsonParams.get("correo");
+				String nombreEmpleado = (String) jsonParams.get("primerNombre");
+				String apellidoEmpleado = (String) jsonParams.get("primerApellido");
+				String usuarioLogin = (String) jsonParams.get("nombreUsuario");
+
+				if (statusCode != null && statusCode == 200) {
+					if (correoEmpleado != null && !correoEmpleado.isBlank()) {
+						try {
+							Map<String, Object> data = new java.util.HashMap<>();
+							data.put("nombre", nombreEmpleado != null ? nombreEmpleado : "Usuario");
+							data.put("apellido", apellidoEmpleado);
+							data.put("usuario", usuarioLogin);
+							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.INFO_ACTIVATE, data);
+						} catch (Exception mailEx) {
+							response.put("warningCorreo",
+									"Empleado creado pero no se pudo enviar el correo: " + mailEx.getMessage());
+							log.warn("No se pudo enviar correo de creación de empleado a {}: {}", correoEmpleado,
+									mailEx.getMessage());
+						}
+					} else {
+						response.put("warningCorreo",
+								"Empleado creado pero no se envió correo porque no se recibió email.");
+					}
+				}
+
+				return response;
+			}
+
+			return Map.of("error", "No se pudo leer la respuesta JSON del SP.");
+
+		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+			log.error("Error de procesamiento JSON en save empleado", e);
 			return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
 		} catch (Exception e) {
 			log.error("Error inesperado en guardarEmpleado", e);
