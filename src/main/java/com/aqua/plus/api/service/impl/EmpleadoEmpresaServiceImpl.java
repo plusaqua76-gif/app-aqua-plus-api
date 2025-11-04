@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,7 +75,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, parameters);
 			Object wrapped = row.get("result");
 
-			if (wrapped instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+			if (wrapped instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
 				String jsonValue = pg.getValue();
 
 				Map<String, Object> response = objectMapper.readValue(jsonValue,
@@ -92,11 +93,11 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 				if (statusCode != null && statusCode == 200) {
 					if (correoEmpleado != null && !correoEmpleado.isBlank()) {
 						try {
-							Map<String, Object> data = new java.util.HashMap<>();
+							Map<String, Object> data = new HashMap<>();
 							data.put("nombre", nombreEmpleado != null ? nombreEmpleado : "Usuario");
 							data.put("apellido", apellidoEmpleado);
 							data.put("usuario", usuarioLogin);
-							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.INFO_ACTIVATE, data);
+							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.CREATE_PASSWORD, data);
 						} catch (Exception mailEx) {
 							response.put("warningCorreo",
 									"Empleado creado pero no se pudo enviar el correo: " + mailEx.getMessage());
@@ -114,7 +115,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 
 			return Map.of("error", "No se pudo leer la respuesta JSON del SP.");
 
-		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+		} catch (JsonProcessingException e) {
 			log.error("Error de procesamiento JSON en save empleado", e);
 			return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
 		} catch (Exception e) {
