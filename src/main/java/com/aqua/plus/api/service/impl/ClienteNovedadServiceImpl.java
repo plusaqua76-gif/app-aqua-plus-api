@@ -2,7 +2,10 @@ package com.aqua.plus.api.service.impl;
 
 import java.time.LocalDate;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -278,23 +281,13 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 						.message("idEmpresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
+
 			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
-			Pageable pageToUse = (pageable == null) ? PageRequest.of(0, 20, defaultSort)
-					: (pageable.getSort().isUnsorted()
-							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
-							: pageable);
 
-			Page<ClienteNovedadEntity> base = clienteNovedadRepository
-					.findByEmpresaClienteContador_Empresa_Id(idEmpresa, pageToUse);
-
-			if (base.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron novedades para la empresa indicada")
-								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
-								.pageSize(pageToUse.getPageSize()).currentPage(pageToUse.getPageNumber()).totalPages(0)
-								.build());
-			}
+			Pageable effectivePageable = pageable.getSort().isUnsorted()
+					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+					: pageable;
 
 			LocalDate fecha = (fechaCreacion == null || fechaCreacion.isBlank()) ? null
 					: LocalDate.parse(fechaCreacion);
@@ -309,7 +302,7 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 			Page<ClienteNovedadEntity> page;
 
 			if (!hayFiltros) {
-				page = base;
+				page = clienteNovedadRepository.findByEmpresaClienteContador_Empresa_Id(idEmpresa, effectivePageable);
 			} else {
 				Specification<ClienteNovedadEntity> spec = Specification.allOf(
 						ClienteNovedadSpecifications.empresaId(idEmpresa),
@@ -321,7 +314,17 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 						ClienteNovedadSpecifications.descripcionLike(descripcion),
 						ClienteNovedadSpecifications.activoEquals(activo),
 						ClienteNovedadSpecifications.fechaCreacionEquals(fecha));
-				page = clienteNovedadRepository.findAll(spec, pageToUse);
+
+				page = clienteNovedadRepository.findAll(spec, effectivePageable);
+			}
+
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron novedades para la empresa indicada")
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of())
+								.totalCount(page.getTotalElements()).pageSize(page.getSize())
+								.currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
 			}
 
 			List<ClienteNovedadDTO> content = page.getContent().stream().map(clienteNovedadMapper::entityToDtoLight)
@@ -336,8 +339,25 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 		} catch (Exception e) {
 			log.error("Error consultando ClienteNovedad por empresa {}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando ClienteNovedad: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 

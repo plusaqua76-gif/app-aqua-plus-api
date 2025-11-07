@@ -231,9 +231,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax)
 					.and(FacturaSpecifications.activoTrue());
 
-			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-
-			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageToUse);
+			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
 
 			var items = facturaMapper.listEntityToResponse(page.getContent());
 
@@ -259,9 +257,25 @@ public class FacturaServiceImpl implements IFacturaService {
 					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 		} catch (Exception e) {
 			log.error("Error al buscar facturas por id de empresa: {}", idEmpresa, e);
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando facturas: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 
@@ -478,7 +492,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					Map.of("success", false, "code", 500, "message", "Error inesperado", "detalle", ex.getMessage()));
 		}
 	}
-	
+
 	@Transactional(readOnly = true)
 	public ResponseEntity<Map<String, Object>> metricasConsumoMesEmpresa(Integer empresaId, Integer anio, Integer mes) {
 		try {

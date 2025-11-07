@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -432,18 +431,31 @@ public class AbonoServiceImpl implements IAbonoService {
 						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Specification<AbonoEntity> spec = Specification.allOf(Stream.of(AbonoSpecifications.porIdEmpresa(idEmpresa),
-					AbonoSpecifications.activoIgual(Boolean.TRUE), AbonoSpecifications.fechaIgual(fecha),
-					AbonoSpecifications.valorIgual(valor), AbonoSpecifications.clienteLike(clienteLike),
-					AbonoSpecifications.codigoFactura(codigoFactura)).filter(Objects::nonNull).toList());
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
 
-			Pageable pageToUse = (pageable != null) ? pageable
-					: PageRequest.of(0, 20, Sort.by("fechaCreacion").descending());
+			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
 
-			Page<AbonoEntity> pageResult = abonoRepository.findAll((root, cq, cb) -> {
+			Pageable effectivePageable = pageable.getSort().isUnsorted()
+					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+					: pageable;
+
+			Specification<AbonoEntity> distinctSpec = (root, cq, cb) -> {
 				cq.distinct(true);
-				return (spec == null) ? cb.conjunction() : spec.toPredicate(root, cq, cb);
-			}, pageToUse);
+				return cb.conjunction();
+			};
+
+			List<Specification<AbonoEntity>> specs = new ArrayList<>();
+			specs.add(distinctSpec);
+			specs.add(AbonoSpecifications.porIdEmpresa(idEmpresa));
+			specs.add(AbonoSpecifications.activoIgual(Boolean.TRUE));
+			specs.add(AbonoSpecifications.fechaIgual(fecha));
+			specs.add(AbonoSpecifications.valorIgual(valor));
+			specs.add(AbonoSpecifications.clienteLike(clienteLike));
+			specs.add(AbonoSpecifications.codigoFactura(codigoFactura));
+
+			Specification<AbonoEntity> spec = Specification.allOf(specs.stream().filter(Objects::nonNull).toList());
+
+			Page<AbonoEntity> pageResult = abonoRepository.findAll(spec, effectivePageable);
 
 			List<AbonoResponseDTO> items = pageResult.getContent().stream().map(a -> {
 				var dc = a.getDeudaCliente();
@@ -485,8 +497,25 @@ public class AbonoServiceImpl implements IAbonoService {
 
 		} catch (Exception e) {
 			log.error("Error listando abonos (resumen) por empresa {}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error listando abonos: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 

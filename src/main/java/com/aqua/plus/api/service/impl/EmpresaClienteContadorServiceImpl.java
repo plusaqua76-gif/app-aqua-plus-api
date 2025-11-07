@@ -8,7 +8,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
@@ -356,35 +358,41 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			String correo, String tipoDocumentoNombre) {
 
 		log.info(
-				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, serialContador={}]",
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
 				tipoDocumentoNombre);
 
 		try {
-			var spec = Specification.allOf(PersonaSpecification.empresaId(idEmpresa),
-					PersonaSpecification.clienteNombreLike(nombre), PersonaSpecification.clienteCedulaIgual(cedula),
-					PersonaSpecification.clienteCodigoIgual(codigo),
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
+
+			Specification<EmpresaClienteContadorEntity> spec = Specification.allOf(
+					PersonaSpecification.empresaId(idEmpresa), PersonaSpecification.clienteNombreLike(nombre),
+					PersonaSpecification.clienteCedulaIgual(cedula), PersonaSpecification.clienteCodigoIgual(codigo),
 					PersonaSpecification.direccionDepartamentoNombreLike(departamento),
 					PersonaSpecification.direccionCiudadNombreLike(ciudad),
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
 					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
 
-			List<EmpresaClienteContadorEntity> all = empresaClienteContadorRepository
-					.findAll((root, q, cb) -> (spec == null) ? cb.conjunction() : spec.toPredicate(root, q, cb));
+			Page<EmpresaClienteContadorEntity> pageResult = empresaClienteContadorRepository.findAll(spec, pageable);
 
-			if (all.isEmpty()) {
+			if (pageResult.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
 						.message("No se encontraron clientes para los filtros dados").code(HttpStatus.NOT_FOUND.value())
-						.response(List.of()).totalCount(0L).pageSize(pageable != null ? pageable.getPageSize() : 20)
-						.currentPage(pageable != null ? pageable.getPageNumber() : 0).totalPages(0).build());
+						.response(List.of()).totalCount(pageResult.getTotalElements()).pageSize(pageResult.getSize())
+						.currentPage(pageResult.getNumber()).totalPages(pageResult.getTotalPages()).build());
 			}
 
-			// === 3) De-duplicar por cédula (tipoDocumento + numeroCedula). Fallback:
-			// personaId ===
+			List<EmpresaClienteContadorEntity> pageEntities = pageResult.getContent();
+
 			Map<String, EmpresaClienteContadorEntity> bestByDoc = new LinkedHashMap<>();
 
-			for (var ecc : all) {
+			for (var ecc : pageEntities) {
 				var p = ecc.getCliente();
 				if (p == null)
 					continue;
@@ -428,7 +436,22 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				}
 			}
 
-			// === 4) Construir rows a partir del ECC elegido por cédula/persona ===
+			List<Integer> personaIds = bestByDoc.values().stream().map(ecc -> ecc.getCliente()).filter(Objects::nonNull)
+					.map(p -> p.getId()).filter(Objects::nonNull).distinct().toList();
+
+			Map<Integer, String> correoByPersona = Map.of();
+			Map<Integer, String> telefonoByPersona = Map.of();
+
+			if (!personaIds.isEmpty()) {
+				var correos = correoGeneralRepository.findLatestByPersonaIds(personaIds);
+				correoByPersona = correos.stream().filter(cg -> cg.getPersona() != null).collect(
+						Collectors.toMap(cg -> cg.getPersona().getId(), CorreoGeneralEntity::getCorreo, (a, b) -> a));
+
+				var telefonos = telefonoGeneralRepository.findLatestByPersonaIds(personaIds);
+				telefonoByPersona = telefonos.stream().filter(tg -> tg.getPersona() != null).collect(
+						Collectors.toMap(tg -> tg.getPersona().getId(), TelefonoGeneralEntity::getNumero, (a, b) -> a));
+			}
+
 			List<Map<String, Object>> rows = new ArrayList<>(bestByDoc.size());
 			for (var ecc : bestByDoc.values()) {
 				var p = ecc.getCliente();
@@ -475,15 +498,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					}
 				}
 
-				String correoVal = (personaId != null)
-						? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-								.map(CorreoGeneralEntity::getCorreo).orElse(null)
-						: null;
-
-				String telVal = (personaId != null)
-						? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-								.map(TelefonoGeneralEntity::getNumero).orElse(null)
-						: null;
+				String correoVal = (personaId != null) ? correoByPersona.get(personaId) : null;
+				String telVal = (personaId != null) ? telefonoByPersona.get(personaId) : null;
 
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("empresaClienteContadorId", ecc.getId());
@@ -515,31 +531,44 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			rows.sort(byActivoDesc.thenComparing(byNombreCompletoAsc));
 
-			int pageNumber = (pageable != null ? pageable.getPageNumber() : 0);
-			int pageSize = (pageable != null ? pageable.getPageSize() : 20);
-			int fromIndex = Math.min(pageNumber * pageSize, rows.size());
-			int toIndex = Math.min(fromIndex + pageSize, rows.size());
-			List<Map<String, Object>> pageContent = rows.subList(fromIndex, toIndex);
+			long totalCount = pageResult.getTotalElements();
+			int totalPages = pageResult.getTotalPages();
+			int pageNumber = pageResult.getNumber();
+			int pageSize = pageResult.getSize();
 
-			long totalCount = rows.size();
-			int totalPages = (int) Math.ceil(totalCount / (double) pageSize);
-
-			if (pageContent.isEmpty()) {
+			if (rows.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron clientes para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(pageContent).totalCount(totalCount)
+								.code(HttpStatus.NOT_FOUND.value()).response(rows).totalCount(totalCount)
 								.pageSize(pageSize).currentPage(pageNumber).totalPages(totalPages).build());
 			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).response(pageContent).totalCount(totalCount).pageSize(pageSize)
+					.code(HttpStatus.OK.value()).response(rows).totalCount(totalCount).pageSize(pageSize)
 					.currentPage(pageNumber).totalPages(totalPages).build());
 
 		} catch (Exception e) {
 			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando clientes: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 
