@@ -1,7 +1,11 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -70,9 +74,7 @@ public class ProductoServiceImpl implements IProductoService {
 			final boolean isUpdate = (productoDTO.getId() != null
 					&& productoRepository.existsById(productoDTO.getId()));
 
-			// ===== Validación de unicidad (empresa + código) =====
 			if (!isUpdate) {
-				// CREATE
 				if (productoRepository.existsByEmpresa_IdAndCodigoIgnoreCase(targetEmpresaId, targetCodigo)) {
 					String msg = String.format("Producto '%s' ya existente con el código '%s'", targetNombre,
 							targetCodigo);
@@ -80,7 +82,6 @@ public class ProductoServiceImpl implements IProductoService {
 							.message(msg).code(HttpStatus.CONFLICT.value()).build());
 				}
 			} else {
-				// UPDATE: comparar cambios de empresa/código
 				ProductoEntity actual = productoRepository.findById(productoDTO.getId()).orElseThrow();
 
 				Integer currentEmpresaId = (actual.getEmpresa() != null ? actual.getEmpresa().getId() : null);
@@ -100,7 +101,6 @@ public class ProductoServiceImpl implements IProductoService {
 				}
 			}
 
-			// ===== Persistencia =====
 			ProductoEntity entity;
 			if (isUpdate) {
 				entity = productoRepository.findById(productoDTO.getId()).orElseThrow();
@@ -115,7 +115,6 @@ public class ProductoServiceImpl implements IProductoService {
 					entity.setActivo(true);
 			}
 
-			// normaliza el código
 			entity.setCodigo(targetCodigo);
 
 			ProductoEntity saved = productoRepository.save(entity);
@@ -148,21 +147,13 @@ public class ProductoServiceImpl implements IProductoService {
 						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
-			Pageable pageToUse = (pageable == null) ? PageRequest.of(0, 20, defaultSort)
-					: (pageable.getSort().isUnsorted()
-							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
-							: pageable);
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
 
-			List<ProductoEntity> baseCheck = productoRepository.findByEmpresa_Id(idEmpresa);
-			if (baseCheck.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron productos para la empresa con id " + idEmpresa)
-								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
-								.pageSize(pageToUse.getPageSize()).currentPage(pageToUse.getPageNumber()).totalPages(0)
-								.build());
-			}
+			Sort defaultSort = Sort.by(Sort.Order.desc("fechaCreacion"), Sort.Order.desc("id"));
+
+			Pageable effectivePageable = pageable.getSort().isUnsorted()
+					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+					: pageable;
 
 			boolean hayFiltros = (codigo != null && !codigo.isBlank()) || (nombre != null && !nombre.isBlank())
 					|| (descripcion != null && !descripcion.isBlank())
@@ -171,26 +162,31 @@ public class ProductoServiceImpl implements IProductoService {
 			Page<ProductoEntity> page;
 
 			if (!hayFiltros) {
-				page = productoRepository.findByEmpresa_Id(idEmpresa, pageToUse);
+				page = productoRepository.findByEmpresa_Id(idEmpresa, effectivePageable);
 			} else {
-				Specification<ProductoEntity> baseEmpresa = (root, q, cb) -> cb.equal(root.join("empresa").get("id"),
+
+				Specification<ProductoEntity> empresaSpec = (root, q, cb) -> cb.equal(root.join("empresa").get("id"),
 						idEmpresa);
 
-				Specification<ProductoEntity> filtros = Specification.allOf(ProductoSpecifications.codigoLike(codigo),
-						ProductoSpecifications.nombreLike(nombre), ProductoSpecifications.descripcionLike(descripcion),
-						ProductoSpecifications.categoriaNombreLike(categoriaNombre));
+				List<Specification<ProductoEntity>> specs = new ArrayList<>();
+				specs.add(empresaSpec);
+				specs.add(ProductoSpecifications.codigoLike(codigo));
+				specs.add(ProductoSpecifications.nombreLike(nombre));
+				specs.add(ProductoSpecifications.descripcionLike(descripcion));
+				specs.add(ProductoSpecifications.categoriaNombreLike(categoriaNombre));
 
-				Specification<ProductoEntity> specFinal = Specification.allOf(baseEmpresa, filtros);
-				page = productoRepository.findAll(specFinal, pageToUse);
+				Specification<ProductoEntity> specFinal = Specification
+						.allOf(specs.stream().filter(Objects::nonNull).toList());
+
+				page = productoRepository.findAll(specFinal, effectivePageable);
 			}
 
 			if (page.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron productos para la empresa con id " + idEmpresa)
-								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
-								.pageSize(pageToUse.getPageSize()).currentPage(pageToUse.getPageNumber()).totalPages(0)
-								.build());
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron productos para la empresa con id " + idEmpresa)
+						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(page.getTotalElements()) // 0
+						.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()) // 0
+						.build());
 			}
 
 			List<ProductoDTO> dtoList = productoMapper.listEntityToDtoList(page.getContent());
@@ -201,9 +197,26 @@ public class ProductoServiceImpl implements IProductoService {
 
 		} catch (Exception e) {
 			log.error("Error al buscar productos por id de empresa: {}", idEmpresa, e);
+
+			// 🔹 Mapeo detallado de error (mismo estándar que los otros métodos)
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando productos: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 

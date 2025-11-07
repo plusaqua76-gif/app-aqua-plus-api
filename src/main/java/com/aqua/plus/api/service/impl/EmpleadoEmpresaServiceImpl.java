@@ -1,6 +1,8 @@
 package com.aqua.plus.api.service.impl;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,7 +10,9 @@ import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -97,7 +101,8 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 							data.put("nombre", nombreEmpleado != null ? nombreEmpleado : "Usuario");
 							data.put("apellido", apellidoEmpleado);
 							data.put("usuario", usuarioLogin);
-							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.CREATE_PASSWORD, data);
+							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.CREATE_PASSWORD,
+									data);
 						} catch (Exception mailEx) {
 							response.put("warningCorreo",
 									"Empleado creado pero no se pudo enviar el correo: " + mailEx.getMessage());
@@ -212,18 +217,34 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable, String nombreCompleto,
 			String cedula, String codigo, String telefono, String correo, String estado) {
+
 		log.info(
 				"Buscando empleados empresa={}, filtros: nombre={}, cedula={}, codigo={}, tel={}, correo={}, estado={}",
 				empresaId, nombreCompleto, cedula, codigo, telefono, correo, estado);
 
 		try {
+			if (empresaId == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("empresaId es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
+
 			Boolean estadoBool = null;
 			if (estado != null) {
-				if ("ACTIVO".equalsIgnoreCase(estado))
+				if ("ACTIVO".equalsIgnoreCase(estado)) {
 					estadoBool = Boolean.TRUE;
-				else if ("INACTIVO".equalsIgnoreCase(estado))
+				} else if ("INACTIVO".equalsIgnoreCase(estado)) {
 					estadoBool = Boolean.FALSE;
+				}
 			}
+
+			Sort defaultSort = Sort.by(Sort.Order.asc("persona.nombre"), Sort.Order.asc("persona.apellido"),
+					Sort.Order.asc("id"));
+
+			Pageable effectivePageable = pageable.getSort().isUnsorted()
+					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+					: pageable;
 
 			Specification<EmpleadoEmpresaEntity> spec = EmpleadoEmpresaSpecification.allOfNonNull(
 					EmpleadoEmpresaSpecification.belongsToEmpresa(empresaId),
@@ -234,8 +255,15 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 					EmpleadoEmpresaSpecification.correoLike(correo),
 					EmpleadoEmpresaSpecification.personaEstadoEquals(estadoBool));
 
-			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, pageToUse);
+			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, effectivePageable);
+
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron empleados para la empresa indicada")
+						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(page.getTotalElements()) // 0
+						.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()) // 0
+						.build());
+			}
 
 			var dtoList = empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
 
@@ -271,9 +299,25 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 
 		} catch (Exception e) {
 			log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando empleados: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 

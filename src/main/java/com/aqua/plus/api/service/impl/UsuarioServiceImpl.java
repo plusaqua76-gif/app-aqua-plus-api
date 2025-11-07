@@ -16,7 +16,9 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -345,12 +347,19 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		log.info("Listar usuarios ACTIVO/INACTIVO con filtros: nombre={}, estado={}", nombre, estadoNombre);
 
 		try {
+			Objects.requireNonNull(pageable, "El pageable no debe ser null");
+
+			Sort defaultSort = Sort.by(Sort.Order.asc("nombre"), Sort.Order.asc("id"));
+
+			Pageable effectivePageable = pageable.getSort().isUnsorted()
+					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
+					: pageable;
+
 			Specification<UsuarioEntity> spec = Specification.allOf(
-					UsuarioSpecification.estadoNombreIn(java.util.List.of(Constantes.ACTIVE, Constantes.IDLE)),
+					UsuarioSpecification.estadoNombreIn(List.of(Constantes.ACTIVE, Constantes.IDLE)),
 					UsuarioSpecification.nombreLike(nombre), UsuarioSpecification.estadoNombreEquals(estadoNombre));
 
-			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-			Page<UsuarioEntity> page = usuarioRepository.findAll(spec, pageToUse);
+			Page<UsuarioEntity> page = usuarioRepository.findAll(spec, effectivePageable);
 
 			List<UsuarioDTO> content = usuarioMapper.listEntityToLiteDtoList(page.getContent());
 
@@ -359,9 +368,9 @@ public class UsuarioServiceImpl implements IUsuarioService {
 
 				if (!userIds.isEmpty()) {
 					Map<Integer, String> nombreEmpresaPorUsuario = empresaRepository.findNombresByUsuarioIds(userIds)
-							.stream()
-							.collect(java.util.stream.Collectors.toMap(EmpresaRepository.NombrePorUsuario::getUsuarioId,
+							.stream().collect(Collectors.toMap(EmpresaRepository.NombrePorUsuario::getUsuarioId,
 									EmpresaRepository.NombrePorUsuario::getNombre, (a, b) -> a));
+
 					content.forEach(dto -> dto.setNombreEmpresa(nombreEmpresaPorUsuario.get(dto.getId())));
 				}
 			}
@@ -375,7 +384,7 @@ public class UsuarioServiceImpl implements IUsuarioService {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontraron usuarios ACTIVO/INACTIVO para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(content).totalCount(totalCount)
+								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(totalCount)
 								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
 			}
 
@@ -385,8 +394,26 @@ public class UsuarioServiceImpl implements IUsuarioService {
 
 		} catch (Exception e) {
 			log.error("Error al listar usuarios ACTIVO/INACTIVO", e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+
+			// 6) Mapeo detallado del error (mismo estándar que el resto)
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String errorMessage = e.getMessage();
+			String rootCauseMessage = root.getMessage();
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", errorMessage);
+			errorInfo.put("rootCause", rootCauseMessage);
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error listando usuarios ACTIVO/INACTIVO: "
+									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
 
@@ -566,31 +593,25 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			}
 
 			var dtos = usuarios.stream().map(u -> {
-			    var p  = u.getPersona();
-			    var td = (p != null ? p.getTipoDocumento() : null);
+				var p = u.getPersona();
+				var td = (p != null ? p.getTipoDocumento() : null);
 
-			    String nombre          = (p != null ? orEmpty(p.getNombre()) : "");
-			    String segundoNombre   = (p != null ? orEmpty(p.getSegundoNombre()) : "");
-			    String apellido        = (p != null ? orEmpty(p.getApellido()) : "");
-			    String segundoApellido = (p != null ? orEmpty(p.getSegundoApellido()) : "");
-			    String fullName = (nombre + " " + segundoNombre + " " + apellido + " " + segundoApellido)
-			            .trim().replaceAll("\\s+", " ");
+				String nombre = (p != null ? orEmpty(p.getNombre()) : "");
+				String segundoNombre = (p != null ? orEmpty(p.getSegundoNombre()) : "");
+				String apellido = (p != null ? orEmpty(p.getApellido()) : "");
+				String segundoApellido = (p != null ? orEmpty(p.getSegundoApellido()) : "");
+				String fullName = (nombre + " " + segundoNombre + " " + apellido + " " + segundoApellido).trim()
+						.replaceAll("\\s+", " ");
 
-			    return UsuarioListItemDTO.builder()
-			            .id(u.getId())
-			            .username(u.getNombre())
-			            .activo(u.getActivo())
-			            .rolId(u.getRol() != null ? u.getRol().getId() : null)
-			            .rolNombre(u.getRol() != null ? u.getRol().getNombre() : null)
-			            .estadoId(u.getEstado() != null ? u.getEstado().getId() : null)
-			            .estadoNombre(u.getEstado() != null ? u.getEstado().getNombre() : null)
-			            .personaId(p != null ? p.getId() : null)
-			            .Nombre(fullName.isBlank() ? null : fullName)
-			            .NumeroCedula(p != null ? p.getNumeroCedula() : null)
-			            .TipoDocumento(td != null ? td.getNombre() : null)
-			            .build();
+				return UsuarioListItemDTO.builder().id(u.getId()).username(u.getNombre()).activo(u.getActivo())
+						.rolId(u.getRol() != null ? u.getRol().getId() : null)
+						.rolNombre(u.getRol() != null ? u.getRol().getNombre() : null)
+						.estadoId(u.getEstado() != null ? u.getEstado().getId() : null)
+						.estadoNombre(u.getEstado() != null ? u.getEstado().getNombre() : null)
+						.personaId(p != null ? p.getId() : null).Nombre(fullName.isBlank() ? null : fullName)
+						.NumeroCedula(p != null ? p.getNumeroCedula() : null)
+						.TipoDocumento(td != null ? td.getNombre() : null).build();
 			}).collect(Collectors.toList());
-
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(dtos).build());
