@@ -6,6 +6,8 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.utils.Constantes;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,8 @@ public class EmpresaContadorServiceImpl implements IEmpresaContadorService {
 	private final ContadorRepository contadorRepository;
 	private final EmpresaContadorMapper empresaContadorMapper;
 	private final LecturaServiceImpl lecturaServiceImpl;
+	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+	private final ObjectMapper objectMapper;
 
 	@Transactional
 	public ResponseEntity<ResponseDTO> saveEmpresaContadorAndLectura(EmpresaContadorDTO ecDTO, LecturaDTO lecturaDTO) {
@@ -150,4 +155,77 @@ public class EmpresaContadorServiceImpl implements IEmpresaContadorService {
 							.message("Error consultando EmpresaContador").build());
 		}
 	}
+	
+	@Transactional(readOnly = true)
+	public Map<String, Object> metricasLecturaSuperContador(Integer empresaId, Integer anio, Integer mes) {
+
+	    String sql = """
+	            SELECT public.fn_metricas_consumo_mes_empresa(:idEmpresa, :anio, :mes)::text AS payload
+	            """;
+
+	    MapSqlParameterSource params = new MapSqlParameterSource()
+	            .addValue("idEmpresa", empresaId, java.sql.Types.INTEGER)
+	            .addValue("anio", anio, java.sql.Types.INTEGER)
+	            // p_mes en el SP puede ser NULL => todo el año
+	            .addValue("mes", mes, java.sql.Types.INTEGER);
+
+	    try {
+	        String json = namedParameterJdbcTemplate.queryForObject(sql, params, String.class);
+
+	        // El SP siempre retorna algo (jsonb_build_object), pero por seguridad:
+	        if (json == null || json.isBlank()) {
+	            // Mantenemos el mismo contrato del SP
+	            return Map.of(
+	                    "success", false,
+	                    "message", "SIN_DATOS_DESDE_SP",
+	                    "code", 500,
+	                    "response", null
+	            );
+	        }
+
+	        // Pasamos tal cual el JSON del SP a Map<String,Object>
+	        return objectMapper.readValue(json,
+	                new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+
+	    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+	        log.error("Error parseando JSON de fn_metricas_consumo_mes_empresa. empresaId={}, anio={}, mes={}",
+	                empresaId, anio, mes, e);
+
+	        return Map.of(
+	                "success", false,
+	                "message", "Error parseando JSON de fn_metricas_consumo_mes_empresa",
+	                "code", 500,
+	                "response", Map.of(
+	                        "detalle", e.getOriginalMessage() != null ? e.getOriginalMessage() : e.getMessage()
+	                )
+	        );
+
+	    } catch (org.springframework.dao.DataAccessException e) {
+	        log.error("Error de acceso a datos al ejecutar fn_metricas_consumo_mes_empresa. empresaId={}, anio={}, mes={}",
+	                empresaId, anio, mes, e);
+
+	        String detalle = e.getMostSpecificCause() != null
+	                ? e.getMostSpecificCause().getMessage()
+	                : e.getMessage();
+
+	        return Map.of(
+	                "success", false,
+	                "message", "Error de base de datos al ejecutar fn_metricas_consumo_mes_empresa",
+	                "code", 500,
+	                "response", Map.of("detalle", detalle)
+	        );
+
+	    } catch (Exception e) {
+	        log.error("Error inesperado ejecutando fn_metricas_consumo_mes_empresa. empresaId={}, anio={}, mes={}",
+	                empresaId, anio, mes, e);
+
+	        return Map.of(
+	                "success", false,
+	                "message", "Error inesperado ejecutando fn_metricas_consumo_mes_empresa",
+	                "code", 500,
+	                "response", Map.of("detalle", e.getMessage())
+	        );
+	    }
+	}
+
 }
