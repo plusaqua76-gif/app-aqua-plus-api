@@ -13,7 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IEmpresaContadorService;
 import com.aqua.plus.commons.dtos.ContadorDTO;
+import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.EmpresaContadorDTO;
+import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.LecturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
@@ -48,7 +50,9 @@ public class EmpresaContadorServiceImpl implements IEmpresaContadorService {
 	private final LecturaServiceImpl lecturaServiceImpl;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
+	private final EmpresaClienteContadorServiceImpl empresaClienteContadorServiceImpl;
 
+	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> saveEmpresaContadorAndLectura(EmpresaContadorDTO ecDTO, LecturaDTO lecturaDTO) {
 		log.info("Orquestar guardado EmpresaContador + Lectura (empresaId={}, contadorId={})",
@@ -89,11 +93,44 @@ public class EmpresaContadorServiceImpl implements IEmpresaContadorService {
 				ecEntity = optEC.get();
 
 				Integer contadorPersistidoId = (ecEntity.getContador() != null) ? ecEntity.getContador().getId() : null;
+
 				if (contadorPersistidoId != null && !contadorPersistidoId.equals(contadorId)) {
 					return ResponseEntity.status(HttpStatus.CONFLICT)
 							.body(ResponseDTO.builder().success(false).code(HttpStatus.CONFLICT.value()).message(
 									"La empresa ya tiene un contador asociado distinto. No se permite modificar EmpresaContador.")
 									.build());
+				}
+			}
+
+			Object empresaClienteContadorResponse = null;
+
+			if (createdEC) {
+				log.info("Primera vez para empresaId={}, se creará EmpresaClienteContador", empresaId);
+
+				EmpresaClienteContadorDTO eccDTO = new EmpresaClienteContadorDTO();
+
+				EmpresaDTO empresaDTO = new EmpresaDTO();
+				empresaDTO.setId(empresaId);
+				eccDTO.setEmpresa(empresaDTO);
+
+				ContadorDTO contadorDTO = new ContadorDTO();
+				contadorDTO.setId(ecEntity.getContador().getId());
+				eccDTO.setContador(contadorDTO);
+
+				eccDTO.setUsuarioCreacion(ecDTO.getUsuarioCreacion() != null ? ecDTO.getUsuarioCreacion()
+						: lecturaDTO.getUsuarioCreacion());
+
+				ResponseEntity<ResponseDTO> eccResp = empresaClienteContadorServiceImpl.save(eccDTO);
+
+				if (eccResp.getStatusCode().is2xxSuccessful()) {
+					empresaClienteContadorResponse = (eccResp.getBody() != null) ? eccResp.getBody().getResponse()
+							: null;
+				} else if (eccResp.getStatusCode() == HttpStatus.CONFLICT) {
+					log.info("EmpresaClienteContador ya existía para empresaId={} y contadorId={}", empresaId,
+							contadorId);
+				} else {
+					throw new RuntimeException("No se pudo guardar EmpresaClienteContador: "
+							+ (eccResp.getBody() != null ? eccResp.getBody().getMessage() : "error"));
 				}
 			}
 
@@ -113,12 +150,13 @@ public class EmpresaContadorServiceImpl implements IEmpresaContadorService {
 
 			Map<String, Object> payload = new HashMap<>();
 			payload.put("empresaContador", ecDTOResponse);
-			payload.put("lectura", lecturaGuardada);
 			payload.put("empresaContadorCreado", createdEC);
+			payload.put("empresaClienteContador", empresaClienteContadorResponse);
+			payload.put("lectura", lecturaGuardada);
 
 			int code = createdEC ? HttpStatus.CREATED.value() : HttpStatus.OK.value();
-			String msg = createdEC ? "EmpresaContador creado y lectura guardada"
-					: "Lectura guardada para EmpresaContador existente";
+			String msg = createdEC ? "EmpresaContador y EmpresaClienteContador creados, lectura guardada"
+					: "EmpresaContador existente, lectura guardada";
 
 			return ResponseEntity.status(code)
 					.body(ResponseDTO.builder().success(true).code(code).message(msg).response(payload).build());
