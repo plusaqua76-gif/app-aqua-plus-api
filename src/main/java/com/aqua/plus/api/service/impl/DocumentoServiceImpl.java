@@ -448,7 +448,7 @@ public class DocumentoServiceImpl implements IDocumentoService {
 					var client = container().getBlobClient(d.getRuta());
 					if (client == null || !client.exists()) {
 						log.warn("Blob no existe para ruta={}", d.getRuta());
-						row.put("imagen", null);
+						//row.put("imagen", null);
 						row.put("contentType", null);
 						row.put("error", "Blob inexistente");
 					} else {
@@ -457,7 +457,7 @@ public class DocumentoServiceImpl implements IDocumentoService {
 
 						if (bytes != null && bytes.length > 0) {
 							String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
-							row.put("imagen", b64);
+							//row.put("imagen", b64);
 
 							String ct = guessContentType(bytes);
 							if (ct == null || ct.isBlank()) {
