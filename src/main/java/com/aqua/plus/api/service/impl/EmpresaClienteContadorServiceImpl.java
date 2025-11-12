@@ -366,13 +366,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 		}
 	}
 
-	/**
-	 * @author nicope
-	 * @version 1.0
-	 *
-	 *          Busca clientes de una empresa con filtros dinámicos y paginación;
-	 *          retorna DTO.
-	 */
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
@@ -401,65 +394,78 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
 					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
 
-			Page<EmpresaClienteContadorEntity> pageResult = empresaClienteContadorRepository.findAll(spec, pageable);
+			Page<EmpresaClienteContadorEntity> pageECC = empresaClienteContadorRepository.findAll(spec, pageable);
 
-			if (pageResult.isEmpty()) {
+			final int pageSize = pageable.getPageSize();
+			final int pageNumber = pageable.getPageNumber();
+			final int chunkSize = pageSize * 5;
+			final int uniqueOffset = pageNumber * pageSize;
+			final int uniqueTarget = uniqueOffset + pageSize;
+
+			Map<String, EmpresaClienteContadorEntity> uniques = new LinkedHashMap<>();
+
+			int chunkPage = 0;
+			boolean hasMore = true;
+
+			while (hasMore && uniques.size() < uniqueTarget) {
+				Pageable chunkPageable = PageRequest.of(chunkPage, chunkSize, pageable.getSort());
+				Page<EmpresaClienteContadorEntity> chunk = empresaClienteContadorRepository.findAll(spec,
+						chunkPageable);
+				List<EmpresaClienteContadorEntity> content = chunk.getContent();
+
+				log.info("Ventana chunk={} (size={}): trajo {} filas", chunkPage, chunkSize, content.size());
+
+				for (var ecc : content) {
+					var p = ecc.getCliente();
+					if (p == null)
+						continue;
+
+					String numero = (p.getNumeroCedula() != null) ? p.getNumeroCedula().trim() : null;
+					Integer tipoDocIdKey = (p.getTipoDocumento() != null ? p.getTipoDocumento().getId() : null);
+
+					String key;
+					if (numero != null && !numero.isBlank()) {
+						key = "DOC:" + (tipoDocIdKey != null ? tipoDocIdKey : "NULL") + ":" + numero.toLowerCase();
+					} else {
+						if (p.getId() == null)
+							continue;
+						key = "PID:" + p.getId();
+					}
+
+					if (!uniques.containsKey(key)) {
+						uniques.put(key, ecc);
+						if (uniques.size() == uniqueTarget) {
+							break;
+						}
+					}
+				}
+
+				hasMore = chunk.hasNext();
+				chunkPage++;
+
+				if (content.isEmpty() && !hasMore)
+					break;
+			}
+
+			log.info("Clientes únicos acumulados: {} (offset={}, tamaño página={})", uniques.size(), uniqueOffset,
+					pageSize);
+
+			List<EmpresaClienteContadorEntity> uniquesList = new ArrayList<>(uniques.values());
+
+			if (uniqueOffset >= uniquesList.size()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
 						.message("No se encontraron clientes para los filtros dados").code(HttpStatus.NOT_FOUND.value())
-						.response(List.of()).totalCount(pageResult.getTotalElements()).pageSize(pageResult.getSize())
-						.currentPage(pageResult.getNumber()).totalPages(pageResult.getTotalPages()).build());
+						.response(List.of()).totalCount(pageECC.getTotalElements()).pageSize(pageECC.getSize())
+						.currentPage(pageECC.getNumber()).totalPages(pageECC.getTotalPages()).build());
 			}
 
-			int logicalPageSize = pageable.getPageSize();
+			List<EmpresaClienteContadorEntity> pageUniques = uniquesList.subList(uniqueOffset,
+					Math.min(uniqueOffset + pageSize, uniquesList.size()));
 
-			int logicalPageNumber = pageable.getPageNumber();
+			log.info("Página {} - Clientes únicos después del dedupe: {}", pageNumber, pageUniques.size());
 
-			int bufferFactor = 5;
-
-			Pageable internalPageable = PageRequest.of(logicalPageNumber, logicalPageSize * bufferFactor,
-					pageable.getSort());
-
-			Page<EmpresaClienteContadorEntity> internalPage = empresaClienteContadorRepository.findAll(spec,
-					internalPageable);
-
-			List<EmpresaClienteContadorEntity> pageEntities = internalPage.getContent();
-
-			log.info("Página {} - Registros brutos traídos de BD: {}", logicalPageNumber, pageEntities.size());
-
-			Map<String, EmpresaClienteContadorEntity> bestByDoc = new LinkedHashMap<>();
-
-			for (var ecc : pageEntities) {
-				var p = ecc.getCliente();
-				if (p == null)
-					continue;
-
-				String numero = (p.getNumeroCedula() != null) ? p.getNumeroCedula().trim() : null;
-				Integer tipoDocIdKey = (p.getTipoDocumento() != null ? p.getTipoDocumento().getId() : null);
-
-				String key;
-				if (numero != null && !numero.isBlank()) {
-					key = "DOC:" + (tipoDocIdKey != null ? tipoDocIdKey : "NULL") + ":" + numero.toLowerCase();
-				} else {
-					if (p.getId() == null)
-						continue;
-					key = "PID:" + p.getId();
-				}
-
-				if (bestByDoc.containsKey(key)) {
-					continue;
-				}
-
-				bestByDoc.put(key, ecc);
-
-				if (bestByDoc.size() == logicalPageSize) {
-					break;
-				}
-			}
-
-			log.info("Página {} - Clientes únicos después del dedupe: {}", logicalPageNumber, bestByDoc.size());
-
-			List<Integer> personaIds = bestByDoc.values().stream().map(ecc -> ecc.getCliente()).filter(Objects::nonNull)
-					.map(p -> p.getId()).filter(Objects::nonNull).distinct().toList();
+			List<Integer> personaIds = pageUniques.stream().map(EmpresaClienteContadorEntity::getCliente)
+					.filter(Objects::nonNull).map(p -> p.getId()).filter(Objects::nonNull).distinct().toList();
 
 			Map<Integer, String> correoByPersona = Map.of();
 			Map<Integer, String> telefonoByPersona = Map.of();
@@ -474,8 +480,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						Collectors.toMap(tg -> tg.getPersona().getId(), TelefonoGeneralEntity::getNumero, (a, b) -> a));
 			}
 
-			List<Map<String, Object>> rows = new ArrayList<>(bestByDoc.size());
-			for (var ecc : bestByDoc.values()) {
+			List<Map<String, Object>> rows = new ArrayList<>(pageUniques.size());
+			for (var ecc : pageUniques) {
 				var p = ecc.getCliente();
 				Integer personaId = (p != null ? p.getId() : null);
 
@@ -546,29 +552,22 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				rows.add(row);
 			}
 
-			Comparator<Map<String, Object>> byActivoDesc = Comparator
-					.comparing(m -> Boolean.FALSE.equals(m.get("activo")));
-			Comparator<Map<String, Object>> byNombreCompletoAsc = Comparator
-					.comparing(m -> ((String) m.getOrDefault("nombreCompleto", "")), String.CASE_INSENSITIVE_ORDER);
-
-			rows.sort(byActivoDesc.thenComparing(byNombreCompletoAsc));
-
-			long totalCount = pageResult.getTotalElements();
-			int totalPages = pageResult.getTotalPages();
-			int pageNumber = pageResult.getNumber();
-			int pageSize = pageResult.getSize();
+			rows.sort(Comparator.comparing((Map<String, Object> m) -> Boolean.FALSE.equals(m.get("activo")))
+					.thenComparing(m -> ((String) m.getOrDefault("nombreCompleto", "")),
+							String.CASE_INSENSITIVE_ORDER));
 
 			if (rows.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron clientes para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(rows).totalCount(totalCount)
-								.pageSize(pageSize).currentPage(pageNumber).totalPages(totalPages).build());
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron clientes para los filtros dados").code(HttpStatus.NOT_FOUND.value())
+						.response(rows).totalCount(pageECC.getTotalElements()) // ECC
+						.pageSize(pageECC.getSize()).currentPage(pageECC.getNumber())
+						.totalPages(pageECC.getTotalPages()).build());
 			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).response(rows).totalCount(totalCount).pageSize(pageSize)
-					.currentPage(pageNumber).totalPages(totalPages).build());
+					.code(HttpStatus.OK.value()).response(rows).totalCount(pageECC.getTotalElements()) // ECC
+					.pageSize(pageECC.getSize()).currentPage(pageECC.getNumber()).totalPages(pageECC.getTotalPages())
+					.build());
 
 		} catch (Exception e) {
 			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
@@ -578,18 +577,15 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				root = root.getCause();
 			}
 
-			String errorMessage = e.getMessage();
-			String rootCauseMessage = root.getMessage();
-
 			Map<String, Object> errorInfo = new LinkedHashMap<>();
 			errorInfo.put("exception", e.getClass().getName());
-			errorInfo.put("message", errorMessage);
-			errorInfo.put("rootCause", rootCauseMessage);
+			errorInfo.put("message", e.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
 
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false)
 							.message("Error consultando clientes: "
-									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}
