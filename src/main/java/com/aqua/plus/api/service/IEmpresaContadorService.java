@@ -2,6 +2,8 @@ package com.aqua.plus.api.service;
 
 import org.springframework.http.ResponseEntity;
 
+import com.aqua.plus.commons.dtos.EmpresaContadorDTO;
+import com.aqua.plus.commons.dtos.LecturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 /**
@@ -15,6 +17,8 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
  */
 
 public interface IEmpresaContadorService {
+
+	ResponseEntity<ResponseDTO> saveEmpresaContadorAndLectura(EmpresaContadorDTO ecDTO, LecturaDTO lecturaDTO);
 
 	ResponseEntity<ResponseDTO> findByEmpresaId(Integer idEmpresa);
 }

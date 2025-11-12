@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -82,15 +83,36 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	public ResponseEntity<ResponseDTO> save(EmpresaClienteContadorDTO empresaClienteContadorDTO) {
 		log.info("Creando Empresa Cliente Contador");
 		try {
-			boolean existe = empresaClienteContadorRepository.existsByEmpresaIdAndClienteIdAndContadorId(
-					empresaClienteContadorDTO.getEmpresa().getId(), empresaClienteContadorDTO.getCliente().getId(),
-					empresaClienteContadorDTO.getContador().getId());
+			Integer empresaId = empresaClienteContadorDTO.getEmpresa() != null
+					? empresaClienteContadorDTO.getEmpresa().getId()
+					: null;
+			Integer contadorId = empresaClienteContadorDTO.getContador() != null
+					? empresaClienteContadorDTO.getContador().getId()
+					: null;
+			Integer clienteId = (empresaClienteContadorDTO.getCliente() != null)
+					? empresaClienteContadorDTO.getCliente().getId()
+					: null;
+
+			if (empresaId == null || contadorId == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Debe indicar empresa y contador").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			boolean existe;
+			if (clienteId != null) {
+				existe = empresaClienteContadorRepository.existsByEmpresaIdAndClienteIdAndContadorId(empresaId,
+						clienteId, contadorId);
+			} else {
+				existe = empresaClienteContadorRepository.existsByEmpresaIdAndContadorId(empresaId, contadorId);
+			}
 
 			if (existe) {
 				return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
 						.message(Constantes.EMCL_EXISTS).code(HttpStatus.CONFLICT.value()).build());
 			}
+
 			EmpresaClienteContadorEntity entity = empresaClienteContadorMapper.dtoToEntity(empresaClienteContadorDTO);
+
 			entity.setFechaCreacion(new Date());
 			entity.setUsuarioCreacion(empresaClienteContadorDTO.getUsuarioCreacion());
 			entity.setActivo(true);
@@ -388,7 +410,21 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						.currentPage(pageResult.getNumber()).totalPages(pageResult.getTotalPages()).build());
 			}
 
-			List<EmpresaClienteContadorEntity> pageEntities = pageResult.getContent();
+			int logicalPageSize = pageable.getPageSize();
+
+			int logicalPageNumber = pageable.getPageNumber();
+
+			int bufferFactor = 5;
+
+			Pageable internalPageable = PageRequest.of(logicalPageNumber, logicalPageSize * bufferFactor,
+					pageable.getSort());
+
+			Page<EmpresaClienteContadorEntity> internalPage = empresaClienteContadorRepository.findAll(spec,
+					internalPageable);
+
+			List<EmpresaClienteContadorEntity> pageEntities = internalPage.getContent();
+
+			log.info("Página {} - Registros brutos traídos de BD: {}", logicalPageNumber, pageEntities.size());
 
 			Map<String, EmpresaClienteContadorEntity> bestByDoc = new LinkedHashMap<>();
 
@@ -409,32 +445,18 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					key = "PID:" + p.getId();
 				}
 
-				var current = bestByDoc.get(key);
-				if (current == null) {
-					bestByDoc.put(key, ecc);
+				if (bestByDoc.containsKey(key)) {
 					continue;
 				}
 
-				boolean eccActivo = Boolean.TRUE.equals(ecc.getActivo());
-				boolean curActivo = Boolean.TRUE.equals(current.getActivo());
+				bestByDoc.put(key, ecc);
 
-				if (eccActivo && !curActivo) {
-					bestByDoc.put(key, ecc);
-				} else if (eccActivo == curActivo) {
-					Date eccFecha = ecc.getFechaCreacion();
-					Date curFecha = current.getFechaCreacion();
-					int cmp;
-					if (eccFecha != null && curFecha != null) {
-						cmp = eccFecha.compareTo(curFecha);
-					} else {
-						cmp = Integer.compare((ecc.getId() != null ? ecc.getId() : Integer.MIN_VALUE),
-								(current.getId() != null ? current.getId() : Integer.MIN_VALUE));
-					}
-					if (cmp > 0) {
-						bestByDoc.put(key, ecc);
-					}
+				if (bestByDoc.size() == logicalPageSize) {
+					break;
 				}
 			}
+
+			log.info("Página {} - Clientes únicos después del dedupe: {}", logicalPageNumber, bestByDoc.size());
 
 			List<Integer> personaIds = bestByDoc.values().stream().map(ecc -> ecc.getCliente()).filter(Objects::nonNull)
 					.map(p -> p.getId()).filter(Objects::nonNull).distinct().toList();
