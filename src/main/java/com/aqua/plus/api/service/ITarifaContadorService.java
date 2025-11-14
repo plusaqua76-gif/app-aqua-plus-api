@@ -5,11 +5,11 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.TarifaClienteDTO;
+import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 
-public interface ITarifaClienteService {
+public interface ITarifaContadorService {
 
-	ResponseEntity<ResponseDTO> save(List<TarifaClienteDTO> dtos);
+	ResponseEntity<ResponseDTO> save(List<TarifaContadorDTO> dtos);
 
 	/*ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId);*/
 
