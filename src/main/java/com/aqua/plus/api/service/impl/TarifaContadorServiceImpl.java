@@ -13,16 +13,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.aqua.plus.api.service.ITarifaClienteService;
-import com.aqua.plus.commons.dtos.PersonaDTO;
+import com.aqua.plus.api.service.ITarifaContadorService;
+import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.TarifaClienteDTO;
+import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
-import com.aqua.plus.commons.entities.PersonaEntity;
-import com.aqua.plus.commons.entities.TarifaClienteEntity;
+import com.aqua.plus.commons.entities.ContadorEntity;
+import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TipoTarifaEntity;
-import com.aqua.plus.commons.repositories.PersonaRepository;
-import com.aqua.plus.commons.repositories.TarifaClienteRepository;
+import com.aqua.plus.commons.repositories.ContadorRepository;
+import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TipoTarifaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -32,49 +32,50 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TarifaClienteServiceImpl implements ITarifaClienteService {
+public class TarifaContadorServiceImpl implements ITarifaContadorService {
 
-	private final TarifaClienteRepository tarifaClienteRepository;
-	private final PersonaRepository personaRepository;
+	private final TarifaContadorRepository tarifaClienteRepository;
+	private final ContadorRepository contadorRepository;
 	private final TipoTarifaRepository tipoTarifaRepository;
 
 	@Override
 	@Transactional
-	public ResponseEntity<ResponseDTO> save(List<TarifaClienteDTO> dtos) {
-		log.info("Guardar/actualizar tarifas de cliente. numTarifas={}", (dtos != null ? dtos.size() : 0));
+	public ResponseEntity<ResponseDTO> save(List<TarifaContadorDTO> dtos) {
+		log.info("Guardar/actualizar tarifas del contador. numTarifas={}", (dtos != null ? dtos.size() : 0));
 
 		try {
 			if (dtos == null || dtos.isEmpty()) {
 				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).message("Debe enviar al menos una tarifa de cliente")
+						.body(ResponseDTO.builder().success(false)
+								.message("Debe enviar al menos una tarifa del contador")
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			TarifaClienteDTO first = dtos.stream().filter(Objects::nonNull).findFirst().orElse(null);
+			TarifaContadorDTO first = dtos.stream().filter(Objects::nonNull).findFirst().orElse(null);
 
-			if (first == null || first.getCliente() == null || first.getCliente().getId() == null) {
+			if (first == null || first.getContador() == null || first.getContador().getId() == null) {
 				return ResponseEntity.badRequest()
 						.body(ResponseDTO.builder().success(false)
-								.message("El cliente y su id son requeridos en al menos un registro")
+								.message("El contador y su id son requeridos en al menos un registro")
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Integer clienteId = first.getCliente().getId();
+			Integer contadorId = first.getContador().getId();
 
-			boolean allSameCliente = dtos.stream().filter(Objects::nonNull)
-					.allMatch(dto -> dto.getCliente() != null && Objects.equals(clienteId, dto.getCliente().getId()));
+			boolean allSameCliente = dtos.stream().filter(Objects::nonNull).allMatch(
+					dto -> dto.getContador() != null && Objects.equals(contadorId, dto.getContador().getId()));
 
 			if (!allSameCliente) {
 				return ResponseEntity.badRequest()
 						.body(ResponseDTO.builder().success(false)
-								.message("Todas las tarifas deben pertenecer al mismo cliente")
+								.message("Todas las tarifas deben pertenecer al mismo contador")
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			PersonaEntity cliente = personaRepository.findById(clienteId)
-					.orElseThrow(() -> new IllegalArgumentException("No existe el cliente con id " + clienteId));
+			ContadorEntity cliente = contadorRepository.findById(contadorId)
+					.orElseThrow(() -> new IllegalArgumentException("No existe el contador con id " + contadorId));
 
-			List<Integer> tipoTarifaIds = dtos.stream().filter(Objects::nonNull).map(TarifaClienteDTO::getTipoTarifa)
+			List<Integer> tipoTarifaIds = dtos.stream().filter(Objects::nonNull).map(TarifaContadorDTO::getTipoTarifa)
 					.filter(Objects::nonNull).map(TipoTarifaDTO::getId).filter(Objects::nonNull).distinct().toList();
 
 			if (tipoTarifaIds.isEmpty()) {
@@ -96,12 +97,12 @@ public class TarifaClienteServiceImpl implements ITarifaClienteService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<TarifaClienteEntity> existentes = tarifaClienteRepository.findByCliente_Id(clienteId);
+			List<TarifaContadorEntity> existentes = tarifaClienteRepository.findByContador_Id(contadorId);
 
-			Map<Integer, TarifaClienteEntity> existentesPorId = existentes.stream().filter(tc -> tc.getId() != null)
-					.collect(Collectors.toMap(TarifaClienteEntity::getId, tc -> tc, (a, b) -> a));
+			Map<Integer, TarifaContadorEntity> existentesPorId = existentes.stream().filter(tc -> tc.getId() != null)
+					.collect(Collectors.toMap(TarifaContadorEntity::getId, tc -> tc, (a, b) -> a));
 
-			Map<Integer, TarifaClienteEntity> existentesPorTipoTarifa = existentes.stream()
+			Map<Integer, TarifaContadorEntity> existentesPorTipoTarifa = existentes.stream()
 					.filter(tc -> tc.getTipoTarifa() != null && tc.getTipoTarifa().getId() != null)
 					.collect(Collectors.toMap(tc -> tc.getTipoTarifa().getId(), tc -> tc, (a, b) -> a));
 
@@ -109,29 +110,29 @@ public class TarifaClienteServiceImpl implements ITarifaClienteService {
 			String usuario = first.getUsuarioModificacion() != null ? first.getUsuarioModificacion()
 					: (first.getUsuarioCreacion() != null ? first.getUsuarioCreacion() : "SYSTEM");
 
-			List<TarifaClienteEntity> paraGuardar = new ArrayList<>();
+			List<TarifaContadorEntity> paraGuardar = new ArrayList<>();
 
-			for (TarifaClienteDTO dto : dtos) {
+			for (TarifaContadorDTO dto : dtos) {
 				if (dto == null)
 					continue;
 
 				Integer dtoId = dto.getId();
 				Integer tipoTarifaId = (dto.getTipoTarifa() != null ? dto.getTipoTarifa().getId() : null);
 				if (tipoTarifaId == null) {
-					log.warn("Se encontró TarifaClienteDTO sin tipoTarifaId, se omite. dto={}", dto);
+					log.warn("Se encontró TarifaContadorDTO sin tipoTarifaId, se omite. dto={}", dto);
 					continue;
 				}
 
 				Boolean aplica = dto.getAplica() != null ? dto.getAplica() : Boolean.FALSE;
 
-				TarifaClienteEntity entity = null;
+				TarifaContadorEntity entity = null;
 
 				if (dtoId != null) {
 					entity = existentesPorId.get(dtoId);
-					if (entity != null && entity.getCliente() != null
-							&& !Objects.equals(entity.getCliente().getId(), clienteId)) {
-						log.warn("Se intentó actualizar una tarifa de otro cliente. dtoId={}, clienteId={}", dtoId,
-								clienteId);
+					if (entity != null && entity.getContador() != null
+							&& !Objects.equals(entity.getContador().getId(), contadorId)) {
+						log.warn("Se intentó actualizar una tarifa de otro contador. dtoId={}, contadorId={}", dtoId,
+								contadorId);
 						entity = null;
 					}
 				}
@@ -148,8 +149,8 @@ public class TarifaClienteServiceImpl implements ITarifaClienteService {
 					entity.setUsuarioModificacion(usuario);
 					entity.setFechaModificacion(ahora);
 				} else {
-					entity = new TarifaClienteEntity();
-					entity.setCliente(cliente);
+					entity = new TarifaContadorEntity();
+					entity.setContador(cliente);
 					entity.setTipoTarifa(tipoTarifaMap.get(tipoTarifaId));
 					entity.setAplica(aplica);
 					entity.setActivo(dto.getActivo() != null ? dto.getActivo() : Boolean.TRUE);
@@ -167,21 +168,20 @@ public class TarifaClienteServiceImpl implements ITarifaClienteService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<TarifaClienteEntity> guardados = tarifaClienteRepository.saveAll(paraGuardar);
+			List<TarifaContadorEntity> guardados = tarifaClienteRepository.saveAll(paraGuardar);
 
-			List<TarifaClienteDTO> respuesta = guardados
+			List<TarifaContadorDTO> respuesta = guardados
 					.stream().map(
-							tc -> TarifaClienteDTO
+							tc -> TarifaContadorDTO
 									.builder().id(
 											tc.getId())
-									.cliente(tc.getCliente() != null
-											? PersonaDTO.builder().id(tc.getCliente().getId()).build()
+									.contador(tc.getContador() != null
+											? ContadorDTO.builder().id(tc.getContador().getId()).build()
 											: null)
-									.tipoTarifa(
-											tc.getTipoTarifa() != null
-													? TipoTarifaDTO.builder().id(tc.getTipoTarifa().getId())
-															.nombre(tc.getTipoTarifa().getNombre()).build()
-													: null)
+									.tipoTarifa(tc.getTipoTarifa() != null
+											? TipoTarifaDTO.builder().id(tc.getTipoTarifa().getId())
+													.nombre(tc.getTipoTarifa().getNombre()).build()
+											: null)
 									.aplica(tc.getAplica()).activo(tc.getActivo())
 									.usuarioCreacion(tc.getUsuarioCreacion()).fechaCreacion(tc.getFechaCreacion())
 									.usuarioModificacion(tc.getUsuarioModificacion())
@@ -194,7 +194,7 @@ public class TarifaClienteServiceImpl implements ITarifaClienteService {
 			return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
 
 		} catch (Exception e) {
-			log.error("Error al guardar tarifas de cliente", e);
+			log.error("Error al guardar tarifas del contador", e);
 
 			Throwable root = e;
 			while (root.getCause() != null && root.getCause() != root) {

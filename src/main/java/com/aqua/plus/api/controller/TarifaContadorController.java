@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aqua.plus.api.service.impl.TarifaClienteServiceImpl;
+import com.aqua.plus.api.service.impl.TarifaContadorServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.TarifaClienteDTO;
+import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,21 +30,21 @@ import lombok.extern.slf4j.Slf4j;
  * @version 1.0
  * 
  *          Controlador que expone los servicios para trabajar con objeto(s) de
- *          tipo (TarifaCliente).
+ *          tipo (TarifaContador).
  */
 
 @RestController
-@RequestMapping("/api/v1/tarifa-cliente")
-@Tag(name = "TarifaCliente - Controller", description = "Controller encargado de gestionar las operaciones de las tarifas clientes")
+@RequestMapping("/api/v1/tarifa-contador")
+@Tag(name = "TarifaContador - Controller", description = "Controller encargado de gestionar las operaciones de las tarifas del contador")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
 @RequiredArgsConstructor
 @Slf4j
-public class TarifaClienteController {
+public class TarifaContadorController {
 
-	private final TarifaClienteServiceImpl tarifaClienteServiceImpl;
+	private final TarifaContadorServiceImpl tarifaContadorServiceImpl;
 
-	@Operation(summary = "Guardar/actualizar tarifas de un cliente")
+	@Operation(summary = "Guardar/actualizar tarifas de un contador")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se han guardado/actualizado las tarifas satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -52,25 +52,25 @@ public class TarifaClienteController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis o validación", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado (por ejemplo, cliente o tipo tarifa inexistente)", content = {
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado (por ejemplo, contador o tipo tarifa inexistente)", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@PostMapping
-	public ResponseEntity<ResponseDTO> saveTarifasCliente(@RequestBody List<TarifaClienteDTO> tarifasCliente) {
-		return tarifaClienteServiceImpl.save(tarifasCliente);
+	public ResponseEntity<ResponseDTO> saveTarifasContador(@RequestBody List<TarifaContadorDTO> tarifasContador) {
+		return tarifaContadorServiceImpl.save(tarifasContador);
 	}
 
-	@Operation(summary = "Eliminar tarifa cliente por id")
+	@Operation(summary = "Eliminar tarifa Contador por id")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
+			@ApiResponse(responseCode = "200", description = "Tarifa contador eliminado correctamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
+			@ApiResponse(responseCode = "404", description = "Tarifa contador no encontrado", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
-		return tarifaClienteServiceImpl.deleteById(id);
+		return tarifaContadorServiceImpl.deleteById(id);
 	}
 }
