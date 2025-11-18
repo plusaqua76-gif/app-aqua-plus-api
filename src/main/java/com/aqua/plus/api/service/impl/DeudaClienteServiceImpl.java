@@ -24,7 +24,6 @@ import com.aqua.plus.commons.dtos.DeudaClienteDTO;
 import com.aqua.plus.commons.dtos.DeudaClienteResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
-import com.aqua.plus.commons.entities.PlazoPagoEntity;
 import com.aqua.plus.commons.maps.DeudaClienteMapper;
 import com.aqua.plus.commons.maps.DeudaClienteResponseMapper;
 import com.aqua.plus.commons.repositories.AbonoRepository;
@@ -119,6 +118,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			}
 
 			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+
 			if (deudas == null || deudas.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
@@ -136,24 +136,26 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 				row.put("descripcion", d.getDescripcion());
 
 				Double valorTotal = d.getValor();
-				if (valorTotal == null)
+				if (valorTotal == null) {
 					valorTotal = 0.0;
+				}
 				row.put("valorTotal", valorTotal);
 
 				String tipoDeudaNombre = (d.getTipoDeuda() != null) ? d.getTipoDeuda().getNombre() : null;
 				row.put("tipoDeudaNombre", tipoDeudaNombre);
 
-				Integer meses = extractMesesFromPlazo(d.getPlazoPago());
-				String plazoPagoNombre = (d.getPlazoPago() != null) ? d.getPlazoPago().getNombre() : null;
+				Integer meses = d.getPlazoPago();
+				String plazoPagoNombre = (meses != null ? (meses + " meses") : null);
 
-				if (d.getPlazoPago() != null && meses != null && meses >= 2) {
+				if (meses != null && meses >= 2) {
 					BigDecimal mensual = BigDecimal.valueOf(valorTotal).divide(BigDecimal.valueOf(meses), 2,
 							RoundingMode.HALF_UP);
+
 					row.put("meses", meses);
 					row.put("valorMes", mensual.doubleValue());
 					row.put("plazoPagoNombre", plazoPagoNombre);
 				} else {
-					row.put("meses", null);
+					row.put("meses", meses);
 					row.put("valorMes", null);
 					row.put("plazoPagoNombre", plazoPagoNombre);
 				}
@@ -169,39 +171,23 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 
 		} catch (Exception ex) {
 			log.error("Error al listar deudas por eccId: {}", eccId, ex);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-		}
-	}
 
-	/**
-	 * Extrae la cantidad de meses del PlazoPago. Reglas: - Si nombre contiene un
-	 * número entre 1 y 12 => lo usa como meses. - Si contiene "día" o no hay número
-	 * reconocible => 1 mes. - Si PlazoPago es null => 1 mes.
-	 *
-	 * Ejemplos válidos de nombre: "12 meses", "6 Meses", "3", "3 meses", "30 días"
-	 * (=> 1), "sin plazo" (=> 1)
-	 */
-	private Integer extractMesesFromPlazo(PlazoPagoEntity pp) {
-		if (pp == null || pp.getNombre() == null)
-			return 1;
-
-		String nombre = pp.getNombre().toLowerCase(java.util.Locale.ROOT).trim();
-
-		if (nombre.contains("día"))
-			return 1;
-
-		java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,2})").matcher(nombre);
-		if (m.find()) {
-			try {
-				int n = Integer.parseInt(m.group(1));
-				if (n >= 1 && n <= 12)
-					return n;
-			} catch (NumberFormatException ignore) {
+			Throwable root = ex;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
 			}
-		}
 
-		return 1;
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", ex.getClass().getName());
+			errorInfo.put("message", ex.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error al consultar deudas: "
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
+		}
 	}
 
 	@Override

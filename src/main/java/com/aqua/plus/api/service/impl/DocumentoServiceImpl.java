@@ -456,7 +456,7 @@ public class DocumentoServiceImpl implements IDocumentoService {
 						byte[] bytes = (data != null) ? data.toBytes() : null;
 
 						if (bytes != null && bytes.length > 0) {
-							String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+							//String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
 							//row.put("imagen", b64);
 
 							String ct = guessContentType(bytes);

@@ -29,11 +29,9 @@ import com.aqua.plus.commons.dtos.AbonoResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.AbonoEntity;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
-import com.aqua.plus.commons.entities.PlazoPagoEntity;
 import com.aqua.plus.commons.maps.AbonoMapper;
 import com.aqua.plus.commons.repositories.AbonoRepository;
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
-import com.aqua.plus.commons.repositories.PlazoPagoRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.RequiredArgsConstructor;
@@ -47,7 +45,6 @@ public class AbonoServiceImpl implements IAbonoService {
 	private final AbonoRepository abonoRepository;
 	private final AbonoMapper abonoMapper;
 	private final DeudaClienteRepository deudaClienteRepository;
-	private final PlazoPagoRepository plazoPagoRepository;
 
 	@Override
 	@Transactional
@@ -59,12 +56,11 @@ public class AbonoServiceImpl implements IAbonoService {
 						.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			// Usuario por defecto (raíz)
 			final String usuarioRaiz = (abonoDTO.getUsuarioCreacion() != null
 					&& !abonoDTO.getUsuarioCreacion().isBlank()) ? abonoDTO.getUsuarioCreacion() : "system";
 
-			// ====== MODO 2: LOTE ======
 			if (abonoDTO.getItems() != null && !abonoDTO.getItems().isEmpty()) {
+
 				for (AbonoDTO it : abonoDTO.getItems()) {
 					if (it == null || it.getDeudaCliente() == null || it.getDeudaCliente().getId() == null) {
 						return ResponseEntity.badRequest()
@@ -117,15 +113,13 @@ public class AbonoServiceImpl implements IAbonoService {
 					deuda.setFechaModificacion(new Date());
 					deuda.setUsuarioModificacion(usuarioRaiz);
 
-					// ↓ Decrementa 1 mes del plazo si el abono > 0
 					decrementarPlazoSiAplica(deuda, abono);
 
-					if (nuevoSaldo.compareTo(new BigDecimal("0.00")) <= 0) {
+					if (nuevoSaldo.compareTo(BigDecimal.ZERO) <= 0) {
 						deuda.setValor(0.0);
 						deuda.setActivo(false);
 					}
 
-					// Registrar abono (SIEMPRE usa usuarioRaiz)
 					AbonoEntity abonoEntity = new AbonoEntity();
 					abonoEntity.setDeudaCliente(deuda);
 					abonoEntity.setValor(abono.doubleValue());
@@ -152,7 +146,6 @@ public class AbonoServiceImpl implements IAbonoService {
 						.code(HttpStatus.CREATED.value()).totalCount((long) minimal.size()).response(minimal).build());
 			}
 
-			// ====== MODO 1: SINGLE ======
 			if (abonoDTO.getDeudaCliente() == null || abonoDTO.getDeudaCliente().getId() == null) {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
 						.message("Deuda requerida").code(HttpStatus.BAD_REQUEST.value()).build());
@@ -173,7 +166,7 @@ public class AbonoServiceImpl implements IAbonoService {
 
 			var saldo = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor()).setScale(2,
 					RoundingMode.HALF_UP);
-			var abono = java.math.BigDecimal.valueOf(abonoDTO.getValor()).setScale(2, RoundingMode.HALF_UP);
+			var abono = BigDecimal.valueOf(abonoDTO.getValor()).setScale(2, RoundingMode.HALF_UP);
 
 			if (abono.compareTo(saldo) > 0) {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
@@ -185,10 +178,9 @@ public class AbonoServiceImpl implements IAbonoService {
 			deuda.setFechaModificacion(new Date());
 			deuda.setUsuarioModificacion(usuarioRaiz);
 
-			// ↓ Decrementa 1 mes del plazo si el abono > 0
 			decrementarPlazoSiAplica(deuda, abono);
 
-			if (nuevoSaldo.compareTo(new BigDecimal("0.00")) <= 0) {
+			if (nuevoSaldo.compareTo(BigDecimal.ZERO) <= 0) {
 				deuda.setValor(0.0);
 				deuda.setActivo(false);
 			}
@@ -220,52 +212,33 @@ public class AbonoServiceImpl implements IAbonoService {
 		}
 	}
 
-	/* ==================== Helpers para plazo ==================== */
+	/* ==================== Helpers Plazo Pago ==================== */
 
 	private static boolean isPositive(BigDecimal v) {
 		return v != null && v.compareTo(BigDecimal.ZERO) > 0;
 	}
 
-	private Integer parseMeses(String nombre) {
-		if (nombre == null)
-			return null;
-		try {
-			return Integer.valueOf(nombre.trim());
-		} catch (Exception e) {
-			return null;
-		}
-	}
-
 	/**
-	 * Decrementa el plazo en 1 mes si el monto aplicado > 0. - Lee el mes actual
-	 * desde deuda.getPlazoPago().getNombre() (ej. "12", "6", "1") - Si es > 1,
-	 * busca y asigna el PlazoPago con nombre = (mesActual - 1) - Si es == 1, deja
-	 * plazoPago = null (ya no tiene plazo).
+	 * Decrementa el plazo en 1 mes si el monto aplicado > 0. Usa el campo Integer
+	 * deuda.plazoPago como número de meses/cuotas.
 	 */
 	private void decrementarPlazoSiAplica(DeudaClienteEntity deuda, BigDecimal montoAplicado) {
-		if (deuda == null || !isPositive(montoAplicado))
-			return;
-		var plazo = deuda.getPlazoPago();
-		if (plazo == null)
-			return;
-
-		Integer mesesActual = parseMeses(plazo.getNombre());
-		if (mesesActual == null || mesesActual <= 0)
-			return;
-
-		int nuevoMeses = mesesActual - 1;
-		if (nuevoMeses <= 0) {
-			deuda.setPlazoPago(null);
+		if (deuda == null || !isPositive(montoAplicado)) {
 			return;
 		}
 
-		String nombreNuevo = String.valueOf(nuevoMeses);
-		var nuevoPlazoOpt = plazoPagoRepository.findFirstByNombreAndActivoTrue(nombreNuevo);
-		if (nuevoPlazoOpt.isPresent()) {
-			deuda.setPlazoPago(nuevoPlazoOpt.get());
+		Integer plazoActual = deuda.getPlazoPago();
+		if (plazoActual == null || plazoActual <= 0) {
+			return;
+		}
+
+		int nuevoPlazo = plazoActual - 1;
+		if (nuevoPlazo <= 0) {
+			deuda.setPlazoPago(null);
+			log.debug("Plazo de deuda {} agotado, se establece plazoPago=null", deuda.getId());
 		} else {
-			log.warn("No existe PlazoPago activo con nombre={}, se conserva el plazo actual (deudaId={})", nombreNuevo,
-					deuda.getId());
+			deuda.setPlazoPago(nuevoPlazo);
+			log.debug("Plazo de deuda {} decrementado de {} a {}", deuda.getId(), plazoActual, nuevoPlazo);
 		}
 	}
 
@@ -559,50 +532,28 @@ public class AbonoServiceImpl implements IAbonoService {
 		}
 	}
 
-	private Integer extractMesesFromPlazo(PlazoPagoEntity pp) {
-		if (pp == null || pp.getNombre() == null)
-			return null;
-		String nombre = pp.getNombre().toLowerCase(java.util.Locale.ROOT).trim();
-		if (nombre.contains("día"))
-			return 1;
-		java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,2})").matcher(nombre);
-		if (m.find()) {
-			try {
-				int n = Integer.parseInt(m.group(1));
-				if (n >= 1 && n <= 12)
-					return n;
-			} catch (NumberFormatException ignore) {
-			}
-		}
-		return 1;
-	}
-
-	private PlazoPagoEntity findPlazoPorMesesOrNull(Integer meses) {
-		if (meses == null)
-			return null;
-		if (meses < 1)
-			return null;
-		if (meses == 1) {
-		}
-		String nombre = (meses == 1) ? "1 mes" : (meses + " meses");
-		return plazoPagoRepository.findFirstByNombreIgnoreCase(nombre).orElse(null);
-	}
-
-	/** Aplica la regla de bajar 1 mes si hay plazo; si queda 0, deja null. */
+	/**
+	 * Decrementa el plazo en 1 mes si la deuda tiene plazo > 0. Usa el campo
+	 * Integer deuda.plazoPago como número de meses/cuotas.
+	 */
 	private void decrementarPlazoSiAplica(DeudaClienteEntity deuda) {
-		PlazoPagoEntity pp = deuda.getPlazoPago();
-		if (pp == null)
+		if (deuda == null) {
 			return;
-		Integer meses = extractMesesFromPlazo(pp);
-		if (meses == null)
-			return;
+		}
 
-		int nuevo = meses - 1;
-		if (nuevo <= 0) {
+		Integer plazoActual = deuda.getPlazoPago();
+		if (plazoActual == null || plazoActual <= 0) {
+			return;
+		}
+
+		int nuevoPlazo = plazoActual - 1;
+		if (nuevoPlazo <= 0) {
 			deuda.setPlazoPago(null);
+			log.debug("Plazo de deuda {} agotado, se establece plazoPago=null", deuda.getId());
 		} else {
-			PlazoPagoEntity nuevoPlazo = findPlazoPorMesesOrNull(nuevo);
 			deuda.setPlazoPago(nuevoPlazo);
+			log.debug("Plazo de deuda {} decrementado de {} a {}", deuda.getId(), plazoActual, nuevoPlazo);
 		}
 	}
+
 }
