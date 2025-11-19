@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.ParametrosEmpresaServiceImpl;
@@ -71,4 +72,16 @@ public class ParametrosEmpresaController {
 	public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
 		return parametrosEmpresaServiceImpl.findByIdEnterprise(id);
 	}
+
+	@Operation(summary = "Consultar parámetro de empresa por llave")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/empresa/{idEmpresa}/parametro")
+	public ResponseEntity<ResponseDTO> findParametroByLlave(@PathVariable Integer idEmpresa,
+			@RequestParam String llave) {
+		return parametrosEmpresaServiceImpl.findByEmpresaAndLlave(idEmpresa, llave);
+	}
+
 }

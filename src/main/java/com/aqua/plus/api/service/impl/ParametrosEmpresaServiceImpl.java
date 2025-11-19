@@ -2,7 +2,9 @@ package com.aqua.plus.api.service.impl;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -103,4 +105,56 @@ public class ParametrosEmpresaServiceImpl implements IParametrosEmpresaService {
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
 	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaAndLlave(Integer idEmpresa, String llave) {
+		log.info("Buscar ParametroEmpresa por empresaId={} y llave={}", idEmpresa, llave);
+
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			if (llave == null || llave.isBlank()) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("Parámetro requerido: llave").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			var opt = parametrosEmpresaRepository.findFirstByEmpresa_IdAndLlaveAndActivoTrue(idEmpresa, llave);
+
+			if (opt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró parámetro para la empresa indicada y la llave dada")
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			ParametrosEmpresaDTO dto = parametrosEmpresaMapper.entityToDto(opt.get());
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dto).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar ParametroEmpresa por empresaId={} y llave={}", idEmpresa, llave, e);
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", e.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error al consultar parámetros de empresa: "
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
+		}
+	}
+
 }
