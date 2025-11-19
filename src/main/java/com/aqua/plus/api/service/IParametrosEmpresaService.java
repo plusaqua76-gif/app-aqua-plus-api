@@ -8,6 +8,8 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IParametrosEmpresaService {
 
 	ResponseEntity<ResponseDTO> save(ParametrosEmpresaDTO parametrosEmpresaDTO);
-	
+
 	ResponseEntity<ResponseDTO> findByIdEnterprise(Integer id);
+
+	ResponseEntity<ResponseDTO> findByEmpresaAndLlave(Integer idEmpresa, String llave);
 }
