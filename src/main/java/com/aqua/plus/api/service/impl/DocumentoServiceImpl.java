@@ -50,6 +50,9 @@ public class DocumentoServiceImpl implements IDocumentoService {
 	@Value("${app.azure.storage.container-name}")
 	private String containerName;
 
+	@Value("${app.azure.storage.container-name-public}")
+	private String containerNamePublic;
+
 	private final DocumentoRepository documentoRepository;
 	private final CategoriaDocumentoRepository categoriaDocumentoRepository;
 	private final TipoDocumentoRepository tipoDocumentoRepository;
@@ -61,8 +64,14 @@ public class DocumentoServiceImpl implements IDocumentoService {
 	private EntityManager em;
 
 	private BlobContainerClient container() {
+		return container(false);
+	}
+
+	private BlobContainerClient container(boolean publico) {
 		BlobServiceClient svc = new BlobServiceClientBuilder().connectionString(storageConnectionString).buildClient();
-		return svc.getBlobContainerClient(containerName);
+
+		String effectiveName = Boolean.TRUE.equals(publico) ? containerNamePublic : containerName;
+		return svc.getBlobContainerClient(effectiveName);
 	}
 
 	/** Prefijo: ANEXOS/{yyyy}/{idTipo}-{identificador}/ */
@@ -118,13 +127,17 @@ public class DocumentoServiceImpl implements IDocumentoService {
 	 * Sube documento a Azure y persiste fila en public.documento. Ruta:
 	 * ANEXOS/{yyyy}/{idTipo}-{identificador}/archivo.ext (año actual). Recibe el
 	 * archivo en Base64 (JSON), no usa Multipart.
+	 *
+	 * @param publico si es TRUE, usa el contenedor público; si es null o FALSE, el
+	 *                privado.
 	 */
 	@Transactional
 	public ResponseEntity<ResponseDTO> saveDocumentoBase64(String base64File, Integer idEmpresa, Integer idPersona,
-			String nombreArchivo, String extension, String usuario, String categoriaCodigo, Integer idClienteNovedad) {
+			String nombreArchivo, String extension, String usuario, String categoriaCodigo, Integer idClienteNovedad,
+			Boolean publico) {
 		log.info(
-				"Subiendo documento (base64): empresa={}, persona={}, nombre={}, ext={}, categoriaCodigo={}, idClienteNovedad={}",
-				idEmpresa, idPersona, nombreArchivo, extension, categoriaCodigo, idClienteNovedad);
+				"Subiendo documento (base64): empresa={}, persona={}, nombre={}, ext={}, categoriaCodigo={}, idClienteNovedad={}, publico={}",
+				idEmpresa, idPersona, nombreArchivo, extension, categoriaCodigo, idClienteNovedad, publico);
 
 		try {
 			if (base64File == null || base64File.isBlank()) {
@@ -154,13 +167,16 @@ public class DocumentoServiceImpl implements IDocumentoService {
 				return bad(HttpStatus.BAD_REQUEST, "Archivo (base64) vacío");
 			}
 
-			if (nombreArchivo == null || nombreArchivo.isBlank())
+			if (nombreArchivo == null || nombreArchivo.isBlank()) {
 				nombreArchivo = "documento";
+			}
 			if (extension == null || extension.isBlank()) {
 				extension = extensionFromContentType(guessContentType(bytes));
 			}
 
-			String tipoCodigoRuta, identificador;
+			String tipoCodigoRuta;
+			String identificador;
+
 			if (idPersona != null) {
 				tipoCodigoRuta = "CC";
 				var persona = personaRepository.findById(idPersona).orElse(null);
@@ -187,11 +203,14 @@ public class DocumentoServiceImpl implements IDocumentoService {
 			String prefix = buildPrefix(idTipoRuta, identificador, null);
 			String blobPath = buildBlobName(prefix, nombreArchivo, extension);
 
-			BlobClient blob = container().getBlobClient(blobPath);
+			boolean usePublic = Boolean.TRUE.equals(publico);
+			BlobClient blob = container(usePublic).getBlobClient(blobPath);
+
 			BlobHttpHeaders headers = new BlobHttpHeaders().setContentType(guessContentType(bytes));
 			try (var bais = new java.io.ByteArrayInputStream(bytes)) {
 				blob.upload(bais, bytes.length, true);
 				blob.setHttpHeaders(headers);
+
 				var tags = new java.util.HashMap<String, String>();
 				tags.put("categoriaDocumentoCodigo", categoria.getCodigo());
 				tags.put("tipoRutaCodigo", tipoCodigoRuta);
@@ -448,7 +467,7 @@ public class DocumentoServiceImpl implements IDocumentoService {
 					var client = container().getBlobClient(d.getRuta());
 					if (client == null || !client.exists()) {
 						log.warn("Blob no existe para ruta={}", d.getRuta());
-						//row.put("imagen", null);
+						// row.put("imagen", null);
 						row.put("contentType", null);
 						row.put("error", "Blob inexistente");
 					} else {
@@ -456,8 +475,8 @@ public class DocumentoServiceImpl implements IDocumentoService {
 						byte[] bytes = (data != null) ? data.toBytes() : null;
 
 						if (bytes != null && bytes.length > 0) {
-							//String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
-							//row.put("imagen", b64);
+							// String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+							// row.put("imagen", b64);
 
 							String ct = guessContentType(bytes);
 							if (ct == null || ct.isBlank()) {

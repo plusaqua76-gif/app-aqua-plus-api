@@ -14,14 +14,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.ITarifaContadorService;
-import com.aqua.plus.commons.dtos.ContadorDTO;
+import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
-import com.aqua.plus.commons.entities.ContadorEntity;
+import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TipoTarifaEntity;
-import com.aqua.plus.commons.repositories.ContadorRepository;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TipoTarifaRepository;
 import com.aqua.plus.commons.utils.Constantes;
@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TarifaContadorServiceImpl implements ITarifaContadorService {
 
 	private final TarifaContadorRepository tarifaClienteRepository;
-	private final ContadorRepository contadorRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final TipoTarifaRepository tipoTarifaRepository;
 
 	@Override
@@ -53,17 +53,19 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 
 			TarifaContadorDTO first = dtos.stream().filter(Objects::nonNull).findFirst().orElse(null);
 
-			if (first == null || first.getContador() == null || first.getContador().getId() == null) {
+			if (first == null || first.getEmpresaClienteContador() == null
+					|| first.getEmpresaClienteContador().getId() == null) {
 				return ResponseEntity.badRequest()
 						.body(ResponseDTO.builder().success(false)
 								.message("El contador y su id son requeridos en al menos un registro")
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			Integer contadorId = first.getContador().getId();
+			Integer contadorId = first.getEmpresaClienteContador().getId();
 
-			boolean allSameCliente = dtos.stream().filter(Objects::nonNull).allMatch(
-					dto -> dto.getContador() != null && Objects.equals(contadorId, dto.getContador().getId()));
+			boolean allSameCliente = dtos.stream().filter(Objects::nonNull)
+					.allMatch(dto -> dto.getEmpresaClienteContador() != null
+							&& Objects.equals(contadorId, dto.getEmpresaClienteContador().getId()));
 
 			if (!allSameCliente) {
 				return ResponseEntity.badRequest()
@@ -72,7 +74,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			ContadorEntity cliente = contadorRepository.findById(contadorId)
+			EmpresaClienteContadorEntity contador = empresaClienteContadorRepository.findById(contadorId)
 					.orElseThrow(() -> new IllegalArgumentException("No existe el contador con id " + contadorId));
 
 			List<Integer> tipoTarifaIds = dtos.stream().filter(Objects::nonNull).map(TarifaContadorDTO::getTipoTarifa)
@@ -97,7 +99,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<TarifaContadorEntity> existentes = tarifaClienteRepository.findByContador_Id(contadorId);
+			List<TarifaContadorEntity> existentes = tarifaClienteRepository.findByEmpresaClienteContador_Id(contadorId);
 
 			Map<Integer, TarifaContadorEntity> existentesPorId = existentes.stream().filter(tc -> tc.getId() != null)
 					.collect(Collectors.toMap(TarifaContadorEntity::getId, tc -> tc, (a, b) -> a));
@@ -129,8 +131,8 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 
 				if (dtoId != null) {
 					entity = existentesPorId.get(dtoId);
-					if (entity != null && entity.getContador() != null
-							&& !Objects.equals(entity.getContador().getId(), contadorId)) {
+					if (entity != null && entity.getEmpresaClienteContador() != null
+							&& !Objects.equals(entity.getEmpresaClienteContador().getId(), contadorId)) {
 						log.warn("Se intentó actualizar una tarifa de otro contador. dtoId={}, contadorId={}", dtoId,
 								contadorId);
 						entity = null;
@@ -150,7 +152,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 					entity.setFechaModificacion(ahora);
 				} else {
 					entity = new TarifaContadorEntity();
-					entity.setContador(cliente);
+					entity.setEmpresaClienteContador(contador);
 					entity.setTipoTarifa(tipoTarifaMap.get(tipoTarifaId));
 					entity.setAplica(aplica);
 					entity.setActivo(dto.getActivo() != null ? dto.getActivo() : Boolean.TRUE);
@@ -175,8 +177,9 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 							tc -> TarifaContadorDTO
 									.builder().id(
 											tc.getId())
-									.contador(tc.getContador() != null
-											? ContadorDTO.builder().id(tc.getContador().getId()).build()
+									.empresaClienteContador(tc.getEmpresaClienteContador() != null
+											? EmpresaClienteContadorDTO.builder()
+													.id(tc.getEmpresaClienteContador().getId()).build()
 											: null)
 									.tipoTarifa(tc.getTipoTarifa() != null
 											? TipoTarifaDTO.builder().id(tc.getTipoTarifa().getId())
