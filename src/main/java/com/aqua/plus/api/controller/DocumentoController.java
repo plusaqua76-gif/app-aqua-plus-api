@@ -64,9 +64,10 @@ public class DocumentoController {
 		Integer idClienteNovedad = body.get("idClienteNovedad") != null
 				? Integer.valueOf(body.get("idClienteNovedad").toString())
 				: null;
+		Boolean publico = body.get("publico") != null ? Boolean.valueOf(body.get("publico").toString()) : null;
 
 		return documentoServiceImpl.saveDocumentoBase64(base64File, idEmpresa, idPersona, nombreArchivo, extension,
-				usuario, categoriaCod, idClienteNovedad);
+				usuario, categoriaCod, idClienteNovedad, publico);
 	}
 
 	@Operation(summary = "Actualizar documento por ruta (sobrescribe el blob en Azure)")

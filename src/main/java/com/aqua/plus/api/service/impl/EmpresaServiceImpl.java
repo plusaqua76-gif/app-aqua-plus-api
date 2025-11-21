@@ -194,7 +194,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 					if (idEmpresaCreada != null && base64Imagen != null && !base64Imagen.isBlank()) {
 						try {
 							var respDoc = documentoServiceImpl.saveDocumentoBase64(base64Imagen, idEmpresaCreada, null,
-									nombreArchivoImagen, extensionImg, usuario, categoriaCodigo, null);
+									nombreArchivoImagen, extensionImg, usuario, categoriaCodigo, null, null);
 
 							if (respDoc.getStatusCode().is2xxSuccessful() && respDoc.getBody() != null
 									&& Boolean.TRUE.equals(respDoc.getBody().getSuccess())) {

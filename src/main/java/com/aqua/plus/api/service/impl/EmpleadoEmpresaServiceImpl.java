@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +53,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
+
+	@Value("${link.recover}")
+	private String linkRecover;
 
 	private final EmpleadoEmpresaRepository empleadoEmpresaRepository;
 	private final EmpleadoEmpresaMapper empleadoEmpresaMapper;
@@ -97,12 +101,36 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 				if (statusCode != null && statusCode == 200) {
 					if (correoEmpleado != null && !correoEmpleado.isBlank()) {
 						try {
+							String nombreCompleto = String
+									.join(" ", Optional.ofNullable(nombreEmpleado).orElse(""),
+											Optional.ofNullable(apellidoEmpleado).orElse(""))
+									.replaceAll("\\s+", " ").trim();
+
+							String tiempoLegible = notificacionServiceImpl
+									.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+							String baseRecover = (this.linkRecover != null) ? this.linkRecover.trim() : "";
+							String recoverLink = baseRecover;
+
 							Map<String, Object> data = new HashMap<>();
-							data.put("nombre", nombreEmpleado != null ? nombreEmpleado : "Usuario");
+
+							data.put("nombre", nombreCompleto);
 							data.put("apellido", apellidoEmpleado);
 							data.put("usuario", usuarioLogin);
+
+							data.put(Constantes.PARAMETRO_NAME_USER, nombreCompleto);
+							data.put(Constantes.PARAMETRO_USER, usuarioLogin);
+							data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
+
+							data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+
 							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.CREATE_PASSWORD,
 									data);
+
+							response.put("emailSent", true);
+							response.put("emailTo", correoEmpleado);
+							response.put("linkRecover", recoverLink);
+
 						} catch (Exception mailEx) {
 							response.put("warningCorreo",
 									"Empleado creado pero no se pudo enviar el correo: " + mailEx.getMessage());

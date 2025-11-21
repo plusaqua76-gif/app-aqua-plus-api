@@ -126,7 +126,7 @@ public class ClienteNovedadServiceImpl implements IClienteNovedadService {
 				String usuario = (usuarioCreacion != null && !usuarioCreacion.isBlank()) ? usuarioCreacion : "system";
 
 				ResponseEntity<ResponseDTO> respDoc = documentoServiceImpl.saveDocumentoBase64(base64, null, idPersona,
-						nombreArchivoFinal, extension, usuario, req.getCategoriaCodigo(), novedad.getId());
+						nombreArchivoFinal, extension, usuario, req.getCategoriaCodigo(), novedad.getId(), null);
 
 				if (!respDoc.getStatusCode().is2xxSuccessful()) {
 					return respDoc;
