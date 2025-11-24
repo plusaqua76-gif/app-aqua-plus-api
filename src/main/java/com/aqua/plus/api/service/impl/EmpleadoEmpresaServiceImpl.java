@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpleadoEmpresaService;
 import com.aqua.plus.api.service.impl.specification.EmpleadoEmpresaSpecification;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
@@ -65,6 +67,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final NotificacionServiceImpl notificacionServiceImpl;
 	private final EncriptarDesencriptar encriptarDesencriptar;
+	private final JwtUtil jwtUtil;
 
 	@Transactional
 	public Map<String, Object> save(Map<String, Object> jsonParams) {
@@ -87,7 +90,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 				String jsonValue = pg.getValue();
 
 				Map<String, Object> response = objectMapper.readValue(jsonValue,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						new TypeReference<Map<String, Object>>() {
 						});
 
 				Object statusObj = response.get("statusCode");
@@ -95,33 +98,51 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 
 				String correoEmpleado = (String) jsonParams.get("correo");
 				String nombreEmpleado = (String) jsonParams.get("primerNombre");
+				String segundoNombre = (String) jsonParams.get("segundoNombre");
 				String apellidoEmpleado = (String) jsonParams.get("primerApellido");
+				String segundoApellido = (String) jsonParams.get("segundoApellido");
 				String usuarioLogin = (String) jsonParams.get("nombreUsuario");
 
 				if (statusCode != null && statusCode == 200) {
-					if (correoEmpleado != null && !correoEmpleado.isBlank()) {
+
+					if (correoEmpleado != null && !correoEmpleado.isBlank() && usuarioLogin != null
+							&& !usuarioLogin.isBlank()) {
+
 						try {
-							String nombreCompleto = String
-									.join(" ", Optional.ofNullable(nombreEmpleado).orElse(""),
-											Optional.ofNullable(apellidoEmpleado).orElse(""))
+							String nombreCompleto = Stream
+									.of(nombreEmpleado, segundoNombre, apellidoEmpleado, segundoApellido)
+									.filter(s -> s != null && !s.isBlank()).collect(Collectors.joining(" "))
 									.replaceAll("\\s+", " ").trim();
 
 							String tiempoLegible = notificacionServiceImpl
 									.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-							String baseRecover = (this.linkRecover != null) ? this.linkRecover.trim() : "";
-							String recoverLink = baseRecover;
+							String token = jwtUtil.generateToken(usuarioLogin, Constantes.KEY_TOKEN_EXTERNO,
+									Constantes.TIEMPO_VIGENCIA_EXTERNO);
+
+							String baseRecover = (this.linkRecover == null) ? "" : this.linkRecover.trim();
+
+							String recoverLink;
+							if (baseRecover.endsWith("?") || baseRecover.endsWith("&")) {
+								recoverLink = baseRecover + token;
+							} else if (baseRecover.contains("?")) {
+								recoverLink = baseRecover + "&" + token;
+							} else {
+								recoverLink = baseRecover + "?" + token;
+							}
+
+							String recoverLinkMasked = recoverLink.replaceAll("([?&])[^#]*", "$1***");
+							log.info(
+									"Info data notificacion (saveEmpleado): [nameUser={}, user={}, linkRecover={}, hours={}]",
+									nombreCompleto, usuarioLogin, recoverLinkMasked, tiempoLegible);
 
 							Map<String, Object> data = new HashMap<>();
-
 							data.put("nombre", nombreCompleto);
-							data.put("apellido", apellidoEmpleado);
 							data.put("usuario", usuarioLogin);
 
 							data.put(Constantes.PARAMETRO_NAME_USER, nombreCompleto);
 							data.put(Constantes.PARAMETRO_USER, usuarioLogin);
 							data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
-
 							data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 
 							notificacionServiceImpl.enviarNotificacion(correoEmpleado, Constantes.CREATE_PASSWORD,
@@ -137,9 +158,13 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 							log.warn("No se pudo enviar correo de creación de empleado a {}: {}", correoEmpleado,
 									mailEx.getMessage());
 						}
-					} else {
+
+					} else if (correoEmpleado == null || correoEmpleado.isBlank()) {
 						response.put("warningCorreo",
 								"Empleado creado pero no se envió correo porque no se recibió email.");
+					} else {
+						response.put("warningCorreo",
+								"Empleado creado pero 'nombreUsuario' es requerido para generar el token de recuperación; no se envió notificación.");
 					}
 				}
 

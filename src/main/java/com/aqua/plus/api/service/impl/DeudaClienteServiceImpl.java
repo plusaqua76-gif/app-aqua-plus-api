@@ -8,7 +8,9 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +26,7 @@ import com.aqua.plus.commons.dtos.DeudaClienteDTO;
 import com.aqua.plus.commons.dtos.DeudaClienteResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
+import com.aqua.plus.commons.entities.TipoDeudaEntity;
 import com.aqua.plus.commons.maps.DeudaClienteMapper;
 import com.aqua.plus.commons.maps.DeudaClienteResponseMapper;
 import com.aqua.plus.commons.repositories.AbonoRepository;
@@ -185,6 +188,93 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false)
 							.message("Error al consultar deudas: "
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findConsolidadoByEmpresaClienteContadorId(Integer eccId) {
+		log.info("Listar deudas CONSOLIDADAS por tipoDeuda para eccId: {}", eccId);
+
+		try {
+			if (eccId == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+
+			if (deudas == null || deudas.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron deudas activas para el ECC con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			Map<TipoDeudaEntity, List<DeudaClienteEntity>> agrupadoPorTipo = deudas.stream()
+					.filter(d -> d.getTipoDeuda() != null)
+					.collect(Collectors.groupingBy(DeudaClienteEntity::getTipoDeuda));
+
+			var items = new ArrayList<Map<String, Object>>(agrupadoPorTipo.size());
+
+			for (Map.Entry<TipoDeudaEntity, List<DeudaClienteEntity>> entry : agrupadoPorTipo.entrySet()) {
+				TipoDeudaEntity tipo = entry.getKey();
+				List<DeudaClienteEntity> lista = entry.getValue();
+
+				BigDecimal totalSaldo = lista.stream()
+						.map(d -> d.getValor() == null ? BigDecimal.ZERO : BigDecimal.valueOf(d.getValor()))
+						.reduce(BigDecimal.ZERO, BigDecimal::add);
+
+				int cuotasPendientes = lista.stream().map(DeudaClienteEntity::getPlazoPago).filter(Objects::nonNull)
+						.filter(m -> m > 0).mapToInt(Integer::intValue).sum();
+
+				int numeroCuotas = cuotasPendientes;
+
+				BigDecimal valorCuota = BigDecimal.ZERO;
+				if (numeroCuotas > 0) {
+					valorCuota = totalSaldo.divide(BigDecimal.valueOf(numeroCuotas), 2, RoundingMode.HALF_UP);
+				}
+
+				BigDecimal abonosRealizados = BigDecimal.ZERO;
+				int cuotasCanceladas = 0;
+
+				Map<String, Object> row = new LinkedHashMap<>();
+
+				row.put("idTipoDeuda", tipo.getId());
+				row.put("nombreTipoDeuda", tipo.getNombre());
+				row.put("codigoTipoDeuda", tipo.getCodigo());
+
+				row.put("numeroCuotas", numeroCuotas);
+				row.put("valorCuota", valorCuota.doubleValue());
+				row.put("abonosRealizados", abonosRealizados.doubleValue());
+				row.put("cuotasCanceladas", cuotasCanceladas);
+				row.put("cuotasPendientes", cuotasPendientes);
+				row.put("nuevoSaldo", totalSaldo.doubleValue());
+
+				items.add(row);
+			}
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
+
+		} catch (Exception ex) {
+			log.error("Error al listar deudas consolidadas por eccId: {}", eccId, ex);
+
+			Throwable root = ex;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", ex.getClass().getName());
+			errorInfo.put("message", ex.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error al consultar deudas consolidadas: "
 									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
