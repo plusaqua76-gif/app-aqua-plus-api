@@ -88,6 +88,21 @@ public class DeudaClienteController {
 		return deudaClienteServiceImpl.findByEmpresaClienteContadorId(eccId);
 	}
 
+	@Operation(summary = "Buscar deudas consolidadas por TipoDeuda para un EmpresaClienteContador (eccId)", description = "Retorna un listado consolidado de deudas activas agrupadas por TipoDeuda para el eccId indicado.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@GetMapping("/consolidado/{eccId}")
+	public ResponseEntity<ResponseDTO> getDeudaConsolidadaByEmpresaClienteContadorId(@PathVariable Integer eccId) {
+		return deudaClienteServiceImpl.findConsolidadoByEmpresaClienteContadorId(eccId);
+	}
+
 	@Operation(summary = "Listar Deudas de Cliente por id de empresa (paginado + filtros opcionales)")
 	@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
 	@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)))
