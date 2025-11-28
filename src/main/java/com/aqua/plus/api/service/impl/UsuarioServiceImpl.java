@@ -34,6 +34,7 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.UsuarioDTO;
 import com.aqua.plus.commons.dtos.UsuarioListItemDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
+import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.RolEntity;
 import com.aqua.plus.commons.entities.RolMenuEntity;
@@ -195,16 +196,50 @@ public class UsuarioServiceImpl implements IUsuarioService {
 		try {
 			Optional<CorreoGeneralEntity> correoGeneralOpt = correoGeneralRepository.findByCorreo(correo);
 
-			if (correoGeneralOpt.isEmpty() || correoGeneralOpt.get().getPersona() == null) {
+			if (correoGeneralOpt.isEmpty()) {
 				return buildErrorResponse(Constantes.EMAIL_NOT_FOUND, HttpStatus.NOT_FOUND);
 			}
-			Integer idPersona = correoGeneralOpt.get().getPersona().getId();
-			Optional<UsuarioEntity> usuarioOpt = usuarioRepository.findByPersonaId(idPersona);
 
-			if (usuarioOpt.isEmpty()) {
+			CorreoGeneralEntity correoGeneral = correoGeneralOpt.get();
+
+			PersonaEntity persona = correoGeneral.getPersona();
+			EmpresaEntity empresa = correoGeneral.getEmpresa();
+
+			UsuarioEntity usuario;
+			String nombreCompleto;
+
+			if (persona != null && persona.getId() != null) {
+				Integer idPersona = persona.getId();
+				Optional<UsuarioEntity> usuarioOpt = usuarioRepository.findByPersonaId(idPersona);
+
+				if (usuarioOpt.isEmpty()) {
+					return buildErrorResponse(Constantes.USER_NOT_ASCIATED, HttpStatus.NOT_FOUND);
+				}
+
+				usuario = usuarioOpt.get();
+
+				nombreCompleto = String
+						.join(" ", Optional.ofNullable(persona.getNombre()).orElse(""),
+								Optional.ofNullable(persona.getSegundoNombre()).orElse(""),
+								Optional.ofNullable(persona.getApellido()).orElse(""),
+								Optional.ofNullable(persona.getSegundoApellido()).orElse(""))
+						.replaceAll("\\s+", " ").trim();
+
+			} else if (empresa != null && empresa.getId() != null) {
+
+				usuario = empresa.getUsuario();
+
+				if (usuario == null) {
+					return buildErrorResponse(Constantes.USER_NOT_ASCIATED, HttpStatus.NOT_FOUND);
+				}
+
+				nombreCompleto = Optional.ofNullable(empresa.getNombre())
+						.orElse(Optional.ofNullable(empresa.getCodigo()).orElse("")).trim();
+
+			} else {
 				return buildErrorResponse(Constantes.USER_NOT_ASCIATED, HttpStatus.NOT_FOUND);
 			}
-			UsuarioEntity usuario = usuarioOpt.get();
+
 			String token = jwtUtil.generateToken(usuario.getNombre(), Constantes.KEY_TOKEN_EXTERNO,
 					Constantes.TIEMPO_VIGENCIA_EXTERNO);
 			String recoveryLink = this.linkRecover + token;
@@ -212,20 +247,14 @@ public class UsuarioServiceImpl implements IUsuarioService {
 			String tiempoLegible = notificacionServiceImpl
 					.obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
 
-			String nombreCompleto = String
-					.join(" ", Optional.ofNullable(correoGeneralOpt.get().getPersona().getNombre()).orElse(""),
-							Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoNombre()).orElse(""),
-							Optional.ofNullable(correoGeneralOpt.get().getPersona().getApellido()).orElse(""),
-							Optional.ofNullable(correoGeneralOpt.get().getPersona().getSegundoApellido()).orElse(""))
-					.replaceAll("\\s+", " ").trim();
-
 			Map<String, Object> data = new HashMap<>();
 			data.put(Constantes.PARAMETRO_LINK_RECOVER, recoveryLink);
 			data.put(Constantes.PARAMETRO_NAME_USER, nombreCompleto);
 			data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
 			data.put(Constantes.PARAMETRO_USER, usuario.getNombre());
+
 			this.notificacionServiceImpl.enviarNotificacion(correo,
-					Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty() ? codigoPlantilla
+					(Objects.nonNull(codigoPlantilla) && !codigoPlantilla.isEmpty()) ? codigoPlantilla
 							: Constantes.RECOVER_PASSWORD,
 					data);
 
