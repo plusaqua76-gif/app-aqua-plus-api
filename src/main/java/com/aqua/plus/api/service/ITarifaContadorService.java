@@ -14,4 +14,6 @@ public interface ITarifaContadorService {
 	/*ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId);*/
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
+	
+	ResponseEntity<ResponseDTO> findByIdEmpresaClienteContador(Integer idEmpresaClienteContador);
 }
