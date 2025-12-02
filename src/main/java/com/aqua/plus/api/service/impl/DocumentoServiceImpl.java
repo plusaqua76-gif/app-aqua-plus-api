@@ -644,8 +644,8 @@ public class DocumentoServiceImpl implements IDocumentoService {
 							String nombre = (d.getNombre() != null && !d.getNombre().isBlank()) ? d.getNombre()
 									: extraerNombreDeRuta(d.getRuta());
 
-							DocumentoDTO dto = DocumentoDTO.builder().nombre(nombre).ruta(d.getRuta()).build();
-							dto.setImagen(b64);
+							DocumentoDTO dto = DocumentoDTO.builder().id(d.getId()).nombre(nombre).ruta(d.getRuta())
+									.imagen(b64).build();
 
 							items.add(dto);
 						} else {
