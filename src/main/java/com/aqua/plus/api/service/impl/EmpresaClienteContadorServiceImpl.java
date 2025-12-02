@@ -34,6 +34,7 @@ import com.aqua.plus.commons.dtos.EccDetalleDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
@@ -44,10 +45,12 @@ import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
+import com.aqua.plus.commons.maps.TarifaContadorMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
+import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -77,6 +80,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final RutaEmpleadoRepository rutaEmpleadoRepository;
 	private final JwtUtil jwtUtil;
+	private final TarifaContadorRepository tarifaContadorRepository;
+	private final TarifaContadorMapper tarifaContadorMapper;
 
 	@Override
 	@Transactional
@@ -758,7 +763,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No se encontró Empresa-Cliente-Contador con id " + id)
-								.code(HttpStatus.NOT_FOUND.value()).build());
+								.code(HttpStatus.NOT_FOUND.value()).response(null).build());
 			}
 
 			var ecc = opt.get();
@@ -790,18 +795,33 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
 					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
 
+			List<TarifaContadorDTO> tarifasDTO;
+			try {
+				var tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
+				tarifasDTO = (tarifas == null || tarifas.isEmpty()) ? java.util.Collections.emptyList()
+						: tarifas.stream().map(tarifaContadorMapper::entityToDto).toList();
+			} catch (Exception ex) {
+				log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
+				tarifasDTO = java.util.Collections.emptyList();
+			}
+
 			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
-					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal) // NUEVO
-					.telefono(telVal).build();
+					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal)
+					.telefono(telVal).tarifas(tarifasDTO).build();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(payload).build());
 
 		} catch (Exception e) {
 			log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
+
+			Map<String, Object> errorPayload = new HashMap<>();
+			errorPayload.put("exception", e.getClass().getSimpleName());
+			errorPayload.put("errorMessage", e.getMessage());
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorPayload).build());
 		}
 	}
 

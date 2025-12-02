@@ -2,6 +2,7 @@ package com.aqua.plus.api.service.impl;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TipoTarifaEntity;
+import com.aqua.plus.commons.maps.TarifaContadorMapper;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TipoTarifaRepository;
@@ -34,7 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TarifaContadorServiceImpl implements ITarifaContadorService {
 
-	private final TarifaContadorRepository tarifaClienteRepository;
+	private final TarifaContadorRepository tarifaContadorRepository;
+	private final TarifaContadorMapper tarifaContadorMapper;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final TipoTarifaRepository tipoTarifaRepository;
 
@@ -99,7 +102,8 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<TarifaContadorEntity> existentes = tarifaClienteRepository.findByEmpresaClienteContador_Id(contadorId);
+			List<TarifaContadorEntity> existentes = tarifaContadorRepository
+					.findByEmpresaClienteContador_Id(contadorId);
 
 			Map<Integer, TarifaContadorEntity> existentesPorId = existentes.stream().filter(tc -> tc.getId() != null)
 					.collect(Collectors.toMap(TarifaContadorEntity::getId, tc -> tc, (a, b) -> a));
@@ -170,7 +174,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<TarifaContadorEntity> guardados = tarifaClienteRepository.saveAll(paraGuardar);
+			List<TarifaContadorEntity> guardados = tarifaContadorRepository.saveAll(paraGuardar);
 
 			List<TarifaContadorDTO> respuesta = guardados
 					.stream().map(
@@ -226,7 +230,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 	public ResponseEntity<ResponseDTO> deleteById(Integer id) {
 		log.info("Inicio eliminar tarifa cliente por id: {}", id);
 		try {
-			if (!tarifaClienteRepository.existsById(id)) {
+			if (!tarifaContadorRepository.existsById(id)) {
 				String notFoundMsg = String.format(Constantes.ROL_NOT_FOUND, id);
 				log.warn(notFoundMsg);
 				ResponseDTO responseDTO = ResponseDTO.builder().success(false).code(HttpStatus.NOT_FOUND.value())
@@ -234,7 +238,7 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
 			}
 
-			tarifaClienteRepository.deleteById(id);
+			tarifaContadorRepository.deleteById(id);
 			log.info("Tarifa cliente eliminado correctamente para el Id: {}", id);
 
 			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.DELETED_SUCCESSFULLY)
@@ -248,6 +252,44 @@ public class TarifaContadorServiceImpl implements ITarifaContadorService {
 					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(e).build();
 
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByIdEmpresaClienteContador(Integer idEmpresaClienteContador) {
+		log.info("Buscar TarifaContador (lista) por idEmpresaClienteContador: {}", idEmpresaClienteContador);
+
+		try {
+			if (idEmpresaClienteContador == null) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false).message("El idEmpresaClienteContador es obligatorio")
+								.code(HttpStatus.BAD_REQUEST.value()).response(null).build());
+			}
+
+			var list = tarifaContadorRepository.findByEmpresaClienteContador_Id(idEmpresaClienteContador);
+
+			if (list == null || list.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron tarifas para EmpresaClienteContador id " + idEmpresaClienteContador)
+						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).build());
+			}
+
+			List<TarifaContadorDTO> dtos = list.stream().map(tarifaContadorMapper::entityToDto).toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(dtos).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar TarifaContador por idEmpresaClienteContador: {}", idEmpresaClienteContador, e);
+
+			Map<String, Object> errorPayload = new HashMap<>();
+			errorPayload.put("errorMessage", e.getMessage());
+			errorPayload.put("exception", e.getClass().getSimpleName());
+
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorPayload).build());
 		}
 	}
 
