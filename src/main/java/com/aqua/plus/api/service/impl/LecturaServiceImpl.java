@@ -1,8 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
 import java.time.LocalDate;
-import java.time.YearMonth;
-import java.time.ZoneId;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
@@ -61,89 +59,89 @@ public class LecturaServiceImpl implements ILecturaService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(LecturaDTO dto) {
-		log.info("Guardar/Actualizar lectura (upsert por mes/contador)");
+		log.info("Guardar/Actualizar lectura (por id de lectura)");
+
 		try {
-			final Integer contadorId = (dto.getContador() != null) ? dto.getContador().getId() : null;
-			if (contadorId == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.code(HttpStatus.BAD_REQUEST.value()).message("Debe indicar el contador").build());
+			if (dto == null) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+								.message("El DTO de lectura es obligatorio").response(null).build());
 			}
 
 			final Integer lecturaId = dto.getId();
-			final boolean inputEsUpdate = lecturaId != null && lecturaRepository.existsById(lecturaId);
+			final boolean esUpdate = (lecturaId != null && lecturaRepository.existsById(lecturaId));
 
-			final Date baseFechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : new Date();
-			final Date inicioMes = monthStart(baseFechaLectura);
-			final Date inicioMesSiguiente = nextMonthStart(baseFechaLectura);
+			if (esUpdate) {
+				LecturaEntity target = lecturaRepository.findById(lecturaId)
+						.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
 
-			Optional<LecturaEntity> existenteMesOpt = lecturaRepository
-					.findFirstByContador_IdAndFechaLecturaBetween(contadorId, inicioMes, inicioMesSiguiente);
+				ContadorEntity contadorActual = target.getContador();
 
-			final ContadorEntity contador = contadorRepository.findById(contadorId)
-					.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+				Integer contadorIdDto = (dto.getContador() != null ? dto.getContador().getId() : null);
+				ContadorEntity contadorAUsar;
 
-			LecturaEntity target;
-
-			if (existenteMesOpt.isPresent()) {
-				target = existenteMesOpt.get();
+				if (contadorIdDto != null) {
+					contadorAUsar = contadorRepository.findById(contadorIdDto)
+							.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+				} else {
+					if (contadorActual == null || contadorActual.getId() == null) {
+						return ResponseEntity.badRequest()
+								.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+										.message("La lectura existente no tiene contador asociado").response(null)
+										.build());
+					}
+					contadorAUsar = contadorActual;
+				}
 
 				lecturaMapper.updateEntityFromDto(dto, target);
 
-				target.setId(existenteMesOpt.get().getId());
-				target.setContador(contador);
-				target.setFechaLectura(baseFechaLectura);
+				target.setContador(contadorAUsar);
+
+				Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : target.getFechaLectura();
+
+				if (fechaLectura == null) {
+					fechaLectura = new Date();
+				}
+				target.setFechaLectura(fechaLectura);
+
 				target.setFechaModificacion(new Date());
 				target.setUsuarioModificacion(
 						dto.getUsuarioModificacion() != null ? dto.getUsuarioModificacion() : dto.getUsuarioCreacion());
 
 				LecturaEntity saved = lecturaRepository.save(target);
 				return respond(true, saved);
-
-			} else {
-				if (inputEsUpdate) {
-					target = lecturaRepository.findById(lecturaId).orElseThrow();
-
-					lecturaMapper.updateEntityFromDto(dto, target);
-					target.setContador(contador);
-					target.setFechaLectura(baseFechaLectura);
-					target.setFechaModificacion(new Date());
-					target.setUsuarioModificacion(dto.getUsuarioModificacion());
-
-					LecturaEntity saved = lecturaRepository.save(target);
-					return respond(true, saved);
-
-				} else {
-					target = lecturaMapper.dtoToEntity(dto);
-					target.setContador(contador);
-					target.setFechaLectura(baseFechaLectura);
-					target.setFechaCreacion(new Date());
-					target.setUsuarioCreacion(dto.getUsuarioCreacion());
-					target.setActivo(true);
-
-					LecturaEntity saved = lecturaRepository.save(target);
-					return respond(false, saved);
-				}
 			}
+
+			final Integer contadorId = (dto.getContador() != null) ? dto.getContador().getId() : null;
+			if (contadorId == null) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+								.message("Debe indicar el contador").response(null).build());
+			}
+
+			ContadorEntity contador = contadorRepository.findById(contadorId)
+					.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+
+			LecturaEntity target = lecturaMapper.dtoToEntity(dto);
+			target.setContador(contador);
+
+			Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : new Date();
+			target.setFechaLectura(fechaLectura);
+
+			target.setFechaCreacion(new Date());
+			target.setUsuarioCreacion(dto.getUsuarioCreacion());
+			target.setActivo(true);
+
+			LecturaEntity saved = lecturaRepository.save(target);
+			return respond(false, saved);
 
 		} catch (Exception e) {
 			log.error("Error guardando lectura", e);
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
-					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
+							.code(HttpStatus.BAD_REQUEST.value()).response(e.getMessage()).build());
 		}
-	}
-
-	private static final ZoneId ZONE = ZoneId.of("America/Bogota");
-
-	private static Date monthStart(Date base) {
-		var ym = YearMonth.from(base.toInstant().atZone(ZONE));
-		var start = ym.atDay(1).atStartOfDay(ZONE).toInstant();
-		return Date.from(start);
-	}
-
-	private static Date nextMonthStart(Date base) {
-		var ym = YearMonth.from(base.toInstant().atZone(ZONE)).plusMonths(1);
-		var start = ym.atDay(1).atStartOfDay(ZONE).toInstant();
-		return Date.from(start);
 	}
 
 	private ResponseEntity<ResponseDTO> respond(boolean isUpdate, LecturaEntity saved) {
