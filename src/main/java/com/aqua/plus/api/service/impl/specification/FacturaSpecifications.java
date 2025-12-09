@@ -58,10 +58,13 @@ public final class FacturaSpecifications {
 	}
 
 	public static Specification<FacturaEntity> consumoEquals(Integer consumo) {
-		if (consumo == null)
-			return null;
-		return (root, query, cb) -> cb.equal(root.get("consumo"), consumo);
-	}
+	    if (consumo == null) return null;
+
+	    return (root, query, cb) -> {
+	        var lec = root.join("lectura", JoinType.INNER); // o LEFT si lo necesitas opcional
+	        return cb.equal(lec.get("lectura"), consumo);
+	    };
+	}	
 
 	public static Specification<FacturaEntity> fechaEmisionBetween(LocalDate desde, LocalDate hasta) {
 		if (desde == null && hasta == null)

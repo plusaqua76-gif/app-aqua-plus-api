@@ -80,10 +80,10 @@ public class FacturaController {
 			@RequestParam(required = false, name = "clienteNombreCompleto") String clienteNombreCompleto,
 			@RequestParam(required = false) String fechaEmision, @RequestParam(required = false) String fechaFin,
 			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
-			@RequestParam(required = false) Double precioMin, @RequestParam(required = false) Double precioMax,
-			Pageable pageable) {
+			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) Double precioMin,
+			@RequestParam(required = false) Double precioMax, Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
-				estadoNombre, consumoAnormal, precioMin, precioMax, pageable);
+				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, pageable);
 	}
 
 	@Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")
@@ -202,7 +202,7 @@ public class FacturaController {
 			@ApiResponse(responseCode = "404", description = "No encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
 			@ApiResponse(responseCode = "422", description = "Entidad no procesable", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))),
 			@ApiResponse(responseCode = "500", description = "Error interno", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.Map.class))) })
-	@GetMapping("/consumo-empresas") 
+	@GetMapping("/consumo-empresas")
 	public ResponseEntity<Map<String, Object>> metricasConsumoMesEmpresa(@RequestParam Integer empresaId,
 			@RequestParam Integer anio, Integer mes) {
 		return facturaServiceImpl.metricasConsumoMesEmpresa(empresaId, anio, mes);
