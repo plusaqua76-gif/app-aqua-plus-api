@@ -216,11 +216,11 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
-			Boolean consumoAnormal, Double precioMin, Double precioMax, Pageable pageable) {
+			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, Pageable pageable) {
 
 		log.info(
-				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, precioMin={}, precioMax={}",
-				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal,
+				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}",
+				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal, consumo, 
 				precioMin, precioMax);
 
 		try {
@@ -228,7 +228,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
-					emision, venc, venc, estadoNombre, consumoAnormal, precioMin, precioMax)
+					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax)
 					.and(FacturaSpecifications.activoTrue());
 
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
@@ -298,7 +298,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
-			String estadoNombre, Boolean consumoAnormal, Double precioMin, Double precioMax) {
+			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -313,6 +313,7 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
 				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
+				FacturaSpecifications.consumoEquals(consumo),
 				FacturaSpecifications.precioBetween(precioMin, precioMax));
 	}
 

@@ -3,7 +3,6 @@ package com.aqua.plus.api.service.impl;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -380,31 +379,61 @@ public class DocumentoServiceImpl implements IDocumentoService {
 		return (slash >= 0 && slash < ruta.length() - 1) ? ruta.substring(slash + 1) : ruta;
 	}
 
-	/** Soft delete en DB + intento de borrar en Azure. */
+	/** Soft delete en DB + en Azure. */
+	/**
+	 * Hard delete en BD + borrado OBLIGATORIO en Azure.
+	 */
 	@Transactional
 	public ResponseEntity<ResponseDTO> deleteDocumento(Integer idDocumento, String usuario) {
 		try {
 			DocumentoEntity entity = documentoRepository.findById(idDocumento).orElse(null);
 			if (entity == null) {
-				return notFound("Documento no encontrado");
+				return err("Documento no encontrado");
+			}
+
+			String ruta = entity.getRuta();
+			if (ruta == null || ruta.isBlank()) {
+				return err("El documento no tiene ruta de blob asociada");
+			}
+
+			var blobClient = container().getBlobClient(ruta);
+
+			boolean exists;
+			try {
+				exists = blobClient.exists();
+			} catch (Exception ex) {
+				String msg = "Error verificando existencia del blob en Azure: " + ex.getMessage();
+				log.error(msg, ex);
+				return err(msg);
+			}
+
+			if (!exists) {
+				return err("El blob en Azure no existe para la ruta: " + ruta);
 			}
 
 			try {
-				container().getBlobClient(entity.getRuta()).deleteIfExists();
+				blobClient.delete();
+				log.info("Blob borrado correctamente en Azure para documentoId={} ruta={}", idDocumento, ruta);
 			} catch (Exception ex) {
-				log.warn("No se pudo borrar blob en Azure (continuando con DB): {}", ex.getMessage());
+				String msg = "No se pudo borrar el blob en Azure: " + ex.getMessage();
+				log.error(msg, ex);
+				return err(msg);
 			}
 
-			entity.setActivo(Boolean.FALSE);
-			entity.setUsuarioModificacion(usuario == null ? "system" : usuario);
-			entity.setFechaModificacion(new Date());
-			documentoRepository.save(entity);
+			try {
+				documentoRepository.delete(entity);
+			} catch (Exception ex) {
+				String msg = "El blob se eliminó, pero falló la eliminación en BD: " + ex.getMessage();
+				log.error(msg, ex);
+				return err(msg);
+			}
 
-			return ok("Documento eliminado", null);
+			return ok("Documento y blob eliminados correctamente", null);
 
 		} catch (Exception e) {
-			log.error("Error eliminando documento", e);
-			return err("Error eliminando documento");
+			String msg = "Error inesperado eliminando documento: " + e.getMessage();
+			log.error(msg, e);
+			return err(msg);
 		}
 	}
 

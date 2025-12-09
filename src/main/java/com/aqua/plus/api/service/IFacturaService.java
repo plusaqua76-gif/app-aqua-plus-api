@@ -15,7 +15,7 @@ public interface IFacturaService {
 	ResponseEntity<ResponseDTO> findById(Integer id);
 
 	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo, String clienteNombreCompleto,
-			String fechaEmision, String fechaFin, String estadoNombre, Boolean consumoAnormal, Double precioMin,
+			String fechaEmision, String fechaFin, String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin,
 			Double precioMax, Pageable pageable);
 
 	ResponseEntity<ResponseDTO> findAll();
