@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
@@ -35,23 +36,28 @@ import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
+import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
+import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
+import com.aqua.plus.commons.entities.TipoTarifaEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.maps.TarifaContadorMapper;
+import com.aqua.plus.commons.maps.TipoTarifaMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
+import com.aqua.plus.commons.repositories.TipoTarifaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -82,6 +88,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final JwtUtil jwtUtil;
 	private final TarifaContadorRepository tarifaContadorRepository;
 	private final TarifaContadorMapper tarifaContadorMapper;
+	private final TipoTarifaRepository tipoTarifaRepository;
+	private final TipoTarifaMapper tipoTarifaMapper;
 
 	@Override
 	@Transactional
@@ -756,73 +764,135 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
-		log.info("Buscar Empresa Cliente Contador por id: {}", id);
-		try {
-			var opt = empresaClienteContadorRepository.findById(id);
-			if (opt.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontró Empresa-Cliente-Contador con id " + id)
-								.code(HttpStatus.NOT_FOUND.value()).response(null).build());
-			}
+	    log.info("Buscar Empresa Cliente Contador por id: {}", id);
+	    try {
+	        var opt = empresaClienteContadorRepository.findById(id);
+	        if (opt.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                    .body(ResponseDTO.builder()
+	                            .success(false)
+	                            .message("No se encontró Empresa-Cliente-Contador con id " + id)
+	                            .code(HttpStatus.NOT_FOUND.value())
+	                            .response(null)
+	                            .build());
+	        }
 
-			var ecc = opt.get();
+	        var ecc = opt.get();
 
-			var personaEntity = ecc.getCliente();
-			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
+	        // ================== CLIENTE / PERSONA ==================
+	        var personaEntity = ecc.getCliente();
+	        Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
 
-			var contadores = (personaId != null) ? contadorRepository.findByCliente_Id(personaId)
-					: java.util.Collections.<ContadorEntity>emptyList();
+	        var contadores = (personaId != null)
+	                ? contadorRepository.findByCliente_Id(personaId)
+	                : java.util.Collections.<ContadorEntity>emptyList();
 
-			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
-			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
+	        PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
+	        List<ContadorDTO> contadoresDTO = contadores.stream()
+	                .map(contadorMapper::entityToDto)
+	                .toList();
 
-			String correoVal = (personaId != null)
-					? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-							.map(CorreoGeneralEntity::getCorreo).orElse(null)
-					: null;
+	        // ================== CONTACTO (CORREO / TELÉFONO) ==================
+	        String correoVal = (personaId != null)
+	                ? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+	                        .map(CorreoGeneralEntity::getCorreo)
+	                        .orElse(null)
+	                : null;
 
-			String telVal = (personaId != null)
-					? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-							.map(TelefonoGeneralEntity::getNumero).orElse(null)
-					: null;
+	        String telVal = (personaId != null)
+	                ? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+	                        .map(TelefonoGeneralEntity::getNumero)
+	                        .orElse(null)
+	                : null;
 
-			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
+	        // ================== RUTA / EMPLEADO ==================
+	        Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
 
-			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-					.map(EmpleadoEmpresaEntity::getId).orElse(null);
+	        Integer empleadoEmpresaId = rutaOpt
+	                .map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+	                .map(EmpleadoEmpresaEntity::getId)
+	                .orElse(null);
 
-			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
+	        String empleadoNombre = rutaOpt
+	                .map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+	                .map(this::resolveEmpleadoNombreSeguro)
+	                .orElse(null);
 
-			List<TarifaContadorDTO> tarifasDTO;
-			try {
-				var tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
-				tarifasDTO = (tarifas == null || tarifas.isEmpty()) ? java.util.Collections.emptyList()
-						: tarifas.stream().map(tarifaContadorMapper::entityToDto).toList();
-			} catch (Exception ex) {
-				log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
-				tarifasDTO = java.util.Collections.emptyList();
-			}
+	        List<TarifaContadorDTO> tarifasDTO;
+	        List<TarifaContadorEntity> tarifas = java.util.Collections.emptyList();
 
-			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
-					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal)
-					.telefono(telVal).tarifas(tarifasDTO).build();
+	        try {
+	            tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
+	            tarifasDTO = (tarifas == null || tarifas.isEmpty())
+	                    ? java.util.Collections.emptyList()
+	                    : tarifas.stream()
+	                            .map(tarifaContadorMapper::entityToDto)
+	                            .toList();
+	        } catch (Exception ex) {
+	            log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
+	            tarifasDTO = java.util.Collections.emptyList();
+	            tarifas = java.util.Collections.emptyList();
+	        }
 
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(payload).build());
+	        Integer empresaId = null;
+	        if (ecc.getEmpresa() != null) {
+	            empresaId = ecc.getEmpresa().getId();
+	        }
 
-		} catch (Exception e) {
-			log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
+	        List<TipoTarifaDTO> tiposTarifaFaltantesDTO = java.util.Collections.emptyList();
 
-			Map<String, Object> errorPayload = new HashMap<>();
-			errorPayload.put("exception", e.getClass().getSimpleName());
-			errorPayload.put("errorMessage", e.getMessage());
+	        if (empresaId != null) {
+	            Set<Integer> tiposUsadosIds = tarifas.stream()
+	                    .filter(t -> t.getTipoTarifa() != null)
+	                    .map(t -> t.getTipoTarifa().getId())
+	                    .collect(java.util.stream.Collectors.toSet());
 
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorPayload).build());
-		}
+	            List<TipoTarifaEntity> tiposEmpresa = tipoTarifaRepository
+	                    .findByEmpresa_Id(empresaId);
+
+	            List<TipoTarifaEntity> tiposFaltantes = tiposEmpresa.stream()
+	                    .filter(tt -> tt.getId() != null && !tiposUsadosIds.contains(tt.getId()))
+	                    .toList();
+
+	            tiposTarifaFaltantesDTO = tiposFaltantes.stream()
+	                    .map(tipoTarifaMapper::entityToDto)
+	                    .toList();
+	        }
+
+	        EccDetalleDTO payload = EccDetalleDTO.builder()
+	                .persona(personaDTO)
+	                .contadores(contadoresDTO)
+	                .empleadoEmpresaId(empleadoEmpresaId)
+	                .empleadoNombre(empleadoNombre)
+	                .correo(correoVal)
+	                .telefono(telVal)
+	                .tarifasContadores(tarifasDTO)
+	                .tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
+	                .build();
+
+	        return ResponseEntity.ok(
+	                ResponseDTO.builder()
+	                        .success(true)
+	                        .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                        .code(HttpStatus.OK.value())
+	                        .response(payload)
+	                        .build());
+
+	    } catch (Exception e) {
+	        log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
+
+	        Map<String, Object> errorPayload = new HashMap<>();
+	        errorPayload.put("exception", e.getClass().getSimpleName());
+	        errorPayload.put("errorMessage", e.getMessage());
+
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(ResponseDTO.builder()
+	                        .success(false)
+	                        .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                        .response(errorPayload)
+	                        .build());
+	    }
 	}
 
 	private String resolveEmpleadoNombreSeguro(EmpleadoEmpresaEntity ee) {
