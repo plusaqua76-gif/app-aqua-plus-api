@@ -30,10 +30,8 @@ public class EncriptarDesencriptar {
 	 * @return Contraseña encriptada.
 	 */
 	public String encriptar(String texto) {
-		log.info("--------------------------ENTRADA TEXTO------------------------  " + texto);
-		secretKey ="keyacuaplus";//this.llave; // llave para encriptar datos
+		secretKey =this.llave; // llave para encriptar datos
 		String base64EncryptedString = "";
-		log.info("--------------------------ENTRADA llave------------------------  " + llave);
 
 		try {
 
@@ -65,8 +63,7 @@ public class EncriptarDesencriptar {
 	 * @throws Exception
 	 */
 	public String desencriptar(String textoEncriptado) {
-		log.info("Ingreso desencriptar:  {}", textoEncriptado );
-		secretKey ="keyacuaplus";//this.llave; llave para desenciptar datos
+		secretKey =this.llave; 
 		String base64EncryptedString = "";
 
 		try {
@@ -87,7 +84,6 @@ public class EncriptarDesencriptar {
 			log.error("Error desencriptar: " + e.getMessage());
 			e.printStackTrace();
 		}
-		log.info("Salida desencriptar: {} ", base64EncryptedString );
 		return base64EncryptedString;
 	}
 	

@@ -39,7 +39,7 @@ mail:
          enable: true
          required: true  
 seguridad:
-  llave: keyaquaplus
+  llave: keyacuaplus
 link:
   recover: https://www.aquaplus.dev/auth/recover-password?
 app:
@@ -63,3 +63,21 @@ app:
       avsu:
         enabled: true
         dias: 60
+rest-template:
+  connect: 5
+  read: 60
+alegra:
+  url: https://sandbox-api.alegra.com/e-provider/col/v1
+  token: zynNJhQOfIC8SUObliKl6ivZ3VzRfiW1LH1HKWFW
+  end-point:
+    empresa:
+      companies: /companies
+    factura:
+       test-sets: /test-sets
+       invoices: /invoices
+    lista: 
+      identification-types: /dian/identification-types
+      unit-codes: /dian/unit-codes
+      payment-methods: /dian/payment-methods
+      departments: /dian/departments
+      municipalities: /dian/municipalities
