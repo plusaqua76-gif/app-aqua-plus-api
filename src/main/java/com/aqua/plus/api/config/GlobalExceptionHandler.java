@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class GlobalExceptionHandler {
 
+	@ExceptionHandler(ProcessGenericException.class)
+    public ResponseEntity<ResponseDTO> processGenericException(ProcessGenericException ex) {
+		log.error(ex.getLocalizedMessage());
+        ResponseDTO response = ResponseDTO.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .code(HttpStatus.NOT_FOUND.value())
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+	
 	@ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ResponseDTO> handleUserNotFound(UserNotFoundException ex) {
 		log.error(ex.getLocalizedMessage());

@@ -72,7 +72,7 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	@Transactional
 	public void actualizarEmpresa(CompanyDto request, ResponseEmpresaAltaDto response) {
 		log.info("Inicio metodo actualizarEmpresa: {} " , request.getIdentification());
-		EmpresaEntity entity= this.empresaRepository.findByNit(request.getIdentification()).orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
+		EmpresaEntity entity= this.empresaRepository.findByNit(request.getIdentification()).orElseThrow(() -> new ProcessGenericException(Constantes.EMP_NOT_FOUND));
 		entity.setIdEmpresaDian(response.getCompany().getId());
 		this.empresaRepository.save(entity);
 		log.info("Fin metodo actualizarEmpresa: {} " , request.getIdentification());
@@ -109,7 +109,7 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	@Override
 	public ResponseEntity<ResponseDTO> consultarResolucionPorId(Integer id) {
 		log.info("Inicio metodo consultarResolucionPorId: {} " , id);
-		ResolutionEntity entity = resolutionRepository.findByEmpresaId(id).orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
+		ResolutionEntity entity = resolutionRepository.findByEmpresaId(id).orElseThrow(() -> new ProcessGenericException(Constantes.RESOLUTION_NOT_FOUND));
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).response(ResolucionMapper.INSTANCE.entityToDto(entity)).build(), HttpStatus.CREATED);
 	}
 

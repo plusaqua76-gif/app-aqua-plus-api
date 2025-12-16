@@ -8,10 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aqua.plus.api.service.external.IFacturaDianService;
+import com.aqua.plus.api.service.external.IProductoDianService;
+import com.aqua.plus.commons.dtos.ProductDto;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
-import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,16 +21,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1/factura-dian")
-@Tag(name = "FacturaDianController - Controller", description = "Controller encargado de gestionar las operaciones de la empresa")
+@RequestMapping("/api/v1/producto-dian")
+@Tag(name = "EmpresaDianController - Controller", description = "Controller encargado de gestionar las operaciones de los productos dian")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
 @RequiredArgsConstructor
-public class FacturaDianController {
+public class ProductoDianController {
 	
-	private final IFacturaDianService facturaDianService;
-	
-	@Operation(summary = "Servicio encargado de crear el set prueba")
+	private final IProductoDianService productoDianService;
+
+	@Operation(summary = "Servicio encargado de guardar los datos del producto")
 	@ApiResponses(value = {
 	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -44,26 +43,8 @@ public class FacturaDianController {
 	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 	})
-    @PostMapping("/set-prueba")
-    public ResponseEntity<ResponseDTO> crearSetPrueba(@RequestBody RequestSetPruebaDto setPrueba) {
-        return facturaDianService.crearSetPrueba(setPrueba);
-    }
-	
-	@Operation(summary = "Crear factura electronica dian")
-	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
-    @PostMapping("/factura")
-    public ResponseEntity<ResponseDTO> crearFacturaElectronica(@RequestBody RequestFacturaDto invoice) {
-        return facturaDianService.crearFacturaElectronica(invoice);
+    @PostMapping
+    public ResponseEntity<ResponseDTO> guardarProducto(@RequestBody ProductDto product) {
+        return productoDianService.guardarProducto(product);
     }
 }
