@@ -199,14 +199,15 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 	@Override
 	public ResponseEntity<ResponseDTO> crearSetPrueba(RequestSetPruebaDto request) {
 		log.info("Inicio metodo crearSetPrueba: {} " , request.getGovernmentId());
-        HttpEntity<CompanyDto> entity = new HttpEntity<>(utilsRestemplate.getHeader());
-		
+        HttpEntity<RequestSetPruebaDto> entity = new HttpEntity<>(request,utilsRestemplate.getHeader());
+        FacturaDianServiceImpl.print("##########REQUEST########## ", entity);
 		ResponseEntity<Object> response = this.restTemplateConfig.restTemplate().exchange(
 		        this.url.concat(this.endPointTestSets),
 		        HttpMethod.POST,
 		        entity,
 		        Object.class
 		);
+		FacturaDianServiceImpl.print("##########RESPONSE########## ", response);
 		log.info("Fin metodo crearSetPrueba:{} " , response.getStatusCode());
 		if(response.getStatusCode().equals(HttpStatus.CREATED)) {
 			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).response(response.getBody()).build(), HttpStatus.CREATED);
@@ -232,7 +233,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		return correoGeneralMapper.entityToDto(this.correoGeneralRepository.findByPersonaIdAndActivoTrue(request.getIdCliente()).orElseThrow(() -> new ProcessGenericException(Constantes.EMAIL_NOT_FOUND)));
 	}
 	
-	private void print(String nombre,Object objeto) {
+	public static void print(String nombre,Object objeto) {
 		ObjectMapper mapper = new ObjectMapper();
 		try {
 			log.info(nombre, mapper.writeValueAsString(objeto));

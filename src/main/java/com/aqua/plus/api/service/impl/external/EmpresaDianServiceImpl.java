@@ -51,14 +51,15 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	@Override
 	public ResponseEntity<ResponseDTO> darAltaEmpresa(CompanyDto request) {
 		log.info("Inicio metodo darAltaEmpresa: {} " , request.getIdentification());
-        HttpEntity<CompanyDto> entity = new HttpEntity<>(utilsRestemplate.getHeader());
-		
+        HttpEntity<CompanyDto> entity = new HttpEntity<>(request,utilsRestemplate.getHeader());
+        FacturaDianServiceImpl.print("##########REQUEST########## ", entity);
 		ResponseEntity<ResponseEmpresaAltaDto> response = this.restTemplateConfig.restTemplate().exchange(
 		        this.url.concat(this.endPointEmpresa),
 		        HttpMethod.POST,
 		        entity,
 		        ResponseEmpresaAltaDto.class
 		);
+	    FacturaDianServiceImpl.print("##########response########## ", response);
 		log.info("Fin metodo darAltaEmpresa:{} " , response.getStatusCode());
 		if(response.getStatusCode().equals(HttpStatus.CREATED)) {
 			actualizarEmpresa(request, response.getBody());
