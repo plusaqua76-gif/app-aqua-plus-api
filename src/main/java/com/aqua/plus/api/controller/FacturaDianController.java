@@ -1,14 +1,17 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aqua.plus.api.service.external.IFacturaDianService;
+import com.aqua.plus.api.service.impl.external.FacturaDianServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
 import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
@@ -29,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class FacturaDianController {
 	
-	private final IFacturaDianService facturaDianService;
+	private final FacturaDianServiceImpl facturaDianService;
 	
 	@Operation(summary = "Servicio encargado de crear el set prueba")
 	@ApiResponses(value = {
@@ -66,4 +69,15 @@ public class FacturaDianController {
     public ResponseEntity<ResponseDTO> crearFacturaElectronica(@RequestBody RequestFacturaDto invoice) {
         return facturaDianService.crearFacturaElectronica(invoice);
     }
+	
+	@Operation(summary = "Buscar facturas por id de Empresa (con filtros y paginación)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/factura/{id}")
+	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(@PathVariable("id") Integer idEmpresa,Pageable pageable) {
+		return this.facturaDianService.consultarFacturasPorEmpresa(idEmpresa, pageable);
+	}
 }

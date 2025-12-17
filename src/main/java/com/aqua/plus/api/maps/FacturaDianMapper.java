@@ -15,6 +15,7 @@ import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResolutionDto;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Descuento;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Producto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Resolution;
@@ -23,6 +24,7 @@ import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Taxe;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.TotalAmounts;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Company;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Customer;
+import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.DiscountsAndCharges;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Item;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Payment;
 import com.aqua.plus.commons.enums.DocumentTypeDianEnum;
@@ -77,7 +79,7 @@ public interface FacturaDianMapper {
 	}
 
 	default RequestInvoiceDto mapDataFacturaEletronica(ResolutionDto resolucionDto, EmpresaDTO empresa,
-			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona) {
+			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona,Long numeroFactura) {
 		RequestInvoiceDto rq = new RequestInvoiceDto();
 		rq.setDocumentType(DocumentTypeDianEnum.ESTANDAR.getCodigo());
 		rq.setResolution(resolucionDtoToResolucionDian(resolucionDto));
@@ -90,8 +92,50 @@ public interface FacturaDianMapper {
 		rq.setPayments(mediosPagos);
 		rq.setItems(mapProductos(factura));
 		rq.setTotalAmounts(mapTotalAmount(factura));
-		rq.setNumber(13);
+		rq.setNumber(numeroFactura);
+		rq.setDiscountsAndCharges(aplicarDescuento(factura));
 		return rq;
+	}
+	
+	default List<DiscountsAndCharges> aplicarDescuento(RequestFacturaDto factura){
+		List<DiscountsAndCharges> descuentos = new ArrayList<>(0);
+		
+		if (Objects.nonNull(factura) && Objects.nonNull(factura.getProductos()) && !factura.getProductos().isEmpty()) {
+			BigDecimal totalBruto = new BigDecimal(0);
+			BigDecimal descuentoTotal = new BigDecimal(0);
+			BigDecimal cargoTotal = new BigDecimal(0);
+			BigDecimal cantidadDescuento =new BigDecimal(0);
+			BigDecimal cantidadCargo =new BigDecimal(0);
+			for (Producto producto : factura.getProductos()) {
+				BigDecimal precio = producto.getPrecio().multiply(producto.getCantidad());
+				BigDecimal descuento = precio.multiply(producto.getDescuento()).divide(BigDecimal.valueOf(100));
+				cantidadDescuento = cantidadDescuento.add(producto.getDescuento());
+				cantidadCargo=cantidadCargo.add(producto.getCargo());
+				BigDecimal cargoDescuento = precio.multiply(producto.getCargo()).divide(BigDecimal.valueOf(100));
+				
+				totalBruto = totalBruto.add(precio);
+				descuentoTotal =  descuentoTotal.add(descuento);
+				cargoTotal =  cargoTotal.add(cargoDescuento);
+			}
+			if(Objects.nonNull(factura.getDescuentos()) && !factura.getDescuentos().isEmpty()) {
+				
+				if(Objects.nonNull(cargoTotal) && cargoTotal.intValue()!=0) {
+					Descuento descuento = factura.getDescuentos().stream().filter(item -> item.getIndCargo()).findFirst().orElse(null);
+					DiscountsAndCharges descuentoCargo = DiscountsAndCharges.builder().isCharge(Boolean.TRUE).reasonCode(descuento.getCodigoRazon()).percentageAmount(cantidadCargo).amount(cargoTotal).baseAmount(totalBruto).reason(descuento.getRazon()).build();
+					descuentos.add(descuentoCargo);
+				}
+				
+				if(Objects.nonNull(descuentoTotal) && descuentoTotal.intValue()!=0) {
+					Descuento descuento = factura.getDescuentos().stream().filter(item -> !item.getIndCargo()).findFirst().orElse(null);
+					DiscountsAndCharges descuentoFinal = DiscountsAndCharges.builder().isCharge(Boolean.FALSE).reasonCode(descuento.getCodigoRazon()).percentageAmount(cantidadDescuento).amount(descuentoTotal).baseAmount(totalBruto).reason(descuento.getRazon()).build();
+					descuentos.add(descuentoFinal);
+				}
+			}
+			
+			
+		}
+		
+		return descuentos;
 	}
 
 	default List<Item> mapProductos(RequestFacturaDto factura) {
@@ -100,17 +144,19 @@ public interface FacturaDianMapper {
 			for (Producto producto : factura.getProductos()) {
 				List<Taxe> taxes = new ArrayList<>(0);
 				BigDecimal precio = producto.getPrecio().multiply(producto.getCantidad());
-				BigDecimal iva = precio.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
 				BigDecimal descuento = precio.multiply(producto.getDescuento()).divide(BigDecimal.valueOf(100));
 				BigDecimal cargoDescuento = precio.multiply(producto.getCargo()).divide(BigDecimal.valueOf(100));
+				BigDecimal precioFinal = precio.subtract(cargoDescuento).subtract(descuento) ;
+				BigDecimal iva = precioFinal.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
+				
 				Taxe taxe = Taxe.builder().taxCode(TaxTypeEnum.IVA.getCodigo()).taxAmount(iva)
-						.taxPercentage(producto.getIva().toString()).taxableAmount(precio).build();
+						.taxPercentage(producto.getIva().toString()).taxableAmount(precioFinal).build();
 				taxes.add(taxe);
-				Item item = Item.builder().standardCode(StandardCode.builder().id(StandardCodeEnum.CERO_CERO_UNO.getCodigo()).identificationId(StandardCodeEnum.CERO_CERO_UNO.getCodigo()).build()).charge(producto.getCargo()).chargeAmount(cargoDescuento).taxes(taxes)
+				Item item = Item.builder().standardCode(StandardCode.builder().id(producto.getCodigoEstandar().getId()).identificationId(producto.getCodigoEstandar().getIdIdentificacion()).build()).charge(producto.getCargo()).chargeAmount(cargoDescuento).taxes(taxes)
 						.description(producto.getNombre()).price(producto.getPrecio()).discount(producto.getDescuento())
 						.discountAmount(descuento).quantity(producto.getCantidad())
 						.unitCode(producto.getCodigoUnidadMedida()).subtotal(precio).taxAmount(iva)
-						.total(precio.add(iva).subtract(cargoDescuento).subtract(descuento)).build();
+						.total(precioFinal.add(iva)).build();
 				articulos.add(item);
 			}
 		}
@@ -130,15 +176,17 @@ public interface FacturaDianMapper {
 			BigDecimal totalPagar =new BigDecimal(0);
 			for (Producto producto : factura.getProductos()) {
 				BigDecimal precio = producto.getPrecio().multiply(producto.getCantidad());
-				BigDecimal iva = precio.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
 				BigDecimal descuento = precio.multiply(producto.getDescuento()).divide(BigDecimal.valueOf(100));
 				BigDecimal cargoDescuento = precio.multiply(producto.getCargo()).divide(BigDecimal.valueOf(100));
+				BigDecimal precioFinal = precio.subtract(cargoDescuento).subtract(descuento) ;
+				BigDecimal iva = precioFinal.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
+				
 				totalBruto = totalBruto.add(precio);
-				totalImponible =  totalImponible.add(precio);
+				totalImponible =  totalImponible.add(precioFinal);
 				totalImpuesto =  totalImpuesto.add(iva);
 				descuentoTotal =  descuentoTotal.add(descuento);
 				cargoTotal =  cargoTotal.add(cargoDescuento);
-				totalPagar = totalPagar.add(precio).add(iva).subtract(descuento).subtract(cargoDescuento);
+				totalPagar = totalPagar.add(precioFinal).add(iva);
 			}
 			total = TotalAmounts.builder().advanceTotal(factura.getTotalAnticipado()).grossTotal(totalBruto)
 					.taxableTotal(totalImponible).taxTotal(totalImpuesto).discountTotal(descuentoTotal)
