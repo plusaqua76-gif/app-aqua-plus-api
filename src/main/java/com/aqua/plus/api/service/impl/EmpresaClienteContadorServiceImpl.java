@@ -866,8 +866,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	                .empleadoNombre(empleadoNombre)
 	                .correo(correoVal)
 	                .telefono(telVal)
-	                .tarifasContadores(tarifasDTO)
-	                .tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
+	                //.tarifasContadores(tarifasDTO)
+	                //.tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
 	                .build();
 
 	        return ResponseEntity.ok(

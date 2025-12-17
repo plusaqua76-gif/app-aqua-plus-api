@@ -110,7 +110,7 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	public ResponseEntity<ResponseDTO> consultarResolucionPorId(Integer id) {
 		log.info("Inicio metodo consultarResolucionPorId: {} " , id);
 		ResolutionEntity entity = resolutionRepository.findByEmpresaId(id).orElseThrow(() -> new ProcessGenericException(Constantes.RESOLUTION_NOT_FOUND));
-		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).response(ResolucionMapper.INSTANCE.entityToDto(entity)).build(), HttpStatus.CREATED);
+		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(ResolucionMapper.INSTANCE.entityToDto(entity)).build(), HttpStatus.CREATED);
 	}
 
 }
