@@ -27,4 +27,9 @@ public class ProductoDianServiceImpl implements IProductoDianService {
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).build(), HttpStatus.CREATED);
 	}
 
+	@Override
+	public ResponseEntity<ResponseDTO> consultarProductos() {
+		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(ProductMapper.INSTANCE.listDtoToEntity(this.productRepository.findAll())).build(), HttpStatus.OK);
+	}
+
 }

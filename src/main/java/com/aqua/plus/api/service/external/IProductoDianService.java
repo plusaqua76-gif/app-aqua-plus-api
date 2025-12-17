@@ -8,4 +8,6 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IProductoDianService {
 	
 	public ResponseEntity<ResponseDTO> guardarProducto(final ProductDto product);
+	
+	public ResponseEntity<ResponseDTO> consultarProductos();
 }
