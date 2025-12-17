@@ -27,6 +27,7 @@ import com.aqua.plus.commons.dtos.external.CompanyDto;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
+import com.aqua.plus.commons.dtos.external.ResponseConsultaEmpresaDto;
 import com.aqua.plus.commons.dtos.external.ResponseInvoiceDto;
 import com.aqua.plus.commons.entities.InvoiceEntity;
 import com.aqua.plus.commons.entities.ResolutionEntity;
@@ -249,6 +250,27 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		List<InvoiceEntity> facturas = this.facturaRepository.findByEmpresaId(idEmpresa, pageable);
 		log.info("Fin metodo consultarFacturasPorEmpresa:{},{} ", idEmpresa,facturas.size() );
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(InvoiceMapper.INSTANCE.listEntityToDtoList(facturas)).build(), HttpStatus.CREATED);
+	}
+
+	@Override
+	public ResponseEntity<ResponseDTO> consultarDocumentoPorEmpresa(String idEmpresaDian, String tipo) {
+		log.info("Inicio metodo consultarDocumentoPorEmpresa: {},{} " , idEmpresaDian, tipo);
+        HttpEntity<Void> entity = new HttpEntity<>(utilsRestemplate.getHeader());
+		String url =this.url.concat(endPointFactura).concat("/").concat(idEmpresaDian).concat("/").concat("files").concat("/").concat(tipo);
+		log.info("URL: {} " , url);
+		ResponseEntity<Object> response = this.restTemplateConfig.restTemplate().exchange(
+				url,
+		        HttpMethod.GET,
+		        entity,
+		        Object.class
+		);
+		log.info("Fin metodo consultarDocumentoPorEmpresa:{} " , response.getStatusCode());
+		if(response.getStatusCode().equals(HttpStatus.OK) && Objects.nonNull(response.getBody())) {
+			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(response.getBody()).build(), HttpStatus.OK);
+		}else {
+			log.error("Reponse consultarDocumentoPorEmpresa: {} ", response);
+		}
+		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.ER_CONSUME_SERVICE_DIAN.concat(url)).build(), HttpStatus.CONFLICT);
 	}
 
 }

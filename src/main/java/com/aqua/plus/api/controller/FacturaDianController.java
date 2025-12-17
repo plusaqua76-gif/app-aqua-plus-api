@@ -80,4 +80,15 @@ public class FacturaDianController {
 	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(@PathVariable("id") Integer idEmpresa,Pageable pageable) {
 		return this.facturaDianService.consultarFacturasPorEmpresa(idEmpresa, pageable);
 	}
+	
+	@Operation(summary = "Buscar documento por id empresa de la dian")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/factura-documento/{id}/{tipo}")
+	public ResponseEntity<ResponseDTO> consultarDocumentoPorEmpresa(@PathVariable("id") String id,@PathVariable("tipo") String tipo) {
+		return this.facturaDianService.consultarDocumentoPorEmpresa(id, tipo);
+	}
 }

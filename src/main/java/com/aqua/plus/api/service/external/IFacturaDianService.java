@@ -14,4 +14,6 @@ public interface IFacturaDianService {
 	public ResponseEntity<ResponseDTO> crearSetPrueba(final RequestSetPruebaDto request);
 	
 	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(final Integer idEmpresa, final Pageable pageable);
+	
+	public ResponseEntity<ResponseDTO> consultarDocumentoPorEmpresa(final String idEmpresaDian, final String tipo);
 }
