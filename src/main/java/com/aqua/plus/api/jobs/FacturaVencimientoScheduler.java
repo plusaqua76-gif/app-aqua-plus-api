@@ -23,34 +23,17 @@ public class FacturaVencimientoScheduler {
 	@Value("${app.jobs.facturas.usuario-cron:AquaPlus}")
 	private String usuarioCron;
 
-	@Value("${app.jobs.facturas.param.llave:DIAS}")
-	private String llaveParametro;
-
-	@Value("${app.jobs.facturas.param.default-dias:30}")
-	private int defaultDias;
-
-	@Value("${app.jobs.facturas.avsu.dias:60}")
-	private int avsuDias;
-
 	@Transactional
 	public void marcarFacturasVencidas() {
 		var estadoVen = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("VEN")
 				.orElseThrow(() -> new IllegalStateException("No existe estado VEN activo"));
 
-		long candidatas = facturaRepository.contarPendientesVencidasPorParametro(llaveParametro, defaultDias);
-		int actualizadas = facturaRepository.marcarVencidasPorParametro(llaveParametro, defaultDias, estadoVen.getId(),
-				usuarioCron);
+		long candidatas = facturaRepository.contarPendientesVencidasPorFechaFin();
+		int actualizadas = facturaRepository.marcarPendientesComoVencidasPorFechaFin(estadoVen.getId(), usuarioCron);
 
-		log.info("Job marcarFacturasVencidas: candidatas={}, actualizadas={}, estadoVEN={}, llave={}, defaultDias={}",
-				candidatas, actualizadas, estadoVen.getId(), llaveParametro, defaultDias);
+		log.info("Job marcarFacturasVencidas (fecha_fin): candidatas={}, actualizadas={}, estadoVEN={}, usuario={}",
+				candidatas, actualizadas, estadoVen.getId(), usuarioCron);
 
-		var estadoAvsu = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("AVSU")
-				.orElseThrow(() -> new IllegalStateException("No existe estado AVSU activo"));
-
-		int promovidas = facturaRepository.promoverVencidasAAviso(avsuDias, estadoVen.getId(), estadoAvsu.getId(),
-				usuarioCron);
-
-		log.info("Job promover a AVSU: promovidasVEN->AVSU={}, dias={}", promovidas, avsuDias);
 	}
 
 	@Transactional
