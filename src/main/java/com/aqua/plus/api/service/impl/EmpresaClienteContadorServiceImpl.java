@@ -764,135 +764,99 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
-	    log.info("Buscar Empresa Cliente Contador por id: {}", id);
-	    try {
-	        var opt = empresaClienteContadorRepository.findById(id);
-	        if (opt.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-	                    .body(ResponseDTO.builder()
-	                            .success(false)
-	                            .message("No se encontró Empresa-Cliente-Contador con id " + id)
-	                            .code(HttpStatus.NOT_FOUND.value())
-	                            .response(null)
-	                            .build());
-	        }
+		log.info("Buscar Empresa Cliente Contador por id: {}", id);
+		try {
+			var opt = empresaClienteContadorRepository.findById(id);
+			if (opt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró Empresa-Cliente-Contador con id " + id)
+								.code(HttpStatus.NOT_FOUND.value()).response(null).build());
+			}
 
-	        var ecc = opt.get();
+			var ecc = opt.get();
 
-	        // ================== CLIENTE / PERSONA ==================
-	        var personaEntity = ecc.getCliente();
-	        Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
+			// ================== CLIENTE / PERSONA ==================
+			var personaEntity = ecc.getCliente();
+			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
 
-	        var contadores = (personaId != null)
-	                ? contadorRepository.findByCliente_Id(personaId)
-	                : java.util.Collections.<ContadorEntity>emptyList();
+			var contadores = (personaId != null) ? contadorRepository.findByCliente_Id(personaId)
+					: Collections.<ContadorEntity>emptyList();
 
-	        PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
-	        List<ContadorDTO> contadoresDTO = contadores.stream()
-	                .map(contadorMapper::entityToDto)
-	                .toList();
+			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
+			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
 
-	        // ================== CONTACTO (CORREO / TELÉFONO) ==================
-	        String correoVal = (personaId != null)
-	                ? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-	                        .map(CorreoGeneralEntity::getCorreo)
-	                        .orElse(null)
-	                : null;
+			// ================== CONTACTO (CORREO / TELÉFONO) ==================
+			String correoVal = (personaId != null)
+					? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(CorreoGeneralEntity::getCorreo).orElse(null)
+					: null;
 
-	        String telVal = (personaId != null)
-	                ? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
-	                        .map(TelefonoGeneralEntity::getNumero)
-	                        .orElse(null)
-	                : null;
+			String telVal = (personaId != null)
+					? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(TelefonoGeneralEntity::getNumero).orElse(null)
+					: null;
 
-	        // ================== RUTA / EMPLEADO ==================
-	        Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
+			// ================== RUTA / EMPLEADO ==================
+			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
 
-	        Integer empleadoEmpresaId = rutaOpt
-	                .map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-	                .map(EmpleadoEmpresaEntity::getId)
-	                .orElse(null);
+			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+					.map(EmpleadoEmpresaEntity::getId).orElse(null);
 
-	        String empleadoNombre = rutaOpt
-	                .map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-	                .map(this::resolveEmpleadoNombreSeguro)
-	                .orElse(null);
+			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
+					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
 
-	        List<TarifaContadorDTO> tarifasDTO;
-	        List<TarifaContadorEntity> tarifas = java.util.Collections.emptyList();
+			List<TarifaContadorDTO> tarifasDTO;
+			List<TarifaContadorEntity> tarifas = Collections.emptyList();
 
-	        try {
-	            tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
-	            tarifasDTO = (tarifas == null || tarifas.isEmpty())
-	                    ? java.util.Collections.emptyList()
-	                    : tarifas.stream()
-	                            .map(tarifaContadorMapper::entityToDto)
-	                            .toList();
-	        } catch (Exception ex) {
-	            log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
-	            tarifasDTO = java.util.Collections.emptyList();
-	            tarifas = java.util.Collections.emptyList();
-	        }
+			try {
+				tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
+				tarifasDTO = (tarifas == null || tarifas.isEmpty()) ? Collections.emptyList()
+						: tarifas.stream().map(tarifaContadorMapper::entityToDto).toList();
+			} catch (Exception ex) {
+				log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
+				tarifasDTO = java.util.Collections.emptyList();
+				tarifas = java.util.Collections.emptyList();
+			}
 
-	        Integer empresaId = null;
-	        if (ecc.getEmpresa() != null) {
-	            empresaId = ecc.getEmpresa().getId();
-	        }
+			Integer empresaId = null;
+			if (ecc.getEmpresa() != null) {
+				empresaId = ecc.getEmpresa().getId();
+			}
 
-	        List<TipoTarifaDTO> tiposTarifaFaltantesDTO = java.util.Collections.emptyList();
+			List<TipoTarifaDTO> tiposTarifaFaltantesDTO = java.util.Collections.emptyList();
 
-	        if (empresaId != null) {
-	            Set<Integer> tiposUsadosIds = tarifas.stream()
-	                    .filter(t -> t.getTipoTarifa() != null)
-	                    .map(t -> t.getTipoTarifa().getId())
-	                    .collect(java.util.stream.Collectors.toSet());
+			if (empresaId != null) {
+				Set<Integer> tiposUsadosIds = tarifas.stream().filter(t -> t.getTipoTarifa() != null)
+						.map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
 
-	            List<TipoTarifaEntity> tiposEmpresa = tipoTarifaRepository
-	                    .findByEmpresa_Id(empresaId);
+				List<TipoTarifaEntity> tiposEmpresa = tipoTarifaRepository.findByEmpresa_Id(empresaId);
 
-	            List<TipoTarifaEntity> tiposFaltantes = tiposEmpresa.stream()
-	                    .filter(tt -> tt.getId() != null && !tiposUsadosIds.contains(tt.getId()))
-	                    .toList();
+				List<TipoTarifaEntity> tiposFaltantes = tiposEmpresa.stream()
+						.filter(tt -> tt.getId() != null && !tiposUsadosIds.contains(tt.getId())).toList();
 
-	            tiposTarifaFaltantesDTO = tiposFaltantes.stream()
-	                    .map(tipoTarifaMapper::entityToDto)
-	                    .toList();
-	        }
+				tiposTarifaFaltantesDTO = tiposFaltantes.stream().map(tipoTarifaMapper::entityToDto).toList();
+			}
 
-	        EccDetalleDTO payload = EccDetalleDTO.builder()
-	                .persona(personaDTO)
-	                .contadores(contadoresDTO)
-	                .empleadoEmpresaId(empleadoEmpresaId)
-	                .empleadoNombre(empleadoNombre)
-	                .correo(correoVal)
-	                .telefono(telVal)
-	                //.tarifasContadores(tarifasDTO)
-	                //.tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
-	                .build();
+			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
+					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal)
+					.telefono(telVal).tarifasContadores(tarifasDTO).tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
+					.build();
 
-	        return ResponseEntity.ok(
-	                ResponseDTO.builder()
-	                        .success(true)
-	                        .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                        .code(HttpStatus.OK.value())
-	                        .response(payload)
-	                        .build());
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(payload).build());
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
+		} catch (Exception e) {
+			log.error("Error al buscar Empresa Cliente Contador por id: {}", id, e);
 
-	        Map<String, Object> errorPayload = new HashMap<>();
-	        errorPayload.put("exception", e.getClass().getSimpleName());
-	        errorPayload.put("errorMessage", e.getMessage());
+			Map<String, Object> errorPayload = new HashMap<>();
+			errorPayload.put("exception", e.getClass().getSimpleName());
+			errorPayload.put("errorMessage", e.getMessage());
 
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                .body(ResponseDTO.builder()
-	                        .success(false)
-	                        .message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                        .response(errorPayload)
-	                        .build());
-	    }
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorPayload).build());
+		}
 	}
 
 	private String resolveEmpleadoNombreSeguro(EmpleadoEmpresaEntity ee) {
