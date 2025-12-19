@@ -10,4 +10,6 @@ public interface IProductoDianService {
 	public ResponseEntity<ResponseDTO> guardarProducto(final ProductDto product);
 	
 	public ResponseEntity<ResponseDTO> consultarProductos();
+	
+	public ResponseEntity<ResponseDTO> consultarProductoPorCodigo(String codigo);
 }

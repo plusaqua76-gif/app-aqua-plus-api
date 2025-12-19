@@ -41,7 +41,7 @@ public class ListaDianController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping
-	public ResponseEntity<ResponseDTO> getLista(@RequestParam(name = "endPoint") String endPoint) {
-		return this.listaDianServiceImpl.getLista(endPoint);
+	public ResponseEntity<ResponseDTO> getLista(@RequestParam(name = "endPoint") String endPoint, @RequestParam(name = "departamento", required = false) String departamento) {
+		return this.listaDianServiceImpl.getLista(endPoint, departamento);
 	}
 }

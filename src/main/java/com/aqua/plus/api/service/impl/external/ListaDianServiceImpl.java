@@ -33,7 +33,7 @@ public class ListaDianServiceImpl implements IListaDianService {
 	
 	
 	@Override
-	public ResponseEntity<ResponseDTO> getLista(String endPoint) {
+	public ResponseEntity<ResponseDTO> getLista(String endPoint,String departamento) {
 		log.info("Inicio metodo getTypesIdentification");
 		HttpEntity<Void> entity = new HttpEntity<>(utilsRestemplate.getHeader());
 		
@@ -45,21 +45,21 @@ public class ListaDianServiceImpl implements IListaDianService {
 		);
 		log.info("Fin metodo getTypesIdentification:{} " , response.getStatusCode());
 		if(response.getStatusCode().equals(HttpStatus.OK) && Objects.nonNull(response.getBody())) {
-			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(getResponse(response.getBody())).build(), HttpStatus.OK);
+			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(getResponse(response.getBody(), departamento)).build(), HttpStatus.OK);
 		}else {
 			log.error("Reponse lista: {} ", response);
 		}
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.LIST_ER_DIAN.concat(endPoint)).build(), HttpStatus.CONFLICT);
 	}
 	
-	private Object getResponse(final ResponseListaDianDto response) {
+	private Object getResponse(final ResponseListaDianDto response,String departamento) {
 		
 		if(Objects.nonNull(response.getIdentificationTypes())) {
 			return response.getIdentificationTypes();
 		}else if(Objects.nonNull(response.getDepartments())) {
 			return response.getDepartments();
 		}else if(Objects.nonNull(response.getMunicipalities())) {
-			return response.getMunicipalities();
+			return response.getMunicipalities().stream().filter(item -> item.getDepartmentCode().equals(departamento));
 		}else if(Objects.nonNull(response.getPaymentMethods())) {
 			return response.getPaymentMethods();
 		}else if(Objects.nonNull(response.getUnitCodes())) {

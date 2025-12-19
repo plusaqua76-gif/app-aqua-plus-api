@@ -6,5 +6,5 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 
 public interface IListaDianService {
 	
-	public ResponseEntity<ResponseDTO> getLista(String endPoint);
+	public ResponseEntity<ResponseDTO> getLista(String endPoint,String departamento);
 }

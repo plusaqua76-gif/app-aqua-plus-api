@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>com.aqua.plus.commons</groupId>
 			<artifactId>aqua-plus-commons</artifactId>
-			<version>0.0.52</version>
+			<version>0.0.1</version>
 		</dependency>
 
 		<dependency>
@@ -76,11 +76,6 @@
 		<dependency>
 			<groupId>org.hibernate.validator</groupId>
 			<artifactId>hibernate-validator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>com.microsoft.azure</groupId>
-			<artifactId>applicationinsights-spring-boot-starter</artifactId>
-			<version>2.6.4</version>
 		</dependency>
 		<dependency>
 			<groupId>org.mapstruct</groupId>
