@@ -765,6 +765,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findById(Integer id) {
 		log.info("Buscar Empresa Cliente Contador por id: {}", id);
+
 		try {
 			var opt = empresaClienteContadorRepository.findById(id);
 			if (opt.isEmpty()) {
@@ -780,11 +781,16 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			var personaEntity = ecc.getCliente();
 			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
 
-			var contadores = (personaId != null) ? contadorRepository.findByCliente_Id(personaId)
-					: Collections.<ContadorEntity>emptyList();
-
 			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
-			List<ContadorDTO> contadoresDTO = contadores.stream().map(contadorMapper::entityToDto).toList();
+
+			List<ContadorDTO> contadoresDTO = Collections.emptyList();
+			if (personaId != null) {
+				List<EmpresaClienteContadorEntity> eccsPersona = empresaClienteContadorRepository
+						.findAllByCliente_Id(personaId);
+
+				contadoresDTO = eccsPersona.stream().map(EmpresaClienteContadorEntity::getContador)
+						.filter(Objects::nonNull).map(contadorMapper::entityToDto).distinct().toList();
+			}
 
 			// ================== CONTACTO (CORREO / TELÉFONO) ==================
 			String correoVal = (personaId != null)
@@ -806,8 +812,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
 					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
 
+			// ================== TARIFAS CONTADOR ==================
 			List<TarifaContadorDTO> tarifasDTO;
-			List<TarifaContadorEntity> tarifas = Collections.emptyList();
+			List<TarifaContadorEntity> tarifas;
 
 			try {
 				tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
@@ -815,24 +822,24 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						: tarifas.stream().map(tarifaContadorMapper::entityToDto).toList();
 			} catch (Exception ex) {
 				log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
-				tarifasDTO = java.util.Collections.emptyList();
-				tarifas = java.util.Collections.emptyList();
+				tarifas = Collections.emptyList();
+				tarifasDTO = Collections.emptyList();
 			}
 
-			Integer empresaId = null;
-			if (ecc.getEmpresa() != null) {
-				empresaId = ecc.getEmpresa().getId();
-			}
+			/* ================== TIPOS TARIFA FALTANTES */
+			Integer empresaId = (ecc.getEmpresa() != null ? ecc.getEmpresa().getId() : null);
 
-			List<TipoTarifaDTO> tiposTarifaFaltantesDTO = java.util.Collections.emptyList();
-
+			List<TipoTarifaDTO> tiposTarifaFaltantesDTO = Collections.emptyList();
 			if (empresaId != null) {
-				Set<Integer> tiposUsadosIds = tarifas.stream().filter(t -> t.getTipoTarifa() != null)
+				Set<Integer> tiposUsadosIds = tarifas.stream()
+						.filter(t -> t.getTipoTarifa() != null && t.getTipoTarifa().getId() != null)
 						.map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
 
 				List<TipoTarifaEntity> tiposEmpresa = tipoTarifaRepository.findByEmpresa_Id(empresaId);
 
-				List<TipoTarifaEntity> tiposFaltantes = tiposEmpresa.stream()
+				List<TipoTarifaEntity> tiposFaltantes = (tiposEmpresa == null
+						? Collections.<TipoTarifaEntity>emptyList()
+						: tiposEmpresa).stream()
 						.filter(tt -> tt.getId() != null && !tiposUsadosIds.contains(tt.getId())).toList();
 
 				tiposTarifaFaltantesDTO = tiposFaltantes.stream().map(tipoTarifaMapper::entityToDto).toList();
