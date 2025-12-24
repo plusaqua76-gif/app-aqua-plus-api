@@ -110,6 +110,7 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 	                    .nombre(e.getNombre())
 	                    .nit(e.getNit())
 	                    .codigo(e.getCodigo())
+	                    .idEmpresaDian(e.getIdEmpresaDian())
 	                    .activo(e.getActivo())
 	                    .usuarioCreacion(e.getUsuarioCreacion())
 	                    .fechaCreacion(e.getFechaCreacion())
@@ -143,7 +144,7 @@ public class AutenticacionServiceImpl implements UserDetailsService {
 	            .rolId(rolId)
 	            .personaId(personaId)
 	            .empresaId(empresaId)
-	            .empresa(empresaDTO) // 👈 esto es lo que quieres ver en el JSON
+	            .empresa(empresaDTO)
 	            .build();
 
 	    var ok = ResponseDTO.builder()
