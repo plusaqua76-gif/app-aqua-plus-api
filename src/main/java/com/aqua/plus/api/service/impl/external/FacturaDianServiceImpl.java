@@ -2,7 +2,7 @@ package com.aqua.plus.api.service.impl.external;
 
 import java.util.List;
 import java.util.Objects;
-
+import org.springframework.data.domain.Page;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpEntity;
@@ -246,12 +246,41 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 
 	@Override
 	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(Integer idEmpresa, Pageable pageable) {
-		log.info("Inicio metodo consultarFacturasPorEmpresa:{},{},{} ", idEmpresa,pageable.getPageSize(), pageable.getPageNumber() );
-		List<InvoiceEntity> facturas = this.facturaRepository.findByEmpresaId(idEmpresa, pageable);
-		log.info("Fin metodo consultarFacturasPorEmpresa:{},{} ", idEmpresa,facturas.size() );
-		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(InvoiceMapper.INSTANCE.listEntityToDtoList(facturas)).build(), HttpStatus.CREATED);
+		log.info("Inicio metodo consultarFacturasPorEmpresa:{},{},{}", idEmpresa, pageable.getPageSize(),
+				pageable.getPageNumber());
+		
+		Page<InvoiceEntity> page = this.facturaRepository.findByEmpresaId(idEmpresa, pageable);
+		
+		log.info("Fin metodo consultarFacturasPorEmpresa:{}, totalElements:{}, totalPages:{}", 
+			idEmpresa, page.getTotalElements(), page.getTotalPages());
+		
+		if (page.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(ResponseDTO.builder()
+					.success(false)
+					.code(HttpStatus.NOT_FOUND.value())
+					.message("No se encontraron facturas DIAN para la empresa con id " + idEmpresa)
+					.response(List.of())
+					.totalCount(page.getTotalElements())
+					.pageSize(page.getSize())
+					.currentPage(page.getNumber())
+					.totalPages(page.getTotalPages())
+					.build());
+		}
+		
+		return ResponseEntity.ok(
+			ResponseDTO.builder()
+				.success(true)
+				.code(HttpStatus.OK.value())
+				.message(Constantes.CONSULTED_SUCCESSFULLY)
+				.response(InvoiceMapper.INSTANCE.listEntityToDtoList(page.getContent()))
+				.totalCount(page.getTotalElements())
+				.pageSize(page.getSize())
+				.currentPage(page.getNumber())
+				.totalPages(page.getTotalPages())
+				.build()
+		);
 	}
-
 	@Override
 	public ResponseEntity<ResponseDTO> consultarDocumentoPorEmpresa(String idEmpresaDian, String tipo) {
 		log.info("Inicio metodo consultarDocumentoPorEmpresa: {},{} " , idEmpresaDian, tipo);
