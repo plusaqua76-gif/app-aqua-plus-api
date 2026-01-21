@@ -12,9 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IHistoricoCuentaService;
+import com.aqua.plus.commons.dtos.CategoriaCuentaDTO;
 import com.aqua.plus.commons.dtos.CuentaDTO;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.HistoricoCuentaDTO;
+import com.aqua.plus.commons.dtos.ParametrosGeneralesDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TipoCuentaContableDTO;
 import com.aqua.plus.commons.entities.HistoricoCuentaEntity;
@@ -77,7 +79,30 @@ public class HistoricoCuentaServiceImpl implements IHistoricoCuentaService {
 				CuentaDTO cuentaDTO = null;
 				if (h.getCuenta() != null) {
 					var c = h.getCuenta();
-					cuentaDTO = CuentaDTO.builder().id(c.getId()).codigo(c.getCodigo()).nombre(c.getNombre()).build();
+					cuentaDTO = CuentaDTO.builder()
+							.id(c.getId())
+							.nombre(c.getNombre())
+							.build();
+				}
+				
+				CategoriaCuentaDTO categoriaCuentaDTO = null;
+				if (h.getCategoriaCuenta() != null) {
+					var c = h.getCategoriaCuenta();
+					categoriaCuentaDTO = CategoriaCuentaDTO.builder()
+							.id(c.getId())
+							.nombre(c.getNombre())
+							.build();
+				}
+				
+				ParametrosGeneralesDTO parametrosGeneralesDTO = null;
+				if (h.getNaturaleza() != null) {
+				    var p = h.getNaturaleza();
+				    parametrosGeneralesDTO = ParametrosGeneralesDTO.builder()
+				            .id(p.getId())
+				            .codigoPadre(p.getCodigoPadre())
+				            .codigo(p.getCodigo())
+				            .descripcion(p.getDescripcion())
+				            .build();
 				}
 
 				EmpresaDTO empresaDTO = null;
@@ -94,10 +119,22 @@ public class HistoricoCuentaServiceImpl implements IHistoricoCuentaService {
 							.descripcion(t.getDescripcion()).build();
 				}
 
-				return HistoricoCuentaDTO.builder().id(h.getId()).cuenta(cuentaDTO).empresa(empresaDTO)
-						.tipoCuenta(tipoCuentaDTO).codigo(h.getCodigo()).nombre(h.getNombre()).activo(h.getActivo())
-						.usuarioCreacion(h.getUsuarioCreacion()).fechaCreacion(h.getFechaCreacion())
-						.usuarioModificacion(h.getUsuarioModificacion()).fechaModificacion(h.getFechaModificacion())
+				return HistoricoCuentaDTO.builder()
+						.id(h.getId())
+						.cuenta(cuentaDTO)
+						.empresa(empresaDTO)
+						.tipoCuenta(tipoCuentaDTO)
+						.categoriaCuenta(categoriaCuentaDTO)
+						.naturaleza(parametrosGeneralesDTO)
+						.valor(h.getValor())
+						.corriente(h.getCorriente())
+						.codigo(h.getCodigo())
+						.nombre(h.getNombre())
+						.activo(h.getActivo())
+						.usuarioCreacion(h.getUsuarioCreacion())
+						.fechaCreacion(h.getFechaCreacion())
+						.usuarioModificacion(h.getUsuarioModificacion())
+						.fechaModificacion(h.getFechaModificacion())
 						.build();
 
 			}).toList();
