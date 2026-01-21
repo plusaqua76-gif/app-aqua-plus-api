@@ -50,7 +50,8 @@ public class HistoricoCuentaController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping
-	public ResponseEntity<ResponseDTO> getHistoricoCuenta(@RequestParam(name = "idEmpresa") Integer idEmpresa,
+	public ResponseEntity<ResponseDTO> getHistoricoCuenta(
+			@RequestParam(name = "idEmpresa") Integer idEmpresa,
 			@RequestParam(name = "fechaInicio", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date fechaInicio,
 			@RequestParam(name = "fechaFin", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date fechaFin,
 			@RequestParam(name = "page", defaultValue = "0") Integer page,

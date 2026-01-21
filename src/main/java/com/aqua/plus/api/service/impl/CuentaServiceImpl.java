@@ -16,8 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.ICuentaService;
 import com.aqua.plus.api.service.impl.specification.CuentaSpecifications;
+import com.aqua.plus.commons.dtos.CategoriaCuentaDTO;
 import com.aqua.plus.commons.dtos.CuentaDTO;
+import com.aqua.plus.commons.dtos.EmpresaDTO;
+import com.aqua.plus.commons.dtos.ParametrosGeneralesDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.dtos.TipoCuentaContableDTO;
 import com.aqua.plus.commons.entities.CuentaEntity;
 import com.aqua.plus.commons.maps.CuentaMapper;
 import com.aqua.plus.commons.repositories.CuentaRepository;
@@ -191,6 +195,128 @@ public class CuentaServiceImpl implements ICuentaService {
 			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
 					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
+	}
+	
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findCuentas(Integer idEmpresa, Date fechaInicio, Date fechaFin,
+			Integer page, Integer size) {
+
+		log.info("Consultar cuentas: idEmpresa={}, fechaInicio={}, fechaFin={}, page={}, size={}",
+				idEmpresa, fechaInicio, fechaFin, page, size);
+
+		try {
+			if (idEmpresa == null) {
+				return ResponseEntity.badRequest().body(ResponseDTO.builder()
+						.success(false)
+						.message("Parámetro requerido: idEmpresa")
+						.code(HttpStatus.BAD_REQUEST.value())
+						.build());
+			}
+
+			int pageNumber = (page == null || page < 0) ? 0 : page;
+			int pageSize = (size == null || size <= 0) ? 10 : size;
+			Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+			Page<CuentaEntity> resultPage;
+
+			if (fechaInicio != null && fechaFin != null) {
+				if (fechaInicio.after(fechaFin)) {
+					return ResponseEntity.badRequest().body(ResponseDTO.builder()
+							.success(false)
+							.message("fechaInicio no puede ser mayor que fechaFin")
+							.code(HttpStatus.BAD_REQUEST.value())
+							.build());
+				}
+
+				resultPage = cuentaRepository
+						.findByEmpresa_IdAndFechaCreacionBetweenOrderByFechaCreacionDesc(idEmpresa, fechaInicio, fechaFin, pageable);
+
+			} else {
+				resultPage = cuentaRepository
+						.findByEmpresa_IdOrderByFechaCreacionDesc(idEmpresa, pageable);
+			}
+
+			if (resultPage == null || resultPage.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder()
+						.success(false)
+						.message("No se encontraron cuentas para los filtros indicados")
+						.code(HttpStatus.NOT_FOUND.value())
+						.totalCount(0L)
+						.response(List.of())
+						.build());
+			}
+
+			List<CuentaDTO> dtos = resultPage.getContent().stream().map(c -> {
+
+				EmpresaDTO empresaDTO = null;
+				if (c.getEmpresa() != null) {
+					var e = c.getEmpresa();
+					empresaDTO = EmpresaDTO.builder()
+							.id(e.getId())
+							.build();
+				}
+
+				TipoCuentaContableDTO tipoCuentaDTO = null;
+				if (c.getTipoCuenta() != null) {
+					var t = c.getTipoCuenta();
+					tipoCuentaDTO = TipoCuentaContableDTO.builder()
+							.id(t.getId())
+							.build();
+				}
+
+				CategoriaCuentaDTO categoriaCuentaDTO = null;
+				if (c.getCategoriaCuenta() != null) {
+					var cat = c.getCategoriaCuenta();
+					categoriaCuentaDTO = CategoriaCuentaDTO.builder()
+							.id(cat.getId())
+							.nombre(cat.getNombre())
+							.build();
+				}
+
+				ParametrosGeneralesDTO naturalezaDTO = null;
+				if (c.getNaturaleza() != null) {
+					var p = c.getNaturaleza();
+					naturalezaDTO = ParametrosGeneralesDTO.builder()
+							.id(p.getId())
+							.build();
+				}
+
+				return CuentaDTO.builder()
+						.id(c.getId())
+						.empresa(empresaDTO)
+						.tipoCuenta(tipoCuentaDTO)
+						.categoriaCuenta(categoriaCuentaDTO)
+						.naturaleza(naturalezaDTO)
+						.codigo(c.getCodigo())
+						.nombre(c.getNombre())
+						.valor(c.getValor())
+						.corriente(c.getCorriente())
+						.activo(c.getActivo())
+						.usuarioCreacion(c.getUsuarioCreacion())
+						.fechaCreacion(c.getFechaCreacion())
+						.usuarioModificacion(c.getUsuarioModificacion())
+						.fechaModificacion(c.getFechaModificacion())
+						.build();
+
+			}).toList();
+
+			return ResponseEntity.ok(ResponseDTO.builder()
+					.success(true)
+					.message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value())
+					.response(dtos)
+					.totalCount(resultPage.getTotalElements())
+					.build());
+
+		} catch (Exception e) {
+			log.error("Error consultando cuentas", e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder()
+					.success(false)
+					.message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+					.build());
 		}
 	}
 }

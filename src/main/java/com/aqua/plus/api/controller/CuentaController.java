@@ -1,8 +1,11 @@
 package com.aqua.plus.api.controller;
 
+import java.util.Date;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -123,5 +126,27 @@ public class CuentaController {
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
 		return cuentaServiceImpl.deleteById(id);
+	}
+	
+	@Operation(summary = "Consultar cuentas por empresa, rango de fechas y paginado")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) })
+	})
+	@GetMapping("/getHistorico")
+	public ResponseEntity<ResponseDTO> getCuentas(
+			@RequestParam(name = "idEmpresa") Integer idEmpresa,
+			@RequestParam(name = "fechaInicio", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date fechaInicio,
+			@RequestParam(name = "fechaFin", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date fechaFin,
+			@RequestParam(name = "page", defaultValue = "0") Integer page,
+			@RequestParam(name = "size", defaultValue = "10") Integer size)
+	 {
+		return cuentaServiceImpl.findCuentas(idEmpresa, fechaInicio, fechaFin, page, size);
 	}
 }
