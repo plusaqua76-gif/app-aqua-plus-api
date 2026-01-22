@@ -30,5 +30,15 @@ public interface IFacturaService {
             Boolean consumoAnormal, Double precio, Pageable pageable
     );
 
+	/**
+	 * Obtiene las métricas de cartera agrupadas por antigüedad de deudas.
+	 * 
+	 * @param empresaId ID de la empresa
+	 * @return ResponseEntity con las métricas de cartera por rangos de antigüedad
+	 */
+	ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(Integer empresaId);
+
+
+	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId);
 
 }
