@@ -259,4 +259,38 @@ public class FacturaController {
 		return facturaServiceImpl.obtenerFacturaDetalle(id);
 	}
 
+	@Operation(summary = "Obtener métricas de cartera por antigüedad", 
+			   description = "Obtiene las métricas de cartera agrupadas por rangos de antigüedad (0-30, 31-60, 61-90, 90+ días)")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/cartera/antiguedad/{empresaId}")
+	public ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(
+			@Parameter(description = "ID de la empresa", required = true)
+			@PathVariable Integer empresaId) {
+		return facturaServiceImpl.obtenerMetricasCarteraPorAntiguedad(empresaId);
+	}
+
+	@Operation(summary = "Obtener métricas financieras consolidadas", 
+			   description = "Obtiene las métricas financieras de la empresa incluyendo cobertura de gastos, recaudo, cartera vencida y liquidez")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se pudieron calcular las métricas", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", 
+					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/metricas-financieras/{empresaId}")
+	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(
+			@Parameter(description = "ID de la empresa", required = true)
+			@PathVariable Integer empresaId) {
+		return facturaServiceImpl.obtenerMetricasFinancieras(empresaId);
+	}
+
 }
