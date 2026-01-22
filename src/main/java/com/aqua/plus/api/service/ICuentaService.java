@@ -1,5 +1,7 @@
 package com.aqua.plus.api.service;
 
+import java.util.Date;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
@@ -23,4 +25,7 @@ public interface ICuentaService {
     ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, String cuentaCodigo, String cuentaNombre,
 			Double cuentaValor, String tipoNombre, String tipoNaturaleza, Pageable pageable);
     ResponseEntity<ResponseDTO> deleteById(Integer id);
+    
+    ResponseEntity<ResponseDTO> findCuentas(Integer idEmpresa, Date fechaInicio, Date fechaFin,
+			Integer page, Integer size);
 }
