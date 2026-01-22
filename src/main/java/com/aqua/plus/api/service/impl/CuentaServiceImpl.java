@@ -240,12 +240,15 @@ public class CuentaServiceImpl implements ICuentaService {
 
 			if (resultPage == null || resultPage.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder()
-						.success(false)
-						.message("No se encontraron cuentas para los filtros indicados")
-						.code(HttpStatus.NOT_FOUND.value())
-						.totalCount(0L)
-						.response(List.of())
-						.build());
+				        .success(false)
+				        .message("No se encontraron cuentas para los filtros indicados")
+				        .code(HttpStatus.NOT_FOUND.value())
+				        .totalCount(0L)
+				        .pageSize(pageable.getPageSize())
+				        .currentPage(pageable.getPageNumber())
+				        .totalPages(0)
+				        .response(List.of())
+				        .build());
 			}
 
 			List<CuentaDTO> dtos = resultPage.getContent().stream().map(c -> {
@@ -303,12 +306,16 @@ public class CuentaServiceImpl implements ICuentaService {
 			}).toList();
 
 			return ResponseEntity.ok(ResponseDTO.builder()
-					.success(true)
-					.message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value())
-					.response(dtos)
-					.totalCount(resultPage.getTotalElements())
-					.build());
+			        .success(true)
+			        .message(Constantes.CONSULTED_SUCCESSFULLY)
+			        .code(HttpStatus.OK.value())
+			        .response(dtos)
+			        .totalCount(resultPage.getTotalElements())
+			        .pageSize(resultPage.getSize())
+			        .currentPage(resultPage.getNumber())
+			        .totalPages(resultPage.getTotalPages())
+			        .build());
+
 
 		} catch (Exception e) {
 			log.error("Error consultando cuentas", e);
