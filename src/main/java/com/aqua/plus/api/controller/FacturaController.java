@@ -258,5 +258,24 @@ public class FacturaController {
 	public ResponseEntity<ResponseDTO> getFacturaById(@PathVariable Integer id) {
 		return facturaServiceImpl.obtenerFacturaDetalle(id);
 	}
+	
+	
+	@Operation(summary = "consultar metricas de agua factura")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta realizada correctamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "204", description = "No se encontraron resultados", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "La petición contiene errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado en el servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/agua-facturada")
+	public ResponseEntity<?> consultarAguaFacturada(
+	        @RequestParam Integer idEmpresa,
+	        @RequestParam Integer anio,
+	        @RequestParam(required = false) Integer mes
+	) {
+	    return ResponseEntity.ok(
+	    		facturaServiceImpl.consultarAguaFacturadaMesEmpresa(idEmpresa, anio, mes)
+	    );
+	}
+
 
 }

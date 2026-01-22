@@ -54,6 +54,87 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final ObjectMapper objectMapper;
 	private final DocumentoServiceImpl documentoServiceImpl;
 
+	/**
+	 * Genera una factura a partir de los parámetros recibidos en formato JSON.
+	 * Llama a un procedimiento almacenado en PostgreSQL y devuelve el resultado
+	 * deserializado.
+	 * 
+	 * @author nicope
+	 * @version 1.0
+	 */
+	@Transactional
+	public Map<String, Object> generarFactura(Map<String, Object> jsonParams) {
+		try {
+			String jsonString = objectMapper.writeValueAsString(jsonParams);
+
+			String sql = "SELECT * FROM public.generar_factura(CAST(:jsonData AS jsonb))";
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource();
+			parameters.addValue("jsonData", jsonString);
+
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+
+			Object wrappedValue = rawResult.get("generar_factura");
+			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+				String jsonValue = pgObject.getValue();
+
+				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
+				});
+			}
+
+			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
+
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
+			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public Map<String, Object> consultarAguaFacturadaMesEmpresa(Integer idEmpresa, Integer anio, Integer mes) {
+		try {
+
+			String sql = """
+					    SELECT public.fn_agua_facturada_mes_empresa(
+					        :idEmpresa,
+					        :anio,
+					        :mes
+					    )
+					""";
+
+			MapSqlParameterSource parameters = new MapSqlParameterSource();
+			parameters.addValue("idEmpresa", idEmpresa);
+			parameters.addValue("anio", anio);
+			parameters.addValue("mes", mes);
+
+			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+
+			Object wrappedValue = rawResult.get("fn_agua_facturada_mes_empresa");
+
+			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+
+				String jsonValue = pgObject.getValue();
+
+				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
+				});
+			}
+
+			return Map.of(Constantes.ERROR_KEY,
+					"No fue posible procesar la respuesta del SP fn_agua_facturada_mes_empresa");
+
+		} catch (JsonProcessingException e) {
+			log.error("Error deserializando respuesta del SP fn_agua_facturada_mes_empresa", e);
+			return Map.of(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
+
+		} catch (Exception e) {
+			log.error("Error ejecutando SP fn_agua_facturada_mes_empresa", e);
+			return Map.of(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
+		}
+	}
+
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(FacturaDTO facturaDTO) {
@@ -220,7 +301,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 		log.info(
 				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}",
-				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal, consumo, 
+				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal, consumo,
 				precioMin, precioMax);
 
 		try {
@@ -416,45 +497,6 @@ public class FacturaServiceImpl implements IFacturaService {
 			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.DELETE_ERROR)
 					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-		}
-	}
-
-	/**
-	 * Genera una factura a partir de los parámetros recibidos en formato JSON.
-	 * Llama a un procedimiento almacenado en PostgreSQL y devuelve el resultado
-	 * deserializado.
-	 * 
-	 * @author nicope
-	 * @version 1.0
-	 */
-	@Transactional
-	public Map<String, Object> generarFactura(Map<String, Object> jsonParams) {
-		try {
-			String jsonString = objectMapper.writeValueAsString(jsonParams);
-
-			String sql = "SELECT * FROM public.generar_factura(CAST(:jsonData AS jsonb))";
-
-			MapSqlParameterSource parameters = new MapSqlParameterSource();
-			parameters.addValue("jsonData", jsonString);
-
-			Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
-
-			Object wrappedValue = rawResult.get("generar_factura");
-			if (wrappedValue instanceof PGobject pgObject && "jsonb".equals(pgObject.getType())) {
-				String jsonValue = pgObject.getValue();
-
-				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
-				});
-			}
-
-			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
-
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.PROCCESSING_ERROR + e.getMessage());
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Collections.singletonMap(Constantes.ERROR_KEY, Constantes.UNEXPECTED_ERROR + e.getMessage());
 		}
 	}
 
