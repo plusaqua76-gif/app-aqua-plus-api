@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -17,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IFacturaService;
 import com.aqua.plus.api.service.impl.specification.FacturaSpecifications;
+import com.aqua.plus.commons.dtos.CarteraAntiguedadDTO;
 import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.commons.dtos.MetricasFinancierasDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.FacturaEntity;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
@@ -931,6 +934,150 @@ public class FacturaServiceImpl implements IFacturaService {
 			return "sin_nombre";
 		int slash = Math.max(ruta.lastIndexOf('/'), ruta.lastIndexOf('\\'));
 		return (slash >= 0 && slash < ruta.length() - 1) ? ruta.substring(slash + 1) : ruta;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(Integer empresaId) {
+		log.info("Obteniendo métricas de cartera por antigüedad para empresa: {}", empresaId);
+		
+		try {
+			if (empresaId == null) {
+				log.warn("El ID de empresa es requerido");
+				ResponseDTO errorResponse = ResponseDTO.builder()
+						.success(false)
+						.message("El ID de empresa es requerido")
+						.code(HttpStatus.BAD_REQUEST.value())
+						.build();
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+			}
+
+			List<Object[]> resultados = facturaRepository.obtenerMetricasCarteraPorAntiguedad(empresaId);
+
+			List<CarteraAntiguedadDTO> metricas = new ArrayList<>();
+			for (Object[] resultado : resultados) {
+				CarteraAntiguedadDTO dto = CarteraAntiguedadDTO.builder()
+						.rangoAntiguedad((String) resultado[0])
+						.cantidadFacturas(((Number) resultado[1]).longValue())
+						.valorCartera((BigDecimal) resultado[2])
+						.build();
+				metricas.add(dto);
+			}
+
+			if (metricas.isEmpty()) {
+				log.info("No se encontraron facturas pendientes para la empresa: {}", empresaId);
+				ResponseDTO responseDTO = ResponseDTO.builder()
+						.success(true)
+						.message("No se encontraron facturas pendientes para esta empresa")
+						.code(HttpStatus.OK.value())
+						.response(metricas)
+						.build();
+				return ResponseEntity.ok(responseDTO);
+			}
+
+			BigDecimal totalGeneral = metricas.stream()
+					.map(CarteraAntiguedadDTO::getValorCartera)
+					.reduce(BigDecimal.ZERO, BigDecimal::add);
+
+			log.info("Métricas obtenidas exitosamente. Total de rangos: {}, Valor total: {}", 
+					metricas.size(), totalGeneral);
+
+			Map<String, Object> data = new HashMap<>();
+			data.put("metricas", metricas);
+			data.put("totalGeneral", totalGeneral);
+			data.put("cantidadRangos", metricas.size());
+
+			ResponseDTO responseDTO = ResponseDTO.builder()
+					.success(true)
+					.message("Métricas de cartera obtenidas exitosamente")
+					.code(HttpStatus.OK.value())
+					.response(data)
+					.build();
+
+			return ResponseEntity.ok(responseDTO);
+
+		} catch (Exception e) {
+			log.error("Error al obtener métricas de cartera por antigüedad para empresa: {}", empresaId, e);
+			
+			ResponseDTO errorResponse = ResponseDTO.builder()
+					.success(false)
+					.message("Error al obtener las métricas de cartera: " + e.getMessage())
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+					.build();
+			
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId) {
+		log.info("Obteniendo métricas financieras para empresa: {}", empresaId);
+		
+		try {
+			if (empresaId == null) {
+				log.warn("El ID de empresa es requerido");
+				ResponseDTO errorResponse = ResponseDTO.builder()
+						.success(false)
+						.message("El ID de empresa es requerido")
+						.code(HttpStatus.BAD_REQUEST.value())
+						.build();
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+			}
+
+			List<Object[]> resultados = facturaRepository.obtenerMetricasFinancieras(empresaId);
+
+			if (resultados.isEmpty()) {
+				log.warn("No se obtuvieron métricas para la empresa: {}", empresaId);
+				ResponseDTO responseDTO = ResponseDTO.builder()
+						.success(false)
+						.message("No se pudieron calcular las métricas para esta empresa")
+						.code(HttpStatus.NOT_FOUND.value())
+						.build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+
+			Object[] resultado = resultados.get(0);
+			
+			MetricasFinancierasDTO metricas = MetricasFinancierasDTO.builder()
+					.coberturaGastosOperativos((BigDecimal) resultado[0])
+					.recaudoPorcentaje((BigDecimal) resultado[1])
+					.carteraVencidaPorcentaje((BigDecimal) resultado[2])
+					.liquidez((BigDecimal) resultado[3])
+					.totalRecaudo((BigDecimal) resultado[4])
+					.totalFacturacion((BigDecimal) resultado[5])
+					.totalCarteraVencida((BigDecimal) resultado[6])
+					.activosCorrientes((BigDecimal) resultado[7])
+					.pasivosCorrientes((BigDecimal) resultado[8])
+					.totalGastos((BigDecimal) resultado[9])
+					.build();
+
+			log.info("Métricas financieras obtenidas exitosamente para empresa: {}", empresaId);
+			log.debug("Recaudo: {}, Facturación: {}, Liquidez: {}", 
+					metricas.getTotalRecaudo(), 
+					metricas.getTotalFacturacion(), 
+					metricas.getLiquidez());
+
+			ResponseDTO responseDTO = ResponseDTO.builder()
+					.success(true)
+					.message("Métricas financieras obtenidas exitosamente")
+					.code(HttpStatus.OK.value())
+					.response(metricas)
+					.build();
+
+			return ResponseEntity.ok(responseDTO);
+
+		} catch (Exception e) {
+			log.error("Error al obtener métricas financieras para empresa: {}", empresaId, e);
+			
+			ResponseDTO errorResponse = ResponseDTO.builder()
+					.success(false)
+					.message("Error al obtener las métricas financieras: " + e.getMessage())
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+					.build();
+			
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+		}
 	}
 
 }
