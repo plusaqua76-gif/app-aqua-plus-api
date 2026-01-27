@@ -958,7 +958,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			for (Object[] resultado : resultados) {
 				CarteraAntiguedadDTO dto = CarteraAntiguedadDTO.builder()
 						.rangoAntiguedad((String) resultado[0])
-						.cantidadFacturas(((Number) resultado[1]).longValue())
+						.cantidadDeudas(((Number) resultado[1]).longValue())
 						.valorCartera((BigDecimal) resultado[2])
 						.build();
 				metricas.add(dto);
