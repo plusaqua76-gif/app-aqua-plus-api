@@ -138,10 +138,12 @@ public class DocumentoController {
 			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
-	@GetMapping({ "/empresa/{idEmpresa}/categoria/{categoriaCodigo}", "/categoria/{categoriaCodigo}" })
+	@GetMapping("/empresa/{idEmpresa}/categoria/{categoriaCodigo}")
 	public ResponseEntity<ResponseDTO> listarPorEmpresaYCategoriaConBase64(
-			@PathVariable(value = "idEmpresa", required = false) Integer idEmpresa,
-			@PathVariable String categoriaCodigo) {
-		return documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(idEmpresa, categoriaCodigo);
+	        @PathVariable Integer idEmpresa,
+	        @PathVariable String categoriaCodigo
+	) {
+	    return documentoServiceImpl.listarPorEmpresaYCategoriaCodigo(idEmpresa, categoriaCodigo);
 	}
+
 }
