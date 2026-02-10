@@ -39,6 +39,6 @@ public interface IFacturaService {
 	ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(Integer empresaId);
 
 
-	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId);
+	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio);
 
 }
