@@ -59,10 +59,12 @@ app:
       param:
         llave: "DIAS"
         default-dias: 30
-
       avsu:
         enabled: true
         dias: 60
+      electronica:
+        limite: 50
+        scheduled: 60000
 rest-template:
   connect: 5
   read: 60
@@ -81,3 +83,14 @@ alegra:
       payment-methods: /dian/payment-methods
       departments: /dian/departments
       municipalities: /dian/municipalities
+dian:
+  formas-pago:
+    contado: 1
+    credito: 2
+  codigo-unidades:
+    metro-cubico: MTQ
+  estados:
+    en-proceso: EN_PROCESO
+    er-reintento: ERROR_REINTENTO
+  iva: 19
+  usuario: codemakerssasaut

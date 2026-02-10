@@ -23,11 +23,9 @@ import com.aqua.plus.commons.dtos.InvoiceDto;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResolutionDto;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.external.CompanyDto;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
-import com.aqua.plus.commons.dtos.external.ResponseConsultaEmpresaDto;
 import com.aqua.plus.commons.dtos.external.ResponseInvoiceDto;
 import com.aqua.plus.commons.entities.InvoiceEntity;
 import com.aqua.plus.commons.entities.ResolutionEntity;
@@ -63,7 +61,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 	
 	@Value("${alegra.end-point.factura.test-sets}")
 	private String endPointTestSets;
-
+	
 	private final RestTemplateConfig restTemplateConfig;
 	
 	private final UtilsRestemplate utilsRestemplate;
@@ -182,6 +180,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		log.info("Inicio metodo guardarFactura:{} ", numeroFactura);
 
 		InvoiceDto invoiceDto = new InvoiceDto();
+		invoiceDto.setId(request.getId());
 		if(Objects.nonNull(response) && Objects.nonNull(response.getInvoice())) {
 			invoiceDto.setEstado(response.getInvoice().getStatus());
 			invoiceDto.setEstadoLegal(response.getInvoice().getLegalStatus());
@@ -193,6 +192,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		invoiceDto.setNumero(numeroFactura);
 		invoiceDto.setDescripcion(descripcion);
 		invoiceDto.setUsuarioCreacion(request.getUsuario());
+		invoiceDto.setFechaUltimoIntento(request.getFechaUltimoIntento());
 		facturaRepository.save(InvoiceMapper.INSTANCE.dtoToEntity(invoiceDto));
 		log.info("Fin metodo guardarFactura:{} ", numeroFactura);
 	}
@@ -281,6 +281,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 				.build()
 		);
 	}
+	
 	@Override
 	public ResponseEntity<ResponseDTO> consultarDocumentoPorEmpresa(String idEmpresaDian, String tipo) {
 		log.info("Inicio metodo consultarDocumentoPorEmpresa: {},{} " , idEmpresaDian, tipo);
@@ -301,5 +302,17 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		}
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.ER_CONSUME_SERVICE_DIAN.concat(url)).build(), HttpStatus.CONFLICT);
 	}
-
+	
+	@Transactional
+	public ResponseEntity<ResponseDTO> actualizarEstadoFactura(Long idEmpresa, String estadoActual, String nuevoEstado, String usuario) {
+		log.info("Inicio metodo actualizarEstadoFactura: {},{},{} " , idEmpresa,estadoActual, nuevoEstado);
+		int canditadAfectado = this.facturaRepository.actualizarEstadoPorEmpresa(idEmpresa,estadoActual, nuevoEstado,usuario);
+		if(canditadAfectado>0) {
+			log.info("Fin metodo actualizarEstadoFactura: {},{},{},{} " , idEmpresa,estadoActual, nuevoEstado,Constantes.UPDATED_SUCCESSFULLY);
+			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(Constantes.UPDATED_SUCCESSFULLY).build(), HttpStatus.OK);
+		}else {
+			log.info("Fin metodo actualizarEstadoFactura: {},{},{},{} " , idEmpresa,estadoActual, nuevoEstado,Constantes.NOT_UPDATED_INVOICE);
+			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(Constantes.NOT_UPDATED_INVOICE).build(), HttpStatus.OK);
+		}
+	}
 }

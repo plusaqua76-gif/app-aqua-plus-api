@@ -64,6 +64,8 @@ public class ListaDianServiceImpl implements IListaDianService {
 			return response.getPaymentMethods();
 		}else if(Objects.nonNull(response.getUnitCodes())) {
 			return response.getUnitCodes();
+		}else if(Objects.nonNull(response.getFiscalResponsabilityTypes())) {
+			return response.getFiscalResponsabilityTypes();
 		}else {
 			return null;
 		}

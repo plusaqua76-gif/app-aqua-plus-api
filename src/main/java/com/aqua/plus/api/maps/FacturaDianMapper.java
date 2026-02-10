@@ -1,7 +1,9 @@
 package com.aqua.plus.api.maps;
 
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
@@ -14,14 +16,19 @@ import com.aqua.plus.commons.dtos.CorreoGeneralDTO;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResolutionDto;
+import com.aqua.plus.commons.dtos.TipoDocumentoDTO;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto.CodigoEstandar;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Descuento;
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Pago;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Producto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Resolution;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.StandardCode;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Taxe;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.TotalAmounts;
+import com.aqua.plus.commons.entities.InvoiceEntity;
+import com.aqua.plus.commons.entities.ProductEntity;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Company;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Customer;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.DiscountsAndCharges;
@@ -29,9 +36,9 @@ import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Item;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Payment;
 import com.aqua.plus.commons.enums.DocumentTypeDianEnum;
 import com.aqua.plus.commons.enums.OrganizationTypeDianEnum;
-import com.aqua.plus.commons.enums.StandardCodeEnum;
 import com.aqua.plus.commons.enums.TaxTypeEnum;
 import com.aqua.plus.commons.enums.TypeDocumentDianEnum;
+import com.aqua.plus.commons.enums.TypeDocumentEnum;
 import com.aqua.plus.commons.maps.ResolucionMapper;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -57,10 +64,11 @@ public interface FacturaDianMapper {
 	Company empresaDtoToCompanyDian(EmpresaDTO empresa);
 
 	@Mapping(target = "name", source = "nombre")
-	@Mapping(target = "organizationType", expression = "java(getTypeOrganizationCustomer())")
+	@Mapping(target = "organizationType", source = "tipoDocumento", qualifiedByName = "getTypeOrganizationCustomer")
 	@Mapping(target = "identificationType", source = "tipoDocumento.idTipoDian")
 	@Mapping(target = "identificationNumber", source = "numeroCedula")
 	@Mapping(target = "email", source = "correo")
+	@Mapping(target = "regimeCode", source = "codigosResidenciaFiscal")
 	Customer clienteDtoToCustomerDian(PersonaDTO persona);
 
 	@Named("getTypeOrganization")
@@ -69,8 +77,12 @@ public interface FacturaDianMapper {
 	}
 
 	@Named("getTypeOrganizationCustomer")
-	default Integer getTypeOrganizationCustomer() {
-		return OrganizationTypeDianEnum.PERSONA_NATURAL.getId();
+	default Integer getTypeOrganizationCustomer(final TipoDocumentoDTO tipoDocumento) {
+		if(TypeDocumentEnum.NIT.getCodigo().equals(tipoDocumento.getCodigo())) {
+			return OrganizationTypeDianEnum.PERSONA_JURIDICA.getId();
+		}else {
+			return OrganizationTypeDianEnum.PERSONA_NATURAL.getId();
+		}
 	}
 
 	@Named("getTypeDocument")
@@ -88,7 +100,7 @@ public interface FacturaDianMapper {
 		rq.setCustomer(clienteDtoToCustomerDian(persona));
 		List<Payment> mediosPagos = new ArrayList<>(0);
 		mediosPagos.add(Payment.builder().paymentForm(factura.getMedioPago().getForma())
-				.paymentMethod(factura.getMedioPago().getMedio()).build());
+				.paymentMethod(factura.getMedioPago().getMedio()).paymentDueDate(factura.getMedioPago().getFechaFin()).build());
 		rq.setPayments(mediosPagos);
 		rq.setItems(mapProductos(factura));
 		rq.setTotalAmounts(mapTotalAmount(factura));
@@ -195,5 +207,25 @@ public interface FacturaDianMapper {
 		}
 
 		return total;
+	}
+	
+	default RequestFacturaDto mapFactura(InvoiceEntity factura, ProductEntity producto, Integer iva, String formaPago,String usuario) {
+		RequestFacturaDto request =RequestFacturaDto.builder().build();
+		request.setId(factura.getId());
+		request.setIdCliente(factura.getCliente().getId());
+		request.setIdEmpresa(factura.getEmpresa().getId());
+		List<Producto> productos = new ArrayList<RequestFacturaDto.Producto>(0);
+		productos.add(Producto.builder().codigoEstandar(CodigoEstandar.builder().id(producto.getCodigoEstandar()).idIdentificacion(String.valueOf(producto.getId())).build()).precio(new BigDecimal(factura.getFactura().getPrecio()/factura.getFactura().getConsumo())).cantidad(new BigDecimal(factura.getFactura().getConsumo())).iva(new BigDecimal(iva)).nombre(producto.getNombre()).codigoUnidadMedida(producto.getCodigoUnidad()).descuento(new BigDecimal(0)).cargo(new BigDecimal(0)).build());
+		request.setProductos(productos);
+		request.setMedioPago(Pago.builder().forma(formaPago).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build());
+		request.setUsuario(usuario);
+		request.setFechaUltimoIntento(factura.getFechaUltimoIntento());
+		return request;
+	}
+	
+	default String formatFechaFin(Date fecha) {
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+		
+		return sdf.format(fecha);
 	}
 }
