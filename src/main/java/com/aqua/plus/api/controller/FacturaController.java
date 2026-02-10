@@ -294,8 +294,8 @@ public class FacturaController {
 		return facturaServiceImpl.obtenerMetricasCarteraPorAntiguedad(empresaId);
 	}
 
-	@Operation(summary = "Obtener métricas financieras consolidadas", 
-			   description = "Obtiene las métricas financieras de la empresa incluyendo cobertura de gastos, recaudo, cartera vencida y liquidez")
+	@Operation(summary = "Obtener métricas financieras consolidadas por período", 
+			   description = "Obtiene indicadores financieros calculados de una empresa para un mes y año específicos")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", 
 					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
@@ -308,8 +308,12 @@ public class FacturaController {
 	@GetMapping("/metricas-financieras/{empresaId}")
 	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(
 			@Parameter(description = "ID de la empresa", required = true)
-			@PathVariable Integer empresaId) {
-		return facturaServiceImpl.obtenerMetricasFinancieras(empresaId);
+			@PathVariable Integer empresaId,
+			@Parameter(description = "Mes del período (1-12)", required = true, example = "2")
+			@RequestParam Integer mes,
+			@Parameter(description = "Año del período", required = true, example = "2026")
+			@RequestParam Integer anio) {
+		return facturaServiceImpl.obtenerMetricasFinancieras(empresaId, mes, anio);
 	}
 
 }

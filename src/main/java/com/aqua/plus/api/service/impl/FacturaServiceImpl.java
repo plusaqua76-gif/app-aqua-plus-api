@@ -1011,8 +1011,8 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId) {
-		log.info("Obteniendo métricas financieras para empresa: {}", empresaId);
+	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio) {
+		log.info("Obteniendo métricas financieras para empresa: {}, mes: {}, año: {}", empresaId, mes, anio);
 		
 		try {
 			if (empresaId == null) {
@@ -1025,13 +1025,13 @@ public class FacturaServiceImpl implements IFacturaService {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 			}
 
-			List<Object[]> resultados = facturaRepository.obtenerMetricasFinancieras(empresaId);
+			List<Object[]> resultados = facturaRepository.obtenerMetricasFinancieras(empresaId, mes, anio);
 
 			if (resultados.isEmpty()) {
-				log.warn("No se obtuvieron métricas para la empresa: {}", empresaId);
+				log.warn("No se obtuvieron métricas para la empresa: {}, período: {}/{}", empresaId, mes, anio);
 				ResponseDTO responseDTO = ResponseDTO.builder()
 						.success(false)
-						.message("No se pudieron calcular las métricas para esta empresa")
+						.message("No se pudieron calcular las métricas para esta empresa en el período especificado")
 						.code(HttpStatus.NOT_FOUND.value())
 						.build();
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
@@ -1052,7 +1052,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					.totalGastos((BigDecimal) resultado[9])
 					.build();
 
-			log.info("Métricas financieras obtenidas exitosamente para empresa: {}", empresaId);
+			log.info("Métricas financieras obtenidas exitosamente para empresa: {}, período: {}/{}", empresaId, mes, anio);
 			log.debug("Recaudo: {}, Facturación: {}, Liquidez: {}", 
 					metricas.getTotalRecaudo(), 
 					metricas.getTotalFacturacion(), 
@@ -1060,7 +1060,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			ResponseDTO responseDTO = ResponseDTO.builder()
 					.success(true)
-					.message("Métricas financieras obtenidas exitosamente")
+					.message("Métricas financieras obtenidas exitosamente para el período " + mes + "/" + anio)
 					.code(HttpStatus.OK.value())
 					.response(metricas)
 					.build();
@@ -1068,7 +1068,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			return ResponseEntity.ok(responseDTO);
 
 		} catch (Exception e) {
-			log.error("Error al obtener métricas financieras para empresa: {}", empresaId, e);
+			log.error("Error al obtener métricas financieras para empresa: {}, período: {}/{}", empresaId, mes, anio, e);
 			
 			ResponseDTO errorResponse = ResponseDTO.builder()
 					.success(false)
