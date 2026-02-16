@@ -12,11 +12,13 @@ import com.aqua.plus.api.service.ITarifasTransversalesService;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifasTransversalesDTO;
+import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.dtos.TipoUsoDTO;
 import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.TarifasTransversalesEntity;
 import com.aqua.plus.commons.maps.TarifasTransversalesMapper;
 import com.aqua.plus.commons.repositories.TarifasTransversalesRepository;
+import com.aqua.plus.commons.repositories.TipoTarifaRepository;
 import com.aqua.plus.commons.repositories.TipoUsoRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -38,157 +40,191 @@ public class TarifasTransversalesServiceImpl implements ITarifasTransversalesSer
 	private final TarifasTransversalesRepository tarifasTransversalesRepository;
 	private final TipoUsoRepository tipoUsoRepository;
 	private final TarifasTransversalesMapper tarifasTransversalesMapper;
+	private final TipoTarifaRepository tipoTarifaRepository;
 
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(TarifasTransversalesDTO dto) {
-		log.info("Guardar/Actualizar Tarifa Transversal (por id)");
+	    log.info("Guardar/Actualizar Tarifa Transversal (por id)");
 
-		try {
-			if (dto == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El DTO de TarifasTransversales es obligatorio").response(null).build());
-			}
+	    try {
+	        if (dto == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("El DTO de TarifasTransversales es obligatorio").response(null).build());
+	        }
 
-			final Integer id = dto.getId();
+	        final Integer id = dto.getId();
 
-			if (id != null) {
-				var opt = tarifasTransversalesRepository.findById(id);
-				if (opt.isPresent()) {
-					TarifasTransversalesEntity target = opt.get();
+	        // =========================
+	        // UPDATE
+	        // =========================
+	        if (id != null) {
+	            var opt = tarifasTransversalesRepository.findById(id);
+	            if (opt.isPresent()) {
+	                TarifasTransversalesEntity target = opt.get();
 
-					if (dto.getNombre() != null)
-						target.setNombre(dto.getNombre());
-					if (dto.getEstrato() != null)
-						target.setEstrato(dto.getEstrato());
-					if (dto.getCodigo() != null)
-						target.setCodigo(dto.getCodigo());
-					if (dto.getValor() != null)
-						target.setValor(dto.getValor());
-					if (dto.getActivo() != null)
-						target.setActivo(dto.getActivo());
+	                // Ya NO existe nombre: se elimina
+	                if (dto.getEstrato() != null) target.setEstrato(dto.getEstrato());
+	                if (dto.getCodigo() != null) target.setCodigo(dto.getCodigo());
+	                if (dto.getValor() != null) target.setValor(dto.getValor());
+	                if (dto.getActivo() != null) target.setActivo(dto.getActivo());
 
-					Integer empresaIdDto = (dto.getEmpresa() != null ? dto.getEmpresa().getId() : null);
-					if (empresaIdDto != null) {
-						EmpresaEntity empresa = new EmpresaEntity();
-						empresa.setId(empresaIdDto);
-						target.setEmpresa(empresa);
-					}
+	                Integer empresaIdDto = (dto.getEmpresa() != null ? dto.getEmpresa().getId() : null);
+	                if (empresaIdDto != null) {
+	                    EmpresaEntity empresa = new EmpresaEntity();
+	                    empresa.setId(empresaIdDto);
+	                    target.setEmpresa(empresa);
+	                }
 
-					Integer tipoUsoIdDto = (dto.getTipoUso() != null ? dto.getTipoUso().getId() : null);
-					if (tipoUsoIdDto != null) {
-						var tipoUso = tipoUsoRepository.findById(tipoUsoIdDto).orElseThrow(
-								() -> new RuntimeException("No se encontró TipoUso con id " + tipoUsoIdDto));
-						target.setTipoUso(tipoUso);
-					}
+	                Integer tipoUsoIdDto = (dto.getTipoUso() != null ? dto.getTipoUso().getId() : null);
+	                if (tipoUsoIdDto != null) {
+	                    var tipoUso = tipoUsoRepository.findById(tipoUsoIdDto)
+	                            .orElseThrow(() -> new RuntimeException("No se encontró TipoUso con id " + tipoUsoIdDto));
+	                    target.setTipoUso(tipoUso);
+	                }
 
-					target.setFechaModificacion(new Date());
-					target.setUsuarioModificacion(dto.getUsuarioModificacion() != null ? dto.getUsuarioModificacion()
-							: dto.getUsuarioCreacion());
+	                // NUEVO: tipoTarifa
+	                Integer tipoTarifaIdDto = (dto.getTipoTarifa() != null ? dto.getTipoTarifa().getId() : null);
+	                if (tipoTarifaIdDto != null) {
+	                    var tipoTarifa = tipoTarifaRepository.findById(tipoTarifaIdDto)
+	                            .orElseThrow(() -> new RuntimeException("No se encontró TipoTarifa con id " + tipoTarifaIdDto));
+	                    target.setTipoTarifa(tipoTarifa);
+	                }
 
-					TarifasTransversalesEntity saved = tarifasTransversalesRepository.save(target);
+	                target.setFechaModificacion(new Date());
+	                target.setUsuarioModificacion(dto.getUsuarioModificacion() != null
+	                        ? dto.getUsuarioModificacion()
+	                        : dto.getUsuarioCreacion());
 
-					TarifasTransversalesDTO savedDTO = TarifasTransversalesDTO.builder().id(saved.getId())
-							.nombre(saved.getNombre()).estrato(saved.getEstrato()).codigo(saved.getCodigo())
-							.valor(saved.getValor()).activo(saved.getActivo())
-							.usuarioCreacion(saved.getUsuarioCreacion()).fechaCreacion(saved.getFechaCreacion())
-							.usuarioModificacion(saved.getUsuarioModificacion())
-							.fechaModificacion(saved.getFechaModificacion())
-							.empresa(saved.getEmpresa() != null && saved.getEmpresa().getId() != null
-									? EmpresaDTO.builder().id(saved.getEmpresa().getId()).build()
-									: null)
-							.tipoUso(saved.getTipoUso() != null && saved.getTipoUso().getId() != null
-									? TipoUsoDTO.builder().id(saved.getTipoUso().getId()).build()
-									: null)
-							.build();
+	                TarifasTransversalesEntity saved = tarifasTransversalesRepository.save(target);
 
-					return ResponseEntity.status(HttpStatus.OK)
-							.body(ResponseDTO.builder().success(true).code(HttpStatus.OK.value())
-									.message(Constantes.UPDATED_SUCCESSFULLY).response(savedDTO).build());
-				}
-			}
+	                TarifasTransversalesDTO savedDTO = TarifasTransversalesDTO.builder()
+	                        .id(saved.getId())
+	                        .estrato(saved.getEstrato())
+	                        .codigo(saved.getCodigo())
+	                        .valor(saved.getValor())
+	                        .activo(saved.getActivo())
+	                        .usuarioCreacion(saved.getUsuarioCreacion())
+	                        .fechaCreacion(saved.getFechaCreacion())
+	                        .usuarioModificacion(saved.getUsuarioModificacion())
+	                        .fechaModificacion(saved.getFechaModificacion())
+	                        .empresa(saved.getEmpresa() != null && saved.getEmpresa().getId() != null
+	                                ? EmpresaDTO.builder().id(saved.getEmpresa().getId()).build()
+	                                : null)
+	                        .tipoUso(saved.getTipoUso() != null && saved.getTipoUso().getId() != null
+	                                ? TipoUsoDTO.builder().id(saved.getTipoUso().getId()).build()
+	                                : null)
+	                        .tipoTarifa(saved.getTipoTarifa() != null && saved.getTipoTarifa().getId() != null
+	                                ? TipoTarifaDTO.builder().id(saved.getTipoTarifa().getId()).build()
+	                                : null)
+	                        .build();
 
-			Integer empresaId = (dto.getEmpresa() != null ? dto.getEmpresa().getId() : null);
-			if (empresaId == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("Debe indicar la empresa (empresa.id)").response(null).build());
-			}
+	                return ResponseEntity.status(HttpStatus.OK)
+	                        .body(ResponseDTO.builder().success(true).code(HttpStatus.OK.value())
+	                                .message(Constantes.UPDATED_SUCCESSFULLY).response(savedDTO).build());
+	            }
+	        }
 
-			Integer tipoUsoId = (dto.getTipoUso() != null ? dto.getTipoUso().getId() : null);
-			if (tipoUsoId == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("Debe indicar el tipo de uso (tipoUso.id)").response(null).build());
-			}
+	        // =========================
+	        // CREATE
+	        // =========================
+	        Integer empresaId = (dto.getEmpresa() != null ? dto.getEmpresa().getId() : null);
+	        if (empresaId == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("Debe indicar la empresa (empresa.id)").response(null).build());
+	        }
 
-			if (dto.getNombre() == null || dto.getNombre().isBlank()) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El nombre es obligatorio").response(null).build());
-			}
+	        Integer tipoUsoId = (dto.getTipoUso() != null ? dto.getTipoUso().getId() : null);
+	        if (tipoUsoId == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("Debe indicar el tipo de uso (tipoUso.id)").response(null).build());
+	        }
 
-			if (dto.getEstrato() == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El estrato es obligatorio").response(null).build());
-			}
+	        // NUEVO: tipoTarifa obligatorio (si así lo necesitas)
+	        Integer tipoTarifaId = (dto.getTipoTarifa() != null ? dto.getTipoTarifa().getId() : null);
+	        if (tipoTarifaId == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("Debe indicar el tipo de tarifa (tipoTarifa.id)").response(null).build());
+	        }
 
-			if (dto.getCodigo() == null || dto.getCodigo().isBlank()) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El código es obligatorio").response(null).build());
-			}
+	        // Ya NO existe nombre: se elimina validación
+	        if (dto.getEstrato() == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("El estrato es obligatorio").response(null).build());
+	        }
 
-			if (dto.getValor() == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El valor es obligatorio").response(null).build());
-			}
+	        if (dto.getCodigo() == null || dto.getCodigo().isBlank()) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("El código es obligatorio").response(null).build());
+	        }
 
-			var tipoUso = tipoUsoRepository.findById(tipoUsoId)
-					.orElseThrow(() -> new RuntimeException("No se encontró TipoUso con id " + tipoUsoId));
+	        if (dto.getValor() == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("El valor es obligatorio").response(null).build());
+	        }
 
-			TarifasTransversalesEntity target = tarifasTransversalesMapper.dtoToEntity(dto);
+	        var tipoUso = tipoUsoRepository.findById(tipoUsoId)
+	                .orElseThrow(() -> new RuntimeException("No se encontró TipoUso con id " + tipoUsoId));
 
-			EmpresaEntity empresa = new EmpresaEntity();
-			empresa.setId(empresaId);
-			target.setEmpresa(empresa);
+	        var tipoTarifa = tipoTarifaRepository.findById(tipoTarifaId)
+	                .orElseThrow(() -> new RuntimeException("No se encontró TipoTarifa con id " + tipoTarifaId));
 
-			target.setTipoUso(tipoUso);
+	        TarifasTransversalesEntity target = tarifasTransversalesMapper.dtoToEntity(dto);
 
-			target.setActivo(dto.getActivo() != null ? dto.getActivo() : Boolean.TRUE);
-			target.setFechaCreacion(new Date());
-			target.setUsuarioCreacion(dto.getUsuarioCreacion());
+	        EmpresaEntity empresa = new EmpresaEntity();
+	        empresa.setId(empresaId);
+	        target.setEmpresa(empresa);
 
-			TarifasTransversalesEntity saved = tarifasTransversalesRepository.save(target);
+	        target.setTipoUso(tipoUso);
+	        target.setTipoTarifa(tipoTarifa);
 
-			TarifasTransversalesDTO savedDTO = TarifasTransversalesDTO.builder().id(saved.getId())
-					.nombre(saved.getNombre()).estrato(saved.getEstrato()).codigo(saved.getCodigo())
-					.valor(saved.getValor()).activo(saved.getActivo()).usuarioCreacion(saved.getUsuarioCreacion())
-					.fechaCreacion(saved.getFechaCreacion()).usuarioModificacion(saved.getUsuarioModificacion())
-					.fechaModificacion(saved.getFechaModificacion())
-					.empresa(saved.getEmpresa() != null && saved.getEmpresa().getId() != null
-							? EmpresaDTO.builder().id(saved.getEmpresa().getId()).build()
-							: null)
-					.tipoUso(saved.getTipoUso() != null && saved.getTipoUso().getId() != null
-							? TipoUsoDTO.builder().id(saved.getTipoUso().getId()).build()
-							: null)
-					.build();
+	        target.setActivo(dto.getActivo() != null ? dto.getActivo() : Boolean.TRUE);
+	        target.setFechaCreacion(new Date());
+	        target.setUsuarioCreacion(dto.getUsuarioCreacion());
 
-			return ResponseEntity.status(HttpStatus.CREATED)
-					.body(ResponseDTO.builder().success(true).code(HttpStatus.CREATED.value())
-							.message(Constantes.SAVED_SUCCESSFULLY).response(savedDTO).build());
+	        TarifasTransversalesEntity saved = tarifasTransversalesRepository.save(target);
 
-		} catch (Exception e) {
-			log.error("Error guardando tarifa transversal", e);
+	        TarifasTransversalesDTO savedDTO = TarifasTransversalesDTO.builder()
+	                .id(saved.getId())
+	                .estrato(saved.getEstrato())
+	                .codigo(saved.getCodigo())
+	                .valor(saved.getValor())
+	                .activo(saved.getActivo())
+	                .usuarioCreacion(saved.getUsuarioCreacion())
+	                .fechaCreacion(saved.getFechaCreacion())
+	                .usuarioModificacion(saved.getUsuarioModificacion())
+	                .fechaModificacion(saved.getFechaModificacion())
+	                .empresa(saved.getEmpresa() != null && saved.getEmpresa().getId() != null
+	                        ? EmpresaDTO.builder().id(saved.getEmpresa().getId()).build()
+	                        : null)
+	                .tipoUso(saved.getTipoUso() != null && saved.getTipoUso().getId() != null
+	                        ? TipoUsoDTO.builder().id(saved.getTipoUso().getId()).build()
+	                        : null)
+	                .tipoTarifa(saved.getTipoTarifa() != null && saved.getTipoTarifa().getId() != null
+	                        ? TipoTarifaDTO.builder().id(saved.getTipoTarifa().getId()).build()
+	                        : null)
+	                .build();
 
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-					.body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
-							.code(HttpStatus.BAD_REQUEST.value()).response(e.getMessage()).build());
-		}
+	        return ResponseEntity.status(HttpStatus.CREATED)
+	                .body(ResponseDTO.builder().success(true).code(HttpStatus.CREATED.value())
+	                        .message(Constantes.SAVED_SUCCESSFULLY).response(savedDTO).build());
+
+	    } catch (Exception e) {
+	        log.error("Error guardando tarifa transversal", e);
+
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	                .body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
+	                        .code(HttpStatus.BAD_REQUEST.value()).response(e.getMessage()).build());
+	    }
 	}
+
 
 	@Override
 	@Transactional(readOnly = true)
