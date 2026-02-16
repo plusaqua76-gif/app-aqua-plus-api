@@ -940,15 +940,12 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(Integer empresaId) {
 		log.info("Obteniendo métricas de cartera por antigüedad para empresa: {}", empresaId);
-		
+
 		try {
 			if (empresaId == null) {
 				log.warn("El ID de empresa es requerido");
-				ResponseDTO errorResponse = ResponseDTO.builder()
-						.success(false)
-						.message("El ID de empresa es requerido")
-						.code(HttpStatus.BAD_REQUEST.value())
-						.build();
+				ResponseDTO errorResponse = ResponseDTO.builder().success(false)
+						.message("El ID de empresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build();
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 			}
 
@@ -956,55 +953,44 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			List<CarteraAntiguedadDTO> metricas = new ArrayList<>();
 			for (Object[] resultado : resultados) {
-				CarteraAntiguedadDTO dto = CarteraAntiguedadDTO.builder()
-						.rangoAntiguedad((String) resultado[0])
-						.cantidadDeudas(((Number) resultado[1]).longValue())
-						.valorCartera((BigDecimal) resultado[2])
+				CarteraAntiguedadDTO dto = CarteraAntiguedadDTO.builder().rangoAntiguedad((String) resultado[0])
+						.cantidadDeudas(((Number) resultado[1]).longValue()).valorCartera((BigDecimal) resultado[2])
 						.build();
 				metricas.add(dto);
 			}
 
 			if (metricas.isEmpty()) {
 				log.info("No se encontraron facturas pendientes para la empresa: {}", empresaId);
-				ResponseDTO responseDTO = ResponseDTO.builder()
-						.success(true)
-						.message("No se encontraron facturas pendientes para esta empresa")
-						.code(HttpStatus.OK.value())
-						.response(metricas)
-						.build();
+				ResponseDTO responseDTO = ResponseDTO.builder().success(true)
+						.message("No se encontraron facturas pendientes para esta empresa").code(HttpStatus.OK.value())
+						.response(metricas).build();
 				return ResponseEntity.ok(responseDTO);
 			}
 
-			BigDecimal totalGeneral = metricas.stream()
-					.map(CarteraAntiguedadDTO::getValorCartera)
+			BigDecimal totalGeneral = metricas.stream().map(CarteraAntiguedadDTO::getValorCartera)
 					.reduce(BigDecimal.ZERO, BigDecimal::add);
 
-			log.info("Métricas obtenidas exitosamente. Total de rangos: {}, Valor total: {}", 
-					metricas.size(), totalGeneral);
+			log.info("Métricas obtenidas exitosamente. Total de rangos: {}, Valor total: {}", metricas.size(),
+					totalGeneral);
 
 			Map<String, Object> data = new HashMap<>();
 			data.put("metricas", metricas);
 			data.put("totalGeneral", totalGeneral);
 			data.put("cantidadRangos", metricas.size());
 
-			ResponseDTO responseDTO = ResponseDTO.builder()
-					.success(true)
-					.message("Métricas de cartera obtenidas exitosamente")
-					.code(HttpStatus.OK.value())
-					.response(data)
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true)
+					.message("Métricas de cartera obtenidas exitosamente").code(HttpStatus.OK.value()).response(data)
 					.build();
 
 			return ResponseEntity.ok(responseDTO);
 
 		} catch (Exception e) {
 			log.error("Error al obtener métricas de cartera por antigüedad para empresa: {}", empresaId, e);
-			
-			ResponseDTO errorResponse = ResponseDTO.builder()
-					.success(false)
+
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false)
 					.message("Error al obtener las métricas de cartera: " + e.getMessage())
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-					.build();
-			
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
 		}
 	}
@@ -1013,15 +999,12 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio) {
 		log.info("Obteniendo métricas financieras para empresa: {}, mes: {}, año: {}", empresaId, mes, anio);
-		
+
 		try {
 			if (empresaId == null) {
 				log.warn("El ID de empresa es requerido");
-				ResponseDTO errorResponse = ResponseDTO.builder()
-						.success(false)
-						.message("El ID de empresa es requerido")
-						.code(HttpStatus.BAD_REQUEST.value())
-						.build();
+				ResponseDTO errorResponse = ResponseDTO.builder().success(false)
+						.message("El ID de empresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build();
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 			}
 
@@ -1029,54 +1012,84 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			if (resultados.isEmpty()) {
 				log.warn("No se obtuvieron métricas para la empresa: {}, período: {}/{}", empresaId, mes, anio);
-				ResponseDTO responseDTO = ResponseDTO.builder()
-						.success(false)
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
 						.message("No se pudieron calcular las métricas para esta empresa en el período especificado")
-						.code(HttpStatus.NOT_FOUND.value())
-						.build();
+						.code(HttpStatus.NOT_FOUND.value()).build();
 				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
 			}
 
 			Object[] resultado = resultados.get(0);
-			
+
 			MetricasFinancierasDTO metricas = MetricasFinancierasDTO.builder()
-					.coberturaGastosOperativos((BigDecimal) resultado[0])
-					.recaudoPorcentaje((BigDecimal) resultado[1])
-					.carteraVencidaPorcentaje((BigDecimal) resultado[2])
-					.liquidez((BigDecimal) resultado[3])
-					.totalRecaudo((BigDecimal) resultado[4])
-					.totalFacturacion((BigDecimal) resultado[5])
-					.totalCarteraVencida((BigDecimal) resultado[6])
-					.activosCorrientes((BigDecimal) resultado[7])
-					.pasivosCorrientes((BigDecimal) resultado[8])
-					.totalGastos((BigDecimal) resultado[9])
-					.build();
+					.coberturaGastosOperativos((BigDecimal) resultado[0]).recaudoPorcentaje((BigDecimal) resultado[1])
+					.carteraVencidaPorcentaje((BigDecimal) resultado[2]).liquidez((BigDecimal) resultado[3])
+					.totalRecaudo((BigDecimal) resultado[4]).totalFacturacion((BigDecimal) resultado[5])
+					.totalCarteraVencida((BigDecimal) resultado[6]).activosCorrientes((BigDecimal) resultado[7])
+					.pasivosCorrientes((BigDecimal) resultado[8]).totalGastos((BigDecimal) resultado[9]).build();
 
-			log.info("Métricas financieras obtenidas exitosamente para empresa: {}, período: {}/{}", empresaId, mes, anio);
-			log.debug("Recaudo: {}, Facturación: {}, Liquidez: {}", 
-					metricas.getTotalRecaudo(), 
-					metricas.getTotalFacturacion(), 
-					metricas.getLiquidez());
+			log.info("Métricas financieras obtenidas exitosamente para empresa: {}, período: {}/{}", empresaId, mes,
+					anio);
+			log.debug("Recaudo: {}, Facturación: {}, Liquidez: {}", metricas.getTotalRecaudo(),
+					metricas.getTotalFacturacion(), metricas.getLiquidez());
 
-			ResponseDTO responseDTO = ResponseDTO.builder()
-					.success(true)
+			ResponseDTO responseDTO = ResponseDTO.builder().success(true)
 					.message("Métricas financieras obtenidas exitosamente para el período " + mes + "/" + anio)
-					.code(HttpStatus.OK.value())
-					.response(metricas)
-					.build();
+					.code(HttpStatus.OK.value()).response(metricas).build();
 
 			return ResponseEntity.ok(responseDTO);
 
 		} catch (Exception e) {
-			log.error("Error al obtener métricas financieras para empresa: {}, período: {}/{}", empresaId, mes, anio, e);
-			
-			ResponseDTO errorResponse = ResponseDTO.builder()
-					.success(false)
+			log.error("Error al obtener métricas financieras para empresa: {}, período: {}/{}", empresaId, mes, anio,
+					e);
+
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false)
 					.message("Error al obtener las métricas financieras: " + e.getMessage())
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-					.build();
-			
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+		}
+	}
+
+	@Transactional
+	public Map<String, Object> generarFacturasMasivas(Integer idEmpresa, String usuarioCreacion) {
+		try {
+			if (idEmpresa == null || idEmpresa <= 0) {
+				return Map.of("message", "idEmpresa es obligatorio y debe ser > 0", "statusCode", "400");
+			}
+			if (usuarioCreacion == null || usuarioCreacion.isBlank()) {
+				return Map.of("message", "usuarioCreacion es obligatorio", "statusCode", "400");
+			}
+
+			String sql = """
+					SELECT public.facturacion_masiva_por_empresa(
+					    :idEmpresa,
+					    NULL::date,
+					    :usuario,
+					    0,
+					    NULL
+					) AS result
+					""";
+
+			var params = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa).addValue("usuario",
+					usuarioCreacion);
+
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+			Object value = row.get("result");
+
+			if (value instanceof PGobject pg && "jsonb".equals(pg.getType())) {
+				return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
+				});
+			}
+			if (value instanceof String s) {
+				return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+				});
+			}
+
+			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+
+		} catch (Exception e) {
+			log.error("Error ejecutando facturación masiva", e);
+			throw new RuntimeException("Error ejecutando facturación masiva: " + e.getMessage(), e);
 		}
 	}
 
