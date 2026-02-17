@@ -2,8 +2,8 @@ package com.aqua.plus.api.service;
 
 import org.springframework.http.ResponseEntity;
 
+import com.aqua.plus.commons.dtos.AforoDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 
 /**
  * @author nicope
@@ -15,14 +15,11 @@ import com.aqua.plus.commons.dtos.TipoTarifaDTO;
  * 
  */
 
-public interface ITipoTarifaService {
+public interface IAforoService {
 
-	ResponseEntity<ResponseDTO> save(TipoTarifaDTO tipoTarifaDTO);
-
+	ResponseEntity<ResponseDTO> save(AforoDTO aforoDTO);
+	
 	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa);
-
-	ResponseEntity<ResponseDTO> findAll();
-
+	
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
-
 }
