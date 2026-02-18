@@ -12,6 +12,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
+import com.aqua.plus.api.utils.Utils;
 import com.aqua.plus.commons.dtos.CorreoGeneralDTO;
 import com.aqua.plus.commons.dtos.EmpresaDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
@@ -32,6 +33,7 @@ import com.aqua.plus.commons.entities.ProductEntity;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Company;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Customer;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.DiscountsAndCharges;
+import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.InvoicePeriod;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Item;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Payment;
 import com.aqua.plus.commons.enums.DocumentTypeDianEnum;
@@ -91,7 +93,7 @@ public interface FacturaDianMapper {
 	}
 
 	default RequestInvoiceDto mapDataFacturaEletronica(ResolutionDto resolucionDto, EmpresaDTO empresa,
-			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona,Long numeroFactura) {
+			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona,Long numeroFactura, Integer periodosFacturados) {
 		RequestInvoiceDto rq = new RequestInvoiceDto();
 		rq.setDocumentType(DocumentTypeDianEnum.ESTANDAR.getCodigo());
 		rq.setResolution(resolucionDtoToResolucionDian(resolucionDto));
@@ -106,6 +108,9 @@ public interface FacturaDianMapper {
 		rq.setTotalAmounts(mapTotalAmount(factura));
 		rq.setNumber(numeroFactura);
 		rq.setDiscountsAndCharges(aplicarDescuento(factura));
+		rq.setInvoicePeriod(InvoicePeriod.builder().startDate(Utils.formatDate(Utils.restarMes(factura.getFechaEmision(), periodosFacturados), "yyyy-MM-dd")).endDate(Utils.formatDate(factura.getFechaEmision(), "yyyy-MM-dd")).build());
+		rq.setIdCliente(persona.getId());
+		rq.setIdEmpresa(empresa.getId());
 		return rq;
 	}
 	
@@ -220,6 +225,7 @@ public interface FacturaDianMapper {
 		request.setMedioPago(Pago.builder().forma(formaPago).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build());
 		request.setUsuario(usuario);
 		request.setFechaUltimoIntento(factura.getFechaUltimoIntento());
+		request.setFechaEmision(factura.getFactura().getFechaEmision());
 		return request;
 	}
 	

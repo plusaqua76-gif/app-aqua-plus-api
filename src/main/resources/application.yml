@@ -77,6 +77,7 @@ alegra:
     factura:
        test-sets: /test-sets
        invoices: /invoices
+       credit-notes: /credit-notes
     lista: 
       identification-types: /dian/identification-types
       unit-codes: /dian/unit-codes

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aqua.plus.api.service.impl.external.FacturaDianServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -111,4 +112,34 @@ public class FacturaDianController {
     public ResponseEntity<ResponseDTO> actualizarEstadoFactura(@PathVariable("id") Long id,@RequestParam String estadoActual,@RequestParam String nuevoEstado,@RequestParam String usuario) {
         return facturaDianService.actualizarEstadoFactura(id, estadoActual, nuevoEstado,usuario);
     }
+	
+	@Operation(summary = "Crear nota electronica dian")
+	@ApiResponses(value = {
+	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+	})
+    @PostMapping("/nota-credito")
+    public ResponseEntity<ResponseDTO> crearNotaCredito(@RequestBody RequestInvoiceDto invoice) {
+        return facturaDianService.crearNotaCredito(invoice);
+    }
+	
+	@Operation(summary = "Buscar data enviada a la dian")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/data/{id}")
+	public ResponseEntity<ResponseDTO> consultarDataEnviaDian(@PathVariable("id") Integer id) {
+		return this.facturaDianService.consultarDataEnviaDian(id);
+	}
+	
 }
