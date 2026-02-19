@@ -29,14 +29,12 @@ import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto;
 import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
 import com.aqua.plus.commons.dtos.external.ResponseInvoiceDto;
-import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.TaxCode;
 import com.aqua.plus.commons.entities.InvoiceEntity;
 import com.aqua.plus.commons.entities.ParametrosEmpresaEntity;
 import com.aqua.plus.commons.entities.ResolutionEntity;
 import com.aqua.plus.commons.enums.DocumentTypeDianEnum;
 import com.aqua.plus.commons.enums.LegalStatusEnum;
 import com.aqua.plus.commons.enums.ParametroEmpresaEnum;
-import com.aqua.plus.commons.enums.TaxTypeEnum;
 import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import com.aqua.plus.commons.maps.CorreoGeneralMapper;
 import com.aqua.plus.commons.maps.EmpresaMapper;
@@ -401,7 +399,6 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 			numeroFactura = actualizarResolucion(requestFactura, resolucion);
 			rq.setNumber(numeroFactura);
 			rq.setDocumentType(DocumentTypeDianEnum.NOTA_CREDITO.getCodigo());
-			rq.getCompany().setTaxCode(TaxCode.builder().id(TaxTypeEnum.IVA.getCodigo()).build());
 			HttpEntity<RequestInvoiceDto> entity = new HttpEntity<>(rq, utilsRestemplate.getHeader());
 			print("#############REQUEST ################: {} ", entity.getBody());
 			response = this.restTemplateConfig.restTemplate().exchange(this.url.concat(this.endPointNotaCredito),
