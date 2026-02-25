@@ -39,7 +39,18 @@ public class Utils {
 	public static Date restarMes(Date fecha, Integer meses) {
 		LocalDate localDate = fecha.toInstant().atZone(ZoneId.of("America/Bogota")).toLocalDate().minusMonths(meses);
 
-		return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+		return Date.from(localDate.atStartOfDay(ZoneId.of("America/Bogota")).toInstant());
+	}
+	
+	public static Date obtenerFechaActual() {
+		ZoneId zone = ZoneId.of("America/Bogota");
+	    LocalDate localDate = LocalDate.now(zone);
+	    return Date.from(localDate.atStartOfDay(zone).toInstant());
+	}
+	
+	public static int obtenerDiaActual() {
+	    ZoneId zone = ZoneId.of("America/Bogota");
+	    return LocalDate.now(zone).getDayOfMonth();
 	}
 	
 	public static String formatDate(Date fecha, String format) {

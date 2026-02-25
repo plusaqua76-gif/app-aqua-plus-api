@@ -1,4 +1,4 @@
-package com.aqua.plus.api.service.impl;
+package com.aqua.plus.api.helpers;
 
 import java.util.Date;
 import java.util.List;
