@@ -254,9 +254,12 @@ public class FacturaController {
 			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
-	@GetMapping("/consultar/{id}")
-	public ResponseEntity<ResponseDTO> getFacturaById(@PathVariable Integer id) {
-		return facturaServiceImpl.obtenerFacturaDetalle(id);
+	@GetMapping("/empresas/{empresaId}/facturas/{facturaId}")
+	public ResponseEntity<ResponseDTO> getFactura(
+	        @PathVariable Integer empresaId,
+	        @PathVariable Integer facturaId) {
+
+	    return facturaServiceImpl.obtenerFacturaDetalle(facturaId, empresaId);
 	}
 	
 	

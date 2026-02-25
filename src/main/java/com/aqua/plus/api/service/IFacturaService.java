@@ -22,7 +22,7 @@ public interface IFacturaService {
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
 	
-	ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura);
+	ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura, Integer idEmpresa);
 
     // Interface
     ResponseEntity<ResponseDTO> findFacturasByPersona(

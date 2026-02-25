@@ -2,6 +2,7 @@ package com.aqua.plus.api.service.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,6 +23,7 @@ import com.aqua.plus.commons.dtos.CarteraAntiguedadDTO;
 import com.aqua.plus.commons.dtos.FacturaDTO;
 import com.aqua.plus.commons.dtos.MetricasFinancierasDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.FacturaEntity;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.EstadoMapper;
@@ -31,6 +33,7 @@ import com.aqua.plus.commons.maps.TipoPagoMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 
+import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -56,6 +59,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
 	private final DocumentoServiceImpl documentoServiceImpl;
+	private final EmpresaRepository empresaRepository;
 
 	/**
 	 * Genera una factura a partir de los parámetros recibidos en formato JSON.
@@ -336,7 +340,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					.code(HttpStatus.OK.value()).response(items).totalCount(totalCount).pageSize(pageSize)
 					.currentPage(currentPage).totalPages(totalPages).build());
 
-		} catch (java.time.format.DateTimeParseException ex) {
+		} catch (DateTimeParseException ex) {
 			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
 					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 		} catch (Exception e) {
@@ -517,7 +521,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			String payload = (String) row.get("payload");
 
 			Map<String, Object> body = objectMapper.readValue(payload,
-					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					new TypeReference<Map<String, Object>>() {
 					});
 
 			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
@@ -553,7 +557,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			String payload = (String) row.get("payload");
 
 			Map<String, Object> body = objectMapper.readValue(payload,
-					new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+					new TypeReference<Map<String, Object>>() {
 					});
 
 			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
@@ -564,9 +568,9 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			return ResponseEntity.status(status).body(body);
 
-		} catch (org.springframework.dao.EmptyResultDataAccessException ex) {
+		} catch (EmptyResultDataAccessException ex) {
 			return ResponseEntity.ok(Map.of("success", true, "code", 200, "message", "Sin datos", "data", Map.of()));
-		} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+		} catch (JsonProcessingException ex) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "code", 500,
 					"message", "JSON inválido desde la función", "detalle", ex.getMessage()));
 		} catch (Exception ex) {
@@ -587,22 +591,22 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Object wrappedValue = rawResult.get("payload");
 
-			if (wrappedValue instanceof org.postgresql.util.PGobject pg
+			if (wrappedValue instanceof PGobject pg
 					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
 				String jsonValue = pg.getValue();
 				return objectMapper.readValue(jsonValue,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						new TypeReference<Map<String, Object>>() {
 						});
 			}
 			if (wrappedValue instanceof String s) {
 				return objectMapper.readValue(s,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						new TypeReference<Map<String, Object>>() {
 						});
 			}
 
 			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
 
-		} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+		} catch (JsonProcessingException e) {
 			e.printStackTrace();
 			return java.util.Collections.singletonMap(Constantes.ERROR_KEY,
 					Constantes.PROCCESSING_ERROR + e.getMessage());
@@ -633,14 +637,14 @@ public class FacturaServiceImpl implements IFacturaService {
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
 
 			Object resultObj = row.get("actualizar_facturas");
-			if (resultObj instanceof org.postgresql.util.PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+			if (resultObj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
 				return objectMapper.readValue(pg.getValue(),
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						new TypeReference<Map<String, Object>>() {
 						});
 			}
 			if (resultObj instanceof String s) {
 				return objectMapper.readValue(s,
-						new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+						new TypeReference<Map<String, Object>>() {
 						});
 			}
 
@@ -684,107 +688,146 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura) {
-		String sql = "SELECT public.obtener_factura_detalle(:id) AS result";
-		MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
+	public ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura, Integer idEmpresa) {
 
-		try {
-			String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
-				Object obj = rs.getObject("result");
-				if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-					return pg.getValue();
-				}
-				return (obj != null) ? obj.toString() : null;
-			});
+	    if (idFactura == null || idFactura <= 0) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("El id de la factura es obligatorio.");
+	        dto.setCode(400);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+	    }
 
-			if (json == null) {
-				ResponseDTO dto = new ResponseDTO();
-				dto.setSuccess(false);
-				dto.setMessage("Respuesta vacía del SP.");
-				dto.setCode(500);
-				dto.setResponse(null);
-				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-			}
+	    if (idEmpresa == null) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("El id de la empresa es obligatorio.");
+	        dto.setCode(400);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+	    }
 
-			var root = objectMapper.readTree(json);
-			if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	    EmpresaEntity empresa = empresaRepository.findById(idEmpresa).orElse(null);
 
-			var responseObj = asObject(rootObj.path("response"));
-			if (responseObj == null) {
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	    if (empresa == null) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("La empresa no existe.");
+	        dto.setCode(404);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+	    }
 
-			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
-			com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
-			String empresaPathUsed = null;
+	    Boolean facAutomatica = empresa.getFacAutomatica();
 
-			var dataObj = asObject(responseObj.path("data"));
-			if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
-				empresaObj = asObject(dataObj.get("empresa"));
-				parentOfEmpresa = dataObj;
-				empresaPathUsed = "response.data.empresa";
-			}
+	    String sql;
 
-			if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
-				empresaObj = asObject(responseObj.get("empresa"));
-				parentOfEmpresa = responseObj;
-				empresaPathUsed = "response.empresa";
-			}
+	    if (Boolean.TRUE.equals(facAutomatica)) {
+	        sql = "SELECT public.obtener_factura_detalle_sin_lectura(:id) AS result";
+	    } else {
+	        sql = "SELECT public.obtener_factura_detalle(:id) AS result";
+	    }
 
-			if (empresaObj == null || parentOfEmpresa == null) {
-				log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+	    MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
 
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	    try {
+	        String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
+	            Object obj = rs.getObject("result");
+	            if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+	                return pg.getValue();
+	            }
+	            return (obj != null) ? obj.toString() : null;
+	        });
 
-			Integer empresaId = parseIntSafe(empresaObj.get("id"));
-			log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
+	        if (json == null) {
+	            ResponseDTO dto = new ResponseDTO();
+	            dto.setSuccess(false);
+	            dto.setMessage("Respuesta vacía del SP.");
+	            dto.setCode(500);
+	            dto.setResponse(null);
+	            return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+	        }
 
-			try {
-				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
-				empresaObj.set("puntosPago", puntosPagoArr);
-				log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
-			} catch (Exception ex) {
-				log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
-				empresaObj.set("puntosPago", objectMapper.createArrayNode());
-			}
+	        var root = objectMapper.readTree(json);
+	        if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
 
-			try {
-				var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
-				empresaObj.set("codigoQr", codigoQrObj);
-				log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
-						codigoQrObj.hasNonNull("imagen"));
-			} catch (Exception ex) {
-				log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
-				empresaObj.set("codigoQr", objectMapper.createObjectNode());
-			}
+	        var responseObj = asObject(rootObj.path("response"));
+	        if (responseObj == null) {
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
 
-			parentOfEmpresa.set("empresa", empresaObj);
+	        com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
+	        com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
+	        String empresaPathUsed = null;
 
-			ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
-			return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
+	        var dataObj = asObject(responseObj.path("data"));
+	        if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
+	            empresaObj = asObject(dataObj.get("empresa"));
+	            parentOfEmpresa = dataObj;
+	            empresaPathUsed = "response.data.empresa";
+	        }
 
-		} catch (EmptyResultDataAccessException e) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("No existe una factura con ese id.");
-			dto.setCode(404);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+	        if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
+	            empresaObj = asObject(responseObj.get("empresa"));
+	            parentOfEmpresa = responseObj;
+	            empresaPathUsed = "response.empresa";
+	        }
 
-		} catch (Exception e) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("Error inesperado: " + e.getMessage());
-			dto.setCode(500);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-		}
+	        if (empresaObj == null || parentOfEmpresa == null) {
+	            log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
+
+	        Integer empresaId = parseIntSafe(empresaObj.get("id"));
+	        log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
+
+	        try {
+	            var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
+	            empresaObj.set("puntosPago", puntosPagoArr);
+	            log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
+	        } catch (Exception ex) {
+	            log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
+	            empresaObj.set("puntosPago", objectMapper.createArrayNode());
+	        }
+
+	        try {
+	            var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
+	            empresaObj.set("codigoQr", codigoQrObj);
+	            log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
+	                    codigoQrObj.hasNonNull("imagen"));
+	        } catch (Exception ex) {
+	            log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
+	            empresaObj.set("codigoQr", objectMapper.createObjectNode());
+	        }
+
+	        parentOfEmpresa.set("empresa", empresaObj);
+
+	        ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
+	        return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
+
+	    } catch (EmptyResultDataAccessException e) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("No existe una factura con ese id.");
+	        dto.setCode(404);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+
+	    } catch (Exception e) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("Error inesperado: " + e.getMessage());
+	        dto.setCode(500);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 	}
 
 	/*
