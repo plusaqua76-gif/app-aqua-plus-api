@@ -108,7 +108,9 @@ public interface FacturaDianMapper {
 		rq.setTotalAmounts(mapTotalAmount(factura));
 		rq.setNumber(numeroFactura);
 		rq.setDiscountsAndCharges(aplicarDescuento(factura));
-		rq.setInvoicePeriod(InvoicePeriod.builder().startDate(Utils.formatDate(Utils.restarMes(factura.getFechaEmision(), periodosFacturados), "yyyy-MM-dd")).endDate(Utils.formatDate(factura.getFechaEmision(), "yyyy-MM-dd")).build());
+		if(Objects.nonNull(factura.getFechaEmision())) {
+			rq.setInvoicePeriod(InvoicePeriod.builder().startDate(Utils.formatDate(Utils.restarMes(factura.getFechaEmision(), periodosFacturados), "yyyy-MM-dd")).endDate(Utils.formatDate(factura.getFechaEmision(), "yyyy-MM-dd")).build());
+		}
 		rq.setIdCliente(persona.getId());
 		rq.setIdEmpresa(empresa.getId());
 		return rq;

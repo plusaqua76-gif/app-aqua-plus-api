@@ -42,6 +42,12 @@ public class Utils {
 		return Date.from(localDate.atStartOfDay(ZoneId.of("America/Bogota")).toInstant());
 	}
 	
+	public static Date sumarMes(Date fecha, Integer meses) {
+		LocalDate localDate = fecha.toInstant().atZone(ZoneId.of("America/Bogota")).toLocalDate().plusMonths(meses);
+
+		return Date.from(localDate.atStartOfDay(ZoneId.of("America/Bogota")).toInstant());
+	}
+	
 	public static Date obtenerFechaActual() {
 		ZoneId zone = ZoneId.of("America/Bogota");
 	    LocalDate localDate = LocalDate.now(zone);
