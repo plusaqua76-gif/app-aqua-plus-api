@@ -30,6 +30,7 @@ import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
 import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
+import com.aqua.plus.commons.dtos.AforoDTO;
 import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.EccDetalleDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
@@ -37,6 +38,8 @@ import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
+import com.aqua.plus.commons.dtos.TipoUsoDTO;
+import com.aqua.plus.commons.entities.AforoContadorEntity;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
@@ -46,11 +49,13 @@ import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 import com.aqua.plus.commons.entities.TipoTarifaEntity;
+import com.aqua.plus.commons.entities.TipoUsoEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.maps.TarifaContadorMapper;
 import com.aqua.plus.commons.maps.TipoTarifaMapper;
+import com.aqua.plus.commons.repositories.AforoContadorRepository;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
@@ -90,6 +95,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final TarifaContadorMapper tarifaContadorMapper;
 	private final TipoTarifaRepository tipoTarifaRepository;
 	private final TipoTarifaMapper tipoTarifaMapper;
+	private final AforoContadorRepository aforoContadorRepository;
 
 	@Override
 	@Transactional
@@ -789,7 +795,32 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						.findAllByCliente_Id(personaId);
 
 				contadoresDTO = eccsPersona.stream().map(EmpresaClienteContadorEntity::getContador)
-						.filter(Objects::nonNull).map(contadorMapper::entityToDto).distinct().toList();
+						.filter(Objects::nonNull).map(contador -> {
+
+							ContadorDTO dto = contadorMapper.entityToDto(contador);
+
+							/* ================= TIPO USO ================= */
+
+							TipoUsoEntity tipoUso = contador.getTipoUso();
+
+							if (tipoUso != null) {
+								dto.setTipoUso(TipoUsoDTO.builder().id(tipoUso.getId()).nombre(tipoUso.getNombre())
+										.descripcion(tipoUso.getDescripcion()).codigo(tipoUso.getCodigo()).build());
+							}
+
+							/* ================= AFORO ================= */
+
+							List<AforoDTO> aforos = aforoContadorRepository.findByContadorConAforo(contador.getId())
+									.stream().map(AforoContadorEntity::getAforo).filter(Objects::nonNull)
+									.map(a -> AforoDTO.builder().id(a.getId()).nombre(a.getNombre())
+											.tarifaBase(a.getTarifaBase()).build())
+									.toList();
+
+							dto.setAforoContador(aforos);
+
+							return dto;
+
+						}).distinct().toList();
 			}
 
 			// ================== CONTACTO (CORREO / TELÉFONO) ==================
