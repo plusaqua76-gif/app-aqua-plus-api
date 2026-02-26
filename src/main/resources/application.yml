@@ -46,6 +46,7 @@ app:
   cors:
     - http://localhost:4200
     - https://www.aquaplus.dev
+    - https://app-aqua-plus-web-test.azurewebsites.net
   azure:
     storage:
       connection-string: DefaultEndpointsProtocol=https;AccountName=staquaplus;AccountKey=39HBTX+ixhH+3oTkjomHzBPLLeu0EVtAyfLzzhqnv8I03E6YomTgpNLNT/CXrTuKLEZMq9P6p1tZ+AStU4afMQ==;EndpointSuffix=core.windows.net
