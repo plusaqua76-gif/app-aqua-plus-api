@@ -3,7 +3,7 @@ name: Build and deploy JAR app to Azure Web App - app-aqua-plus-api
 on:
   push:
     branches:
-      - main
+      - develop
   workflow_dispatch:
 
 jobs:
@@ -86,5 +86,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api'
-          slot-name: 'Production'
+          slot-name: 'Desarrollo'
           package: '*.jar'
+
