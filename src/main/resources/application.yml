@@ -1,11 +1,9 @@
-azure:
-  application-insights: 
-    instrumentation-key: 3b5bd424-f2d9-4011-a34b-279b06833155
 spring:
   main:
     banner-mode: "console"
   application:
     name: app-aqua-plus-api
+    version: v1.0
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     url: jdbc:postgresql://bd-aqua-plus.postgres.database.azure.com:5432/aquaplus
@@ -14,11 +12,12 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       auto-commit: false
-      maximum-pool-size: 10
+      maximum-pool-size: 15
       minimum-idle: 5
-      idle-timeout: 600000
+      idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 30000
+      leak-detection-threshold: 20000
       pool-name: HikariPoolAquaPlus
   jpa:
     hibernate:
@@ -46,6 +45,7 @@ app:
   cors:
     - http://localhost:4200
     - https://www.aquaplus.dev
+    - https://app-aqua-plus-web-test.azurewebsites.net
   azure:
     storage:
       connection-string: DefaultEndpointsProtocol=https;AccountName=staquaplus;AccountKey=39HBTX+ixhH+3oTkjomHzBPLLeu0EVtAyfLzzhqnv8I03E6YomTgpNLNT/CXrTuKLEZMq9P6p1tZ+AStU4afMQ==;EndpointSuffix=core.windows.net
@@ -98,3 +98,119 @@ dian:
     er-reintento: ERROR_REINTENTO
   iva: 19
   usuario: codemakerssasaut
+logging:
+  level:
+    root: INFO
+    org.springframework: WARN
+    org.hibernate.SQL: ERROR
+    org.hibernate.type.descriptor.sql: ERROR
+---
+server:
+  port: 80
+spring:
+  config:
+    activate:
+      on-profile: release
+  application:
+    name:  ${APP_NAME}
+    version:  ${APP_VERSION}
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: ${BD_HOST}
+    username:  ${BD_USER}
+    password: ${BD_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      auto-commit: false
+      maximum-pool-size: ${MAX_POOL_SIZE}
+      minimum-idle: ${MINIMUM_IDLE}
+      idle-timeout: ${IDLE_TIMEOUT}
+      max-lifetime: ${MAX_LIFETIME}
+      connection-timeout: ${CONNECTION_TIMEOUT}
+      leak-detection-threshold: ${LEAK_DETECTION_THRESHOLD}
+      pool-name: HikariPoolAquaPlus
+  jpa:
+    hibernate:
+      ddl-auto: none
+      show-sql:  ${SHOW_SQL}
+      format-sql:  ${FORMAT_SQL}
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+mail:
+  host: ${HOST_MAIL}
+  port: ${PORT_MAIL}
+  username: ${USER_MAIL}
+  password: ${PASSWORD_MAIL}
+  properties:
+    mail:
+      smtp:
+        auth: ${SMTP_AUTH}
+        starttls:
+          enable: ${STARTTLS_ENABLE}
+          required: ${STARTTLS_REQUIRED}
+seguridad:
+  llave: ${SEGURIDAD_LLAVE}
+link:
+  recover: ${LINK_RECOVER_PASSWORD}
+app:
+  cors:
+    - http://localhost:4200
+    - https://www.aquaplus.dev
+    - https://app-aqua-plus-web-test.azurewebsites.net
+  azure:
+    storage:
+      connection-string: ${STORAGE_CONNECTION}
+      container-name: ${STORAGE_CONTAINER_NAME}
+      container-name-public: ${STORAGE_CONTAINER_NAME_PUBLIC}
+  jobs:
+    facturas:
+      enabled:  ${JOB_FACTURAS_ENABLED}
+      vencidas-cron: ${VENCIDAS_CRON_FACTURAS}
+      usuario-cron: ${USUARIO_CRON}
+      param:
+        llave: ${PARAMETROS_LLAVE_DIAS}
+        default-dias: ${PARAMETROS_DEFAULT_DIAS}
+      avsu:
+        enabled: ${AVSU_FACTURAS_ENABLED}
+        dias: ${AVSU_FACTURAS_DIAS}
+      electronica:
+        limite: ${ELECTRONICA_FACTURAS_LIMTITE}
+        scheduled: ${ELECTRONICA_FACTURAS_SCHEDULED}
+      masiva:
+        automatica:
+          scheduled: ${MASIVA_FACTURA_AUT_SCHEDULE}
+rest-template:
+  connect: ${REST_TEMPLATE_CONNECT}
+  read: ${REST_TEMPLATE_READ}
+alegra:
+  url: ${ALEGRA_URL}
+  token:  ${ALEGRA_TOKEN}
+  end-point:
+    empresa:
+      companies: /companies
+    factura:
+      test-sets: /test-sets
+      invoices: /invoices
+      credit-notes: /credit-notes
+    lista:
+      identification-types: /dian/identification-types
+      unit-codes: /dian/unit-codes
+      payment-methods: /dian/payment-methods
+      departments: /dian/departments
+      municipalities: /dian/municipalities
+dian:
+  formas-pago:
+    contado: ${DIAN_FORMA_PAGO_CONTADO}
+    credito: ${DIAN_FORMA_PAGO_CREDITO}
+  codigo-unidades:
+    metro-cubico:  ${DIAN_CODIGO_UNIDADES_MC}
+  estados:
+    en-proceso: ${DIAN_ESTADO_EN_PROCESO}
+    er-reintento:  ${DIAN_ESTADO_REINTENTO}
+  iva: ${DIAN_IVA}
+  usuario:  ${USUARIO_CODE_AUT}
+logging:
+  level:
+    root:  ${LOGGING_LEVEL_ROOT}
+    org.springframework:  ${LOGGING_LEVEL_SPRINGFRAMEWORK}
+    org.hibernate.SQL: ${LOGGING_HIBERNATE_SQL}
+    org.hibernate.type.descriptor.sql: ${LOGGING_DESCRIPTOR_SQL}
