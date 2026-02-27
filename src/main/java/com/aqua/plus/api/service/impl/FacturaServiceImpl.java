@@ -1106,7 +1106,6 @@ public class FacturaServiceImpl implements IFacturaService {
 			String sql = """
 					SELECT public.facturacion_masiva_por_empresa(
 					    :idEmpresa,
-					    NULL::date,
 					    :usuario,
 					    0,
 					    NULL
