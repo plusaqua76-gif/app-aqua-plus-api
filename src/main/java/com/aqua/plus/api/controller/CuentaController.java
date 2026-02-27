@@ -109,10 +109,12 @@ public class CuentaController {
 			@RequestParam(value = "valor", required = false) Double cuentaValor,
 			@RequestParam(value = "tipoNombre", required = false) String tipoNombre,
 			@RequestParam(value = "tipoNaturaleza", required = false) String tipoNaturaleza,
+			@RequestParam(value = "tipoCategoria", required = false) String tipoCategoria,
+			@RequestParam(value = "fecha", required = false) String fecha,
 
 			@PageableDefault(size = 20, sort = "fechaCreacion", direction = Sort.Direction.DESC) Pageable pageable) {
 		return cuentaServiceImpl.findByEmpresa(idEmpresa, cuentaCodigo, cuentaNombre, cuentaValor, tipoNombre,
-				tipoNaturaleza, pageable);
+				tipoNaturaleza, tipoCategoria, fecha, pageable);
 	}
 
 	@Operation(summary = "Eliminar cuenta por id")

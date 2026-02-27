@@ -81,9 +81,9 @@ public class FacturaController {
 			@RequestParam(required = false) String fechaEmision, @RequestParam(required = false) String fechaFin,
 			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
 			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) Double precioMin,
-			@RequestParam(required = false) Double precioMax, Pageable pageable) {
+			@RequestParam(required = false) Double precioMax, @RequestParam(required = false) String tipoPagoNombre, Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
-				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, pageable);
+				estadoNombre, consumoAnormal, consumo, precioMin, precioMax,tipoPagoNombre, pageable);
 	}
 
 	@Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")

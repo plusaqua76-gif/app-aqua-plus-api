@@ -23,7 +23,7 @@ public interface ILecturaService {
 	ResponseEntity<ResponseDTO> findById(Integer id);
 
 	ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, String serial, Integer lectura, String fecha,
-			Boolean consumoAnormal, String observacion, Pageable pageable);
+			Boolean consumoAnormal, String observacion, String clienteNombre, String descripcion, Pageable pageable);
 
 	ResponseEntity<ResponseDTO> findAll();
 

@@ -19,7 +19,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -384,12 +383,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre) {
+			String correo, String tipoDocumentoNombre, String direccion, Boolean estado) {
 
 		log.info(
-				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}]",
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, direccion={}, estado={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
-				tipoDocumentoNombre);
+				tipoDocumentoNombre, direccion, estado);
 
 		try {
 			if (idEmpresa == null) {
@@ -406,7 +405,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.direccionCiudadNombreLike(ciudad),
 					PersonaSpecification.direccionCorregimientoNombreLike(corregimiento),
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
-					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre));
+					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre),
+					PersonaSpecification.direccionDescripcionLike(direccion),
+					PersonaSpecification.clienteEstado(estado));
 
 			Page<EmpresaClienteContadorEntity> pageECC = empresaClienteContadorRepository.findAll(spec, pageable);
 
