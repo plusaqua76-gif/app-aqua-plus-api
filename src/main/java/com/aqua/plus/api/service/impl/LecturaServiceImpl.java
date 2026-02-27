@@ -235,20 +235,22 @@ public class LecturaServiceImpl implements ILecturaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findLecturasByEmpresaId(Integer empresaId, String serial, Integer lectura,
-			String fecha, Boolean consumoAnormal, String observacion, Pageable pageable) {
+			String fechaLectura, Boolean consumoAnormal, String observacion, String nombreCompleto,String descripcion, Pageable pageable) {
 
 		log.info(
-				"Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fecha={}, consumoAnormal={}, observacion={}",
-				empresaId, serial, lectura, fecha, consumoAnormal, observacion);
+				"Listar lecturas por empresaId={} con filtros: serial={}, lectura={}, fecha={}, consumoAnormal={}, observacion={}, nombreCompleto={}, descripcion={}",
+				empresaId, serial, lectura, fechaLectura, consumoAnormal, observacion, nombreCompleto, descripcion);
 
 		try {
-			LocalDate f = (fecha == null || fecha.isBlank()) ? null : LocalDate.parse(fecha); // yyyy-MM-dd
+			LocalDate f = (fechaLectura == null || fechaLectura.isBlank()) ? null : LocalDate.parse(fechaLectura); // yyyy-MM-dd
 
 			Specification<LecturaEntity> spec = allOfNonNull(LecturaSpecifications.perteneceAEmpresa(empresaId),
 					LecturaSpecifications.serialLike(serial), LecturaSpecifications.lecturaEquals(lectura),
 					(f != null ? LecturaSpecifications.fechaBetween(f, f) : null),
 					LecturaSpecifications.consumoAnormalEquals(consumoAnormal),
-					LecturaSpecifications.observacionLike(observacion));
+					LecturaSpecifications.observacionLike(observacion),
+					LecturaSpecifications.clienteNombreLike(nombreCompleto),
+					LecturaSpecifications.comentarioLike(descripcion));
 
 			Sort defaultSort = Sort.by(Sort.Order.desc("fechaLectura"), Sort.Order.desc("id"));
 

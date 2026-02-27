@@ -166,5 +166,10 @@ public final class PersonaSpecification {
         };
     }
 
+		/** Cliente estado */
+	public static Specification<EmpresaClienteContadorEntity> clienteEstado(Boolean estado) {
+		return (root, q, cb) -> estado != null ? 
+		cb.equal(root.get("cliente").get("activo"), estado) : cb.conjunction();
+	}
 
 }

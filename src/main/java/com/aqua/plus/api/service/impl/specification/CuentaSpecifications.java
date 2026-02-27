@@ -40,10 +40,35 @@ public class CuentaSpecifications {
 				"%" + tipoNombre.trim().toUpperCase() + "%");
 	}
 
+	public static Specification<CuentaEntity> tipoCategoriaCuentaLike(String tipoCategoria) {
+		if (tipoCategoria == null || tipoCategoria.isBlank())
+			return null;
+		return (root, q, cb) -> cb.like(cb.upper(root.join("categoriaCuenta").get("nombre")),
+				"%" + tipoCategoria.trim().toUpperCase() + "%");
+	}
+
 	public static Specification<CuentaEntity> tipoNaturalezaLike(String naturaleza) {
 		if (naturaleza == null || naturaleza.isBlank())
 			return null;
 		return (root, q, cb) -> cb.like(cb.upper(root.join("tipoCuenta").get("naturaleza")),
 				"%" + naturaleza.trim().toUpperCase() + "%");
+	}
+
+	public static Specification<CuentaEntity> fechaBetween(java.time.LocalDate desde, java.time.LocalDate hasta) {
+		if (desde == null && hasta == null)
+			return null;
+		return (root, query, cb) -> {
+			if (desde != null && hasta != null) {
+				var iDesde = desde.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+				var iHasta = hasta.atTime(java.time.LocalTime.MAX).atZone(java.time.ZoneId.systemDefault()).toInstant();
+				return cb.between(root.get("fechaCreacion"), java.util.Date.from(iDesde), java.util.Date.from(iHasta));
+			} else if (desde != null) {
+				var iDesde = desde.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+				return cb.greaterThanOrEqualTo(root.get("fechaCreacion"), java.util.Date.from(iDesde));
+			} else {
+				var iHasta = hasta.atTime(java.time.LocalTime.MAX).atZone(java.time.ZoneId.systemDefault()).toInstant();
+				return cb.lessThanOrEqualTo(root.get("fechaCreacion"), java.util.Date.from(iHasta));
+			}
+		};
 	}
 }
