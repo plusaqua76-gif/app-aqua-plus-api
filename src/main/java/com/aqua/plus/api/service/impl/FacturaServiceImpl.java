@@ -190,7 +190,8 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-	        log.warn("Total de facturas detectadas para procesar: {}", payloadArray.size());
+			Integer totalProcess=payloadArray.size();
+	        log.warn("Total de facturas detectadas para procesar: {}", totalProcess);
 
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
@@ -199,7 +200,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
 			long fin = System.currentTimeMillis();
-			log.warn("Tiempo de ejecución SP: {}  " , (fin - inicio) + " ms");
+			log.warn("Tiempo de ejecución SP: {}  " , (fin - startTime) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
@@ -224,7 +225,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					sp.get("response"));
 			
 			long duration = System.currentTimeMillis() - startTime;
-	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalAProcesar, code, duration);
+	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalProcess, code, duration);
 			
 			return ResponseEntity.status(status).body(bodyOut);
 
