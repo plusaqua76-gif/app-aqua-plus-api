@@ -111,8 +111,6 @@ spring:
   config:
     activate:
       on-profile: release
-  main:
-    banner-mode: "console"
   application:
     name:  ${APP_NAME}
     version:  ${APP_VERSION}
