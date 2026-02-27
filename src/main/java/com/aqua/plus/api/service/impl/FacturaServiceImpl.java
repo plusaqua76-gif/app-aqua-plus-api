@@ -169,6 +169,8 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
+		log.warn("Inicio metodo guardarFacturas");
+		long inicio = System.currentTimeMillis();
 		try {
 			final ArrayNode payloadArray;
 			if (body == null) {
@@ -186,13 +188,14 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-
+			log.warn("##########################CANTIDAD FACTURAS ##################: {} " , payloadArray.size());
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
-
+			long fin = System.currentTimeMillis();
+			log.warn("Tiempo de ejecución: {}  " , (fin - inicio) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
