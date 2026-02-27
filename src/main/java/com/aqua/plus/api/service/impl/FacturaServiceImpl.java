@@ -169,8 +169,10 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
-		log.warn("Inicio metodo guardarFacturas");
-		long inicio = System.currentTimeMillis();
+		
+		log.info("Iniciando procesamiento masivo de facturas (guardarFacturas).");
+		long startTime = System.currentTimeMillis();
+		
 		try {
 			final ArrayNode payloadArray;
 			if (body == null) {
@@ -188,7 +190,16 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-			log.warn("##########################CANTIDAD FACTURAS ##################: {} " , payloadArray.size());
+			
+			int totalAProcesar = payloadArray.size();
+	        log.info("Total de facturas detectadas para procesar: {}", totalAProcesar);
+
+	        for (int i = 0; i < totalAProcesar; i++) {
+	            JsonNode item = payloadArray.get(i);
+	            String codigoFactura = item.path("codigo").asText("N/A");
+	            log.info("Iterando factura [{}/{}]: Código [{}]", (i + 1), totalAProcesar, codigoFactura);
+	        }
+
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
@@ -218,6 +229,10 @@ public class FacturaServiceImpl implements IFacturaService {
 			Map<String, Object> bodyOut = Map.of("success", sp.getOrDefault("success", code >= 200 && code < 300),
 					"message", String.valueOf(sp.getOrDefault("message", "")), "code", code, "response",
 					sp.get("response"));
+			
+			long duration = System.currentTimeMillis() - startTime;
+	        log.info("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalAProcesar, code, duration);
+			
 			return ResponseEntity.status(status).body(bodyOut);
 
 		} catch (JsonProcessingException e) {
