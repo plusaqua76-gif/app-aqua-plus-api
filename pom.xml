@@ -10,7 +10,7 @@
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.aqua.plus</groupId>
-	<artifactId>app-acua-plus-api</artifactId>
+	<artifactId>app-aqua-plus-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>app-aqua-plus-api</name>
 	<description>App for aqueducts</description>

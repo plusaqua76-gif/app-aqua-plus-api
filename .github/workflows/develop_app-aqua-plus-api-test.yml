@@ -54,7 +54,7 @@ jobs:
           path: target/*.jar
           
       - name: Build with Maven
-        run: mvn clean install
+        run: mvn clean install -P release
 
   deploy:
     runs-on: ubuntu-latest
