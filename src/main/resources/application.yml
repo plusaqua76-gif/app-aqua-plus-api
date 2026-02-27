@@ -105,6 +105,8 @@ logging:
     org.hibernate.SQL: ERROR
     org.hibernate.type.descriptor.sql: ERROR
 ---
+server:
+  port: 80
 spring:
   config:
     activate:
