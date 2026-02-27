@@ -205,7 +205,8 @@ public class FacturaServiceImpl implements IFacturaService {
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
-
+			long fin = System.currentTimeMillis();
+			log.warn("Tiempo de ejecución: {}  " , (fin - inicio) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
