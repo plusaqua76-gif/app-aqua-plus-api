@@ -1,3 +1,6 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
 name: Build and deploy JAR app to Azure Web App - app-aqua-plus-api
 
 on:
@@ -10,8 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: read
+      contents: read #This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -22,69 +24,40 @@ jobs:
           java-version: '21'
           distribution: 'microsoft'
 
-      - name: Configure Maven settings for GitHub Packages
-        run: |
-          mkdir -p ~/.m2
-          echo '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
-              </server>
-            </servers>
-          </settings>' > ~/.m2/settings.xml
-
       - name: Build with Maven
-        run: mvn -B clean package -DskipTests
+        run: mvn clean install
 
-      - name: List target directory (verificación)
-        run: |
-          echo "🔍 Listando archivos generados en target/"
-          ls -lh target || echo "⚠️ No se encontró el directorio target"
-
-      - name: Upload JAR artifact
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: jar-package
-          path: target/*.jar
+          name: java-app
+          path: '${{ github.workspace }}/target/*.jar'
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
-      contents: read
-
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
+  
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Download JAR artifact
+      - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: jar-package
-
-      - name: Verify JAR downloaded
-        run: |
-          echo "🔍 Archivos descargados:"
-          ls -lh || echo "⚠️ No se encontró ningún archivo"
-          echo ""
-          echo "Verificando existencia del .jar..."
-          find . -name "*.jar" || echo "⚠️ No se encontró ningún JAR"
-
+          name: java-app
+      
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_8F6892A24539449DA2E1024630AD7CC9 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_96500EE46D4C44509095C7C982E45537 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_E3EC9B842DEB4722876474713503B1C8 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_45A0274321B64B21BAEA5B8B1BC79FE2 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_8059DED234F143348F5F465853712E65 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F4BC93DC8450473EA755FC390F1DC9F1 }}
 
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
           package: '*.jar'
+          
