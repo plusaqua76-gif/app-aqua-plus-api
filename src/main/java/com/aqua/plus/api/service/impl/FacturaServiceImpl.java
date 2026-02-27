@@ -170,7 +170,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
 		
-		log.info("Iniciando procesamiento masivo de facturas (guardarFacturas).");
+		log.warn("Iniciando procesamiento masivo de facturas (guardarFacturas).");
 		long startTime = System.currentTimeMillis();
 		
 		try {
@@ -190,15 +190,8 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-			
-			int totalAProcesar = payloadArray.size();
-	        log.info("Total de facturas detectadas para procesar: {}", totalAProcesar);
+	        log.warn("Total de facturas detectadas para procesar: {}", payloadArray.size());
 
-	        for (int i = 0; i < totalAProcesar; i++) {
-	            JsonNode item = payloadArray.get(i);
-	            String codigoFactura = item.path("codigo").asText("N/A");
-	            log.info("Iterando factura [{}/{}]: Código [{}]", (i + 1), totalAProcesar, codigoFactura);
-	        }
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
@@ -206,7 +199,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
 			long fin = System.currentTimeMillis();
-			log.warn("Tiempo de ejecución: {}  " , (fin - inicio) + " ms");
+			log.warn("Tiempo de ejecución SP: {}  " , (fin - inicio) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
@@ -231,7 +224,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					sp.get("response"));
 			
 			long duration = System.currentTimeMillis() - startTime;
-	        log.info("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalAProcesar, code, duration);
+	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalAProcesar, code, duration);
 			
 			return ResponseEntity.status(status).body(bodyOut);
 
