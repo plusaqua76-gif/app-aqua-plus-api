@@ -1147,5 +1147,40 @@ public class FacturaServiceImpl implements IFacturaService {
 			throw new RuntimeException("Error ejecutando facturación masiva: " + e.getMessage(), e);
 		}
 	}
+	
+	@Transactional
+	public Map<String, Object> obtenerDetalleFacturaDian(Integer idFactura) {
+	    try {
+	        if (idFactura == null || idFactura <= 0) {
+	            return Map.of("message", "idFactura es obligatorio y debe ser > 0", "statusCode", "400");
+	        }
+
+	        String sql = """
+	                SELECT public.obtener_detalle_factura_dian_lectura(
+	                    :idFactura
+	                ) AS result
+	                """;
+
+	        var params = new MapSqlParameterSource().addValue("idFactura", idFactura);
+
+	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+	        Object value = row.get("result");
+
+	        if (value instanceof PGobject pg && "jsonb".equals(pg.getType())) {
+	            return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
+	            });
+	        }
+	        if (value instanceof String s) {
+	            return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+	            });
+	        }
+
+	        return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+
+	    } catch (Exception e) {
+	        log.error("Error ejecutando obtener detalle factura Dian", e);
+	        throw new RuntimeException("Error ejecutando obtener detalle factura Dian: " + e.getMessage(), e);
+	    }
+	}
 
 }
