@@ -23,16 +23,17 @@ public class FacturaMasivaAutomaticaScheduler {
 	private String scheduled;
 
 	private final EmpresaHelper empresaHelper;
-	
-	@Scheduled(cron  = "${app.jobs.facturas.masiva.automatica.scheduled}", zone="America/Bogota")
-	//@Scheduled(fixedDelayString = "${app.jobs.facturas.masiva.automatica.scheduled}")
+
+	//@Scheduled(cron  = "${app.jobs.facturas.masiva.automatica.scheduled}", zone="America/Bogota")
+	@Scheduled(fixedDelayString = "${app.jobs.facturas.masiva.automatica.scheduled}")
 	@SchedulerLock(name = "facturacion_masiva_auto")
 	public void procesarEmpresaAutomaticas() {
-		log.info("Inicio metodo procesarEmpresaAutomaticas");
+		log.warn("Inicio metodo procesarEmpresaAutomaticas");
 	    List<EmpresaEntity> empresas = empresaHelper.consultarEmpresasFacturar(Boolean.TRUE, Utils.obtenerFechaActual());
 
 	    for (EmpresaEntity item : empresas) {
 	    	empresaHelper.procesar(item);
 	    }
+		log.warn("Fin metodo procesarEmpresaAutomaticas");
 	}
 }

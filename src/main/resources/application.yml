@@ -67,7 +67,7 @@ app:
         scheduled: 60000
       masiva:
        automatica:
-         scheduled: 0 0 0 * * ?
+         scheduled: 120000
 rest-template:
   connect: 5
   read: 60
@@ -98,6 +98,7 @@ dian:
     en-proceso: EN_PROCESO
     er-reintento: ERROR_REINTENTO
     sin-tarifas: SIN_TARIFAS
+    pendiente:  PEND
   iva: 0
   usuario: codemakerssasaut
 logging:
@@ -210,6 +211,7 @@ dian:
     en-proceso: ${DIAN_ESTADO_EN_PROCESO}
     er-reintento:  ${DIAN_ESTADO_REINTENTO}
     sin-tarifas:  ${SIN_TARIFAS}
+    pendiente:  ${ESTADO_PEND}
   iva: ${DIAN_IVA}
   usuario:  ${USUARIO_CODE_AUT}
 logging:

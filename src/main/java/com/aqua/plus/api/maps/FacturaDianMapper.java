@@ -213,7 +213,7 @@ public interface FacturaDianMapper {
 		return total;
 	}
 	
-	default RequestFacturaDto mapFactura(InvoiceEntity factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPago, String usuario, List<TarifaConceptoDianDto> tarifas) {
+	default RequestFacturaDto mapFactura(InvoiceDto factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPago, String usuario, List<TarifaConceptoDianDto> tarifas) {
 		RequestFacturaDto request =RequestFacturaDto.builder().build();
 		request.setId(factura.getId());
 		request.setIdCliente(factura.getCliente().getId());
@@ -233,7 +233,7 @@ public interface FacturaDianMapper {
 		request.setProductos(productos);
 		request.setMedioPago(Pago.builder().forma(formaPago).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build());
 		request.setUsuario(usuario);
-		request.setFechaUltimoIntento(factura.getFechaUltimoIntento());
+		request.setFechaUltimoIntento(new Date());
 		request.setFechaEmision(factura.getFactura().getFechaEmision());
 		return request;
 	}

@@ -2,6 +2,7 @@ package com.aqua.plus.api.jobs;
 
 import java.util.List;
 
+import com.aqua.plus.commons.dtos.InvoiceDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,13 +22,14 @@ public class FacturaElectronicaScheduler {
 	private final FacturaDianHelper facturaDianHelper;
 	
 	@Scheduled(fixedDelayString = "${app.jobs.facturas.electronica.scheduled}")
-	@SchedulerLock(name = "facturacion_auto")
+	@SchedulerLock(name = "facturacion_auto",lockAtMostFor = "PT5M",
+			lockAtLeastFor = "PT30S")
 	public void iniciarFactura() {
 
-	    List<Long> ids = facturaDianHelper.tomarFacturasPendientes();
+	    List<InvoiceDto> facturas = facturaDianHelper.tomarFacturasPendientes();
 
-	    for (Long id : ids) {
-	    	facturaDianHelper.procesar(id);
+	    for (InvoiceDto item : facturas) {
+	    	facturaDianHelper.procesar(item);
 	    }
 	}
 

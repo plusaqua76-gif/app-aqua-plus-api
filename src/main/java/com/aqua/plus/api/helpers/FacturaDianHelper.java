@@ -1,12 +1,12 @@
 package com.aqua.plus.api.helpers;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import com.aqua.plus.api.service.impl.FacturaServiceImpl;
+import com.aqua.plus.api.tx.FacturaTxComponent;
+import com.aqua.plus.commons.dtos.InvoiceDto;
 import com.aqua.plus.commons.dtos.TarifaConceptoDianDto;
+import com.aqua.plus.commons.maps.InvoiceMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -41,14 +41,11 @@ public class FacturaDianHelper {
     @Value("${dian.formas-pago.credito}")
     private String formaCredito;
 
-    @Value("${dian.estados.en-proceso}")
-    private String estadoEnProceso;
-
     @Value("${dian.estados.er-reintento}")
     private String estadoReintento;
 
-	@Value("${dian.estados.sin-tarifas}")
-	private String estadoSinTarifas;
+    @Value("${dian.estados.sin-tarifas}")
+    private String estadoSinTarifas;
 
     @Value("${dian.iva}")
     private Integer iva;
@@ -56,39 +53,43 @@ public class FacturaDianHelper {
     @Value("${dian.usuario}")
     private String usuario;
 
-    private final InvoiceRepository facturaRepository;
     private final FacturaDianServiceImpl dianService;
     private final ProductRepository productoRepository;
     private final FacturaServiceImpl facturaService;
+    private final InvoiceRepository facturaRepository;
+    private final FacturaTxComponent facturaTxService;
 
     @Async("facturaExecutor")
-    @Transactional
-    public void procesar(Long id) {
+    public void procesar(InvoiceDto factura) {
 
-        InvoiceEntity f = facturaRepository.findByIdForUpdate(id);
+        boolean tomado = facturaTxService.marcarEnProceso(factura.getId());
+
+        if (!tomado) {
+            return; // alguien más lo tomó
+        }
 
         try {
-            f.setEstado(this.estadoEnProceso);
-            f.setFechaUltimoIntento(new Date());
-			List<TarifaConceptoDianDto> tarifas = mapearConceptos(f);
-			if(Objects.nonNull(tarifas) && !tarifas.isEmpty()){
-				ResponseEntity<ResponseDTO> response = dianService.crearFacturaElectronica(FacturaDianMapper.INSTANCE.mapFactura(f, obtenerProducto(), obtenerProductoUnidad(), iva, formaCredito, usuario,tarifas));
-				if (!response.getStatusCode().equals(HttpStatus.OK) && !response.getStatusCode().equals(HttpStatus.CREATED)) {
-					f.setEstado(this.estadoReintento);
-				}
-			}else{
-				f.setEstado(this.estadoSinTarifas);
-			}
+            List<TarifaConceptoDianDto> tarifas = mapearConceptos( factura);
+            if (Objects.nonNull(tarifas) && !tarifas.isEmpty()) {
+                ResponseEntity<ResponseDTO> response = dianService.crearFacturaElectronica(FacturaDianMapper.INSTANCE.mapFactura(factura, obtenerProducto(), obtenerProductoUnidad(), iva, formaCredito, usuario, tarifas));
+                if (!response.getStatusCode().equals(HttpStatus.OK) && !response.getStatusCode().equals(HttpStatus.CREATED)) {
+                    this.facturaTxService.actualizarEstadoFinal(factura.getId(), this.estadoReintento);
+                }
+            } else {
+                this.facturaTxService.actualizarEstadoFinal(factura.getId(), this.estadoSinTarifas);
+            }
 
 
         } catch (Exception e) {
-            f.setEstado(this.estadoReintento);
+            e.printStackTrace();
+            this.facturaTxService.actualizarEstadoFinal(factura.getId(), this.estadoReintento);
         }
     }
 
     @Transactional
-    public List<Long> tomarFacturasPendientes() {
-        return this.facturaRepository.obtenerIdsPendientes(this.limiteFactura);
+    public List<InvoiceDto> tomarFacturasPendientes() {
+        List<InvoiceEntity> entities = this.facturaRepository.obtenerIdsPendientes(this.limiteFactura);
+        return InvoiceMapper.INSTANCE.listEntityToDtoList(entities);
     }
 
     public ProductEntity obtenerProducto() {
@@ -99,8 +100,9 @@ public class FacturaDianHelper {
         return this.productoRepository.findByCodigoUnidad(codigoProductoUnidad).orElse(null);
     }
 
-    private List<TarifaConceptoDianDto> mapearConceptos(InvoiceEntity f) {
-        Map<String, Object> detalle = this.facturaService.obtenerDetalleFacturaDian(f.getFactura().getId());
+    private List<TarifaConceptoDianDto> mapearConceptos( InvoiceDto dto) {
+
+        Map<String, Object> detalle = this.facturaService.obtenerDetalleFacturaDian(dto.getFactura().getId());
         ObjectMapper mapper = new ObjectMapper();
         if (Objects.nonNull(detalle.get("code")) && Integer.parseInt(detalle.get("code").toString()) == HttpStatus.OK.value()) {
             Object value = detalle.get("tarifas");
@@ -111,6 +113,7 @@ public class FacturaDianHelper {
                         .toList();
             }
         }
+
         return null;
     }
 }

@@ -3,6 +3,7 @@ package com.aqua.plus.api.helpers;
 import java.util.Date;
 import java.util.List;
 
+import com.aqua.plus.api.tx.EmpresaTxComponent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -30,12 +31,14 @@ public class EmpresaHelper {
 	private final EmpresaRepository empresaRepository;
 	private final FacturaServiceImpl facturaServiceImpl;
 	private final ParametrosEmpresaRepository parametrosEmpresaRepository;
+	private final EmpresaTxComponent empresaTxComponent;
 	
-	@Async("empresaMasivaExecutor")
-	@Transactional
+	@Async("cargaFacturaEmpresaExecutor")
 	public void procesar(EmpresaEntity empresa) {
-		EmpresaEntity entity = empresaRepository.findByIdForUpdate(empresa.getId());
-		entity.setFechaProximoCorte(Utils.sumarMes(entity.getFechaProximoCorte(), obtenerMesesPeriodo(empresa.getId())));
+		boolean tomado = this.empresaTxComponent.actualizarFechaCorte(empresa.getId(),Utils.sumarMes(empresa.getFechaProximoCorte(), obtenerMesesPeriodo(empresa.getId())));
+		if (!tomado) {
+			return; // alguien más lo tomó
+		}
 		this.facturaServiceImpl.generarFacturasMasivas(empresa.getId(), usuario);
 	}
 	
