@@ -22,7 +22,7 @@ import com.aqua.plus.commons.entities.ProductEntity;
 import com.aqua.plus.commons.repositories.InvoiceRepository;
 import com.aqua.plus.commons.repositories.ProductRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

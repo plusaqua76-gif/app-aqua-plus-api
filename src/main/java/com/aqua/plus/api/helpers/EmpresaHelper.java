@@ -17,7 +17,7 @@ import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.ParametrosEmpresaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Component
