@@ -314,8 +314,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		try {
 			log.info(nombre, mapper.writeValueAsString(objeto));
 		} catch (JsonProcessingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			log.error(e.getLocalizedMessage());
 		}
 	}
 

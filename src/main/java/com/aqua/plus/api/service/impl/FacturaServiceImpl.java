@@ -1147,8 +1147,8 @@ public class FacturaServiceImpl implements IFacturaService {
 			throw new RuntimeException("Error ejecutando facturación masiva: " + e.getMessage(), e);
 		}
 	}
-	
-	@Transactional
+
+	@Transactional(readOnly = true)
 	public Map<String, Object> obtenerDetalleFacturaDian(Integer idFactura) {
 	    try {
 	        if (idFactura == null || idFactura <= 0) {
