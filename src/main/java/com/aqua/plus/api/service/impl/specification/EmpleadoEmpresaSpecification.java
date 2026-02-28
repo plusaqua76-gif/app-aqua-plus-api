@@ -8,7 +8,6 @@ import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
 
-import jakarta.persistence.criteria.Expression;
 
 /**
  * Specifications para EmpleadoEmpresaEntity.
@@ -28,31 +27,32 @@ public class EmpleadoEmpresaSpecification {
     }
 
     /** nombre completo: nombre [segundoNombre] apellido [segundoApellido] (LIKE, case-insensitive) */
-    public static Specification<EmpleadoEmpresaEntity> personaNombreCompletoLike(String q) {
-        return (root, query, cb) -> {
-            if (q == null || q.isBlank()) return cb.conjunction();
-            var p = root.join("persona");
+	public static Specification<EmpleadoEmpresaEntity> personaNombreCompletoLike(String personaNombreCompleto) {
+		if (personaNombreCompleto == null || personaNombreCompleto.isBlank())
+			return null;
 
-            Expression<String> fullName = cb.lower(
-                cb.trim(
-                    cb.concat(
-                        cb.concat(
-                            cb.concat(
-                                cb.concat(cb.coalesce(p.get("nombre"), ""), cb.literal(" ")),
-                                cb.coalesce(p.get("segundoNombre"), "")
-                            ),
-                            cb.literal(" ")
-                        ),
-                        cb.concat(
-                            cb.coalesce(p.get("apellido"), ""),
-                            cb.concat(cb.literal(" "), cb.coalesce(p.get("segundoApellido"), ""))
-                        )
-                    )
-                )
-            );
-            return cb.like(fullName, "%" + q.toLowerCase().trim() + "%");
-        };
-    }
+		return (root, cq, cb) -> {
+			var cli = root.join("persona");
+
+			var pNombre = cb.coalesce(cli.get("nombre"), "");
+			var sNombre = cb.coalesce(cli.get("segundoNombre"), "");
+			var pApellido = cb.coalesce(cli.get("apellido"), "");
+			var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
+
+			var part1 = cb.concat(pNombre, cb.literal(" "));
+			var part2 = cb.concat(sNombre, cb.literal(" "));
+			var part3 = cb.concat(pApellido, cb.literal(" "));
+			var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+
+			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameRaw, cb.literal("\\s+"),
+					cb.literal(" "), cb.literal("g"));
+
+			var fullNameLower = cb.lower(fullNameSpNorm);
+
+			String pattern = "%" + personaNombreCompleto.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+			return cb.like(fullNameLower, pattern);
+		};
+	}
 
     public static Specification<EmpleadoEmpresaEntity> personaCedulaEquals(String cedula) {
         return (root, query, cb) -> {

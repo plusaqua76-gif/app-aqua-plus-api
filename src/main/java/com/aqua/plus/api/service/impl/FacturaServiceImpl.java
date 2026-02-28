@@ -170,7 +170,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
 		
-		log.info("Iniciando procesamiento masivo de facturas (guardarFacturas).");
+		log.warn("Iniciando procesamiento masivo de facturas (guardarFacturas).");
 		long startTime = System.currentTimeMillis();
 		
 		try {
@@ -190,22 +190,17 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-			
-			int totalAProcesar = payloadArray.size();
-	        log.info("Total de facturas detectadas para procesar: {}", totalAProcesar);
+			Integer totalProcess=payloadArray.size();
+	        log.warn("Total de facturas detectadas para procesar: {}", totalProcess);
 
-	        for (int i = 0; i < totalAProcesar; i++) {
-	            JsonNode item = payloadArray.get(i);
-	            String codigoFactura = item.path("codigo").asText("N/A");
-	            log.info("Iterando factura [{}/{}]: Código [{}]", (i + 1), totalAProcesar, codigoFactura);
-	        }
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
-
+			long fin = System.currentTimeMillis();
+			log.warn("Tiempo de ejecución SP: {}  " , (fin - startTime) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
@@ -230,7 +225,7 @@ public class FacturaServiceImpl implements IFacturaService {
 					sp.get("response"));
 			
 			long duration = System.currentTimeMillis() - startTime;
-	        log.info("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalAProcesar, code, duration);
+	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalProcess, code, duration);
 			
 			return ResponseEntity.status(status).body(bodyOut);
 
@@ -321,7 +316,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
-			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, Pageable pageable) {
+			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre, Pageable pageable) {
 
 		log.info(
 				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}",
@@ -333,7 +328,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
-					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax)
+					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre)
 					.and(FacturaSpecifications.activoTrue());
 
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
@@ -403,7 +398,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
-			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax) {
+			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -419,7 +414,8 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
 				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
 				FacturaSpecifications.consumoEquals(consumo),
-				FacturaSpecifications.precioBetween(precioMin, precioMax));
+				FacturaSpecifications.precioBetween(precioMin, precioMax),
+				FacturaSpecifications.tipoPagoLike(tipoPagoNombre));
 	}
 
 	@Override

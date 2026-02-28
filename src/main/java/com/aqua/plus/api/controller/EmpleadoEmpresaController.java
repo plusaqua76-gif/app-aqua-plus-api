@@ -164,10 +164,10 @@ public class EmpleadoEmpresaController {
 	public ResponseEntity<ResponseDTO> getEmpleados(@PathVariable Integer empresaId,
 			@RequestParam(required = false) String nombreCompleto, @RequestParam(required = false) String cedula,
 			@RequestParam(required = false) String codigo, @RequestParam(required = false) String telefono,
-			@RequestParam(required = false) String correo, @RequestParam(required = false) String estado,
+			@RequestParam(required = false) String correo, @RequestParam(required = false) Boolean activo,
 			Pageable pageable) {
 		return empleadoEmpresaServiceImpl.findByEmpresaId(empresaId, pageable, nombreCompleto, cedula, codigo, telefono,
-				correo, estado);
+				correo, activo);
 	}
 
 	@Operation(summary = "Listar todos los empleados empresa")
