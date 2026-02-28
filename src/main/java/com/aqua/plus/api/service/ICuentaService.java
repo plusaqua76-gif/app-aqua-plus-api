@@ -23,7 +23,7 @@ public interface ICuentaService {
     ResponseEntity<ResponseDTO> findById(Integer id);
     ResponseEntity<ResponseDTO> findAll();
     ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, String cuentaCodigo, String cuentaNombre,
-			Double cuentaValor, String tipoNombre, String tipoNaturaleza, Pageable pageable);
+			Double cuentaValor, String tipoNombre, String tipoNaturaleza, String tipoCategoria, String fecha, Pageable pageable);
     ResponseEntity<ResponseDTO> deleteById(Integer id);
     
     ResponseEntity<ResponseDTO> findCuentas(Integer idEmpresa, Date fechaInicio, Date fechaFin,

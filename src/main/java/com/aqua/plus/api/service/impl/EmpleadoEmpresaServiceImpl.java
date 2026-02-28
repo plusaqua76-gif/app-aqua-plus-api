@@ -269,7 +269,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable, String nombreCompleto,
-			String cedula, String codigo, String telefono, String correo, String estado) {
+			String cedula, String codigo, String telefono, String correo, Boolean estado) {
 
 		log.info(
 				"Buscando empleados empresa={}, filtros: nombre={}, cedula={}, codigo={}, tel={}, correo={}, estado={}",
@@ -283,14 +283,14 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 
 			Objects.requireNonNull(pageable, "El pageable no debe ser null");
 
-			Boolean estadoBool = null;
+			/*Boolean estadoBool = null;
 			if (estado != null) {
 				if ("ACTIVO".equalsIgnoreCase(estado)) {
 					estadoBool = Boolean.TRUE;
 				} else if ("INACTIVO".equalsIgnoreCase(estado)) {
 					estadoBool = Boolean.FALSE;
 				}
-			}
+			} */
 
 			Sort defaultSort = Sort.by(Sort.Order.asc("persona.nombre"), Sort.Order.asc("persona.apellido"),
 					Sort.Order.asc("id"));
@@ -306,7 +306,7 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 					EmpleadoEmpresaSpecification.personaCodigoLike(codigo),
 					EmpleadoEmpresaSpecification.telefonoLike(telefono),
 					EmpleadoEmpresaSpecification.correoLike(correo),
-					EmpleadoEmpresaSpecification.personaEstadoEquals(estadoBool));
+					EmpleadoEmpresaSpecification.personaEstadoEquals(estado));
 
 			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, effectivePageable);
 

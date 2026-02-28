@@ -109,10 +109,11 @@ public class LecturaController {
 	@GetMapping("/empresa/{empresaId}")
 	public ResponseEntity<ResponseDTO> listarLecturas(@PathVariable Integer empresaId,
 			@RequestParam(required = false) String serial, @RequestParam(required = false) Integer lectura,
-			@RequestParam(required = false) String fecha, @RequestParam(required = false) Boolean consumoAnormal,
-			@RequestParam(required = false) String observacion, Pageable pageable) {
-		return lecturaServiceImpl.findLecturasByEmpresaId(empresaId, serial, lectura, fecha, consumoAnormal,
-				observacion, pageable);
+			@RequestParam(required = false) String fechaLectura, @RequestParam(required = false) Boolean consumoAnormal,
+			@RequestParam(required = false) String observacion, @RequestParam(required = false) String nombreCompleto,
+			@RequestParam(required = false) String descripcion, Pageable pageable) {
+		return lecturaServiceImpl.findLecturasByEmpresaId(empresaId, serial, lectura, fechaLectura, consumoAnormal,
+				observacion, nombreCompleto, descripcion, pageable);
 	}
 
 	@Operation(summary = "Listar todas las lecturas")

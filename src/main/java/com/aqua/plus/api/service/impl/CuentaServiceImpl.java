@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -130,9 +131,9 @@ public class CuentaServiceImpl implements ICuentaService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresa(Integer idEmpresa, String cuentaCodigo, String cuentaNombre,
-			Double cuentaValor, String tipoNombre, String tipoNaturaleza, Pageable pageable) {
-		log.info("Buscar cuentas por empresa={}, filtros: codigo={}, nombre={}, valor={}, tipoNombre={}, naturaleza={}",
-				idEmpresa, cuentaCodigo, cuentaNombre, cuentaValor, tipoNombre, tipoNaturaleza);
+			Double cuentaValor, String tipoNombre, String tipoNaturaleza, String tipoCategoria, String fecha,Pageable pageable) {
+		log.info("Buscar cuentas por empresa={}, filtros: codigo={}, nombre={}, valor={}, tipoNombre={}, naturaleza={}, categoria={}",
+				idEmpresa, cuentaCodigo, cuentaNombre, cuentaValor, tipoNombre, tipoNaturaleza, tipoCategoria);
 
 		try {
 			if (idEmpresa == null) {
@@ -145,11 +146,14 @@ public class CuentaServiceImpl implements ICuentaService {
 					: (pageable.getSort().isUnsorted()
 							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
 							: pageable);
+			
+			LocalDate f = (fecha == null || fecha.isBlank()) ? null : LocalDate.parse(fecha); // yyyy-MM-dd
 
 			Specification<CuentaEntity> spec = Specification.allOf(CuentaSpecifications.empresaIdEquals(idEmpresa),
 					CuentaSpecifications.codigoLike(cuentaCodigo), CuentaSpecifications.nombreLike(cuentaNombre),
 					CuentaSpecifications.valorEquals(cuentaValor), CuentaSpecifications.tipoNombreLike(tipoNombre),
-					CuentaSpecifications.tipoNaturalezaLike(tipoNaturaleza));
+					CuentaSpecifications.tipoNaturalezaLike(tipoNaturaleza), CuentaSpecifications.tipoCategoriaCuentaLike(tipoCategoria),
+					CuentaSpecifications.fechaBetween(f, f));
 
 			Page<CuentaEntity> page = cuentaRepository.findAll(spec, pageToUse);
 

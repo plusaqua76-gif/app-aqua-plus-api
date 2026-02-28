@@ -7,17 +7,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
+import com.aqua.plus.commons.dtos.*;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
 import com.aqua.plus.api.utils.Utils;
-import com.aqua.plus.commons.dtos.CorreoGeneralDTO;
-import com.aqua.plus.commons.dtos.EmpresaDTO;
-import com.aqua.plus.commons.dtos.PersonaDTO;
-import com.aqua.plus.commons.dtos.ResolutionDto;
-import com.aqua.plus.commons.dtos.TipoDocumentoDTO;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto.CodigoEstandar;
 import com.aqua.plus.commons.dtos.external.RequestFacturaDto.Descuento;
@@ -167,10 +163,11 @@ public interface FacturaDianMapper {
 				BigDecimal cargoDescuento = precio.multiply(producto.getCargo()).divide(BigDecimal.valueOf(100));
 				BigDecimal precioFinal = precio.subtract(cargoDescuento).subtract(descuento) ;
 				BigDecimal iva = precioFinal.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
-				
+
 				Taxe taxe = Taxe.builder().taxCode(TaxTypeEnum.IVA.getCodigo()).taxAmount(iva)
 						.taxPercentage(producto.getIva().toString()).taxableAmount(precioFinal).build();
 				taxes.add(taxe);
+
 				Item item = Item.builder().standardCode(StandardCode.builder().id(producto.getCodigoEstandar().getId()).identificationId(producto.getCodigoEstandar().getIdIdentificacion()).build()).charge(producto.getCargo()).chargeAmount(cargoDescuento).taxes(taxes)
 						.description(producto.getNombre()).price(producto.getPrecio()).discount(producto.getDescuento())
 						.discountAmount(descuento).quantity(producto.getCantidad())
@@ -216,13 +213,23 @@ public interface FacturaDianMapper {
 		return total;
 	}
 	
-	default RequestFacturaDto mapFactura(InvoiceEntity factura, ProductEntity producto, Integer iva, String formaPago,String usuario) {
+	default RequestFacturaDto mapFactura(InvoiceEntity factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPago, String usuario, List<TarifaConceptoDianDto> tarifas) {
 		RequestFacturaDto request =RequestFacturaDto.builder().build();
 		request.setId(factura.getId());
 		request.setIdCliente(factura.getCliente().getId());
 		request.setIdEmpresa(factura.getEmpresa().getId());
 		List<Producto> productos = new ArrayList<RequestFacturaDto.Producto>(0);
-		productos.add(Producto.builder().codigoEstandar(CodigoEstandar.builder().id(producto.getCodigoEstandar()).idIdentificacion(String.valueOf(producto.getId())).build()).precio(new BigDecimal(factura.getFactura().getPrecio()/factura.getFactura().getConsumo())).cantidad(new BigDecimal(factura.getFactura().getConsumo())).iva(new BigDecimal(iva)).nombre(producto.getNombre()).codigoUnidadMedida(producto.getCodigoUnidad()).descuento(new BigDecimal(0)).cargo(new BigDecimal(0)).build());
+		for(TarifaConceptoDianDto item: tarifas){
+			for(TarifaConceptoDianDto.ConceptoDto concepto : item.getConceptos()){
+				if(Objects.nonNull(concepto.getConsumoCliente()) && concepto.getConsumoCliente() !=0 && !concepto.getValor().equals("0")) {
+					productos.add(Producto.builder().codigoEstandar(CodigoEstandar.builder().id(productoMc.getCodigoEstandar()).idIdentificacion(String.valueOf(productoMc.getId())).build()).precio(new BigDecimal(concepto.getValor())).cantidad(new BigDecimal(concepto.getConsumoCliente())).iva(new BigDecimal(iva)).nombre(item.getNombre().concat("-").concat(concepto.getNombre())).codigoUnidadMedida(productoMc.getCodigoUnidad()).descuento(new BigDecimal(0)).cargo(new BigDecimal(0)).build());
+				}else if(Objects.nonNull(concepto.getValor()) && !concepto.getValor().equals("0")){
+					productos.add(Producto.builder().codigoEstandar(CodigoEstandar.builder().id(productoUnidad.getCodigoEstandar()).idIdentificacion(String.valueOf(productoUnidad.getId())).build()).precio(new BigDecimal(concepto.getValor())).cantidad(new BigDecimal(1)).iva(new BigDecimal(iva)).nombre(item.getNombre().concat("-").concat(concepto.getNombre())).codigoUnidadMedida(productoUnidad.getCodigoUnidad()).descuento(new BigDecimal(0)).cargo(new BigDecimal(0)).build());
+				}
+
+			}
+		}
+
 		request.setProductos(productos);
 		request.setMedioPago(Pago.builder().forma(formaPago).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build());
 		request.setUsuario(usuario);

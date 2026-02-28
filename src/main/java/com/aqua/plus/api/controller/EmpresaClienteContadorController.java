@@ -191,9 +191,9 @@ public class EmpresaClienteContadorController {
 			@RequestParam(required = false) String codigo, @RequestParam(required = false) String departamento,
 			@RequestParam(required = false) String ciudad, @RequestParam(required = false) String corregimiento,
 			@RequestParam(required = false) String telefono, @RequestParam(required = false) String correo,
-			@RequestParam(required = false) String tipoDocumento, Pageable pageable) {
+			@RequestParam(required = false) String tipoDocumento,@RequestParam(required = false) String direccion, @RequestParam(required = false) Boolean estado, Pageable pageable) {
 		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa, pageable, nombreCompleto, cedula,
-				codigo, departamento, ciudad, corregimiento, telefono, correo, tipoDocumento);
+				codigo, departamento, ciudad, corregimiento, telefono, correo, tipoDocumento, direccion, estado);
 	}
 
 	@Operation(summary = "Buscar contadores por id de la empresa")

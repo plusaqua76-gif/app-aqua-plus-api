@@ -169,6 +169,10 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
+		
+		log.warn("Iniciando procesamiento masivo de facturas (guardarFacturas).");
+		long startTime = System.currentTimeMillis();
+		
 		try {
 			final ArrayNode payloadArray;
 			if (body == null) {
@@ -186,13 +190,17 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
+			Integer totalProcess=payloadArray.size();
+	        log.warn("Total de facturas detectadas para procesar: {}", totalProcess);
+
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
 			MapSqlParameterSource params = new MapSqlParameterSource("jsonData", jsonString);
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
-
+			long fin = System.currentTimeMillis();
+			log.warn("Tiempo de ejecución SP: {}  " , (fin - startTime) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
@@ -215,6 +223,10 @@ public class FacturaServiceImpl implements IFacturaService {
 			Map<String, Object> bodyOut = Map.of("success", sp.getOrDefault("success", code >= 200 && code < 300),
 					"message", String.valueOf(sp.getOrDefault("message", "")), "code", code, "response",
 					sp.get("response"));
+			
+			long duration = System.currentTimeMillis() - startTime;
+	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalProcess, code, duration);
+			
 			return ResponseEntity.status(status).body(bodyOut);
 
 		} catch (JsonProcessingException e) {
@@ -304,7 +316,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
-			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, Pageable pageable) {
+			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre, Pageable pageable) {
 
 		log.info(
 				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}",
@@ -316,7 +328,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
-					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax)
+					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre)
 					.and(FacturaSpecifications.activoTrue());
 
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
@@ -386,7 +398,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
-			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax) {
+			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -402,7 +414,8 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
 				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
 				FacturaSpecifications.consumoEquals(consumo),
-				FacturaSpecifications.precioBetween(precioMin, precioMax));
+				FacturaSpecifications.precioBetween(precioMin, precioMax),
+				FacturaSpecifications.tipoPagoLike(tipoPagoNombre));
 	}
 
 	@Override
@@ -1106,7 +1119,6 @@ public class FacturaServiceImpl implements IFacturaService {
 			String sql = """
 					SELECT public.facturacion_masiva_por_empresa(
 					    :idEmpresa,
-					    NULL::date,
 					    :usuario,
 					    0,
 					    NULL
@@ -1134,6 +1146,41 @@ public class FacturaServiceImpl implements IFacturaService {
 			log.error("Error ejecutando facturación masiva", e);
 			throw new RuntimeException("Error ejecutando facturación masiva: " + e.getMessage(), e);
 		}
+	}
+
+	@Transactional(readOnly = true)
+	public Map<String, Object> obtenerDetalleFacturaDian(Integer idFactura) {
+	    try {
+	        if (idFactura == null || idFactura <= 0) {
+	            return Map.of("message", "idFactura es obligatorio y debe ser > 0", "statusCode", "400");
+	        }
+
+	        String sql = """
+	                SELECT public.obtener_detalle_factura_dian_lectura(
+	                    :idFactura
+	                ) AS result
+	                """;
+
+	        var params = new MapSqlParameterSource().addValue("idFactura", idFactura);
+
+	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+	        Object value = row.get("result");
+
+	        if (value instanceof PGobject pg && "jsonb".equals(pg.getType())) {
+	            return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
+	            });
+	        }
+	        if (value instanceof String s) {
+	            return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+	            });
+	        }
+
+	        return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+
+	    } catch (Exception e) {
+	        log.error("Error ejecutando obtener detalle factura Dian", e);
+	        throw new RuntimeException("Error ejecutando obtener detalle factura Dian: " + e.getMessage(), e);
+	    }
 	}
 
 }

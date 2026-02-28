@@ -17,7 +17,7 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 public interface IEmpleadoEmpresaService {
 
 	ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable, String nombreCompleto,
-			String cedula, String codigo, String telefono, String correo, String estado);
+			String cedula, String codigo, String telefono, String correo, Boolean estado);
 	
     ResponseEntity<ResponseDTO> findById(Integer id);
     

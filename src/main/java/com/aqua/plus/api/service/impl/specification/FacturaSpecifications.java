@@ -38,25 +38,31 @@ public final class FacturaSpecifications {
 	public static Specification<FacturaEntity> clienteNombreCompletoLike(String nombreCompleto) {
 		if (nombreCompleto == null || nombreCompleto.isBlank())
 			return null;
-		String like = "%" + nombreCompleto.trim().toUpperCase() + "%";
-		return (root, query, cb) -> {
-			var ecc = root.join("empresaClienteContador", JoinType.INNER);
-			var persona = ecc.join("cliente", JoinType.INNER);
 
-			// concat COALESCE para evitar NPE en BD
-			var n1 = cb.coalesce(cb.upper(persona.get("nombre")), "");
-			var n2 = cb.coalesce(cb.upper(persona.get("segundoNombre")), "");
-			var a1 = cb.coalesce(cb.upper(persona.get("apellido")), "");
-			var a2 = cb.coalesce(cb.upper(persona.get("segundoApellido")), "");
+		return (root, cq, cb) -> {
+			cq.distinct(true);
+			var cli = root.join("empresaClienteContador").join("cliente");
 
-			// construir "NOMBRE SEGUNDONOMBRE APELLIDO SEGUNDOAPELLIDO"
-			var space = cb.literal(" ");
-			var full = cb.function("concat", String.class, n1, space, n2, space, a1, space, a2);
+			var pNombre = cb.coalesce(cli.get("nombre"), "");
+			var sNombre = cb.coalesce(cli.get("segundoNombre"), "");
+			var pApellido = cb.coalesce(cli.get("apellido"), "");
+			var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
 
-			return cb.like(full, like);
+			var part1 = cb.concat(pNombre, cb.literal(" "));
+			var part2 = cb.concat(sNombre, cb.literal(" "));
+			var part3 = cb.concat(pApellido, cb.literal(" "));
+			var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+
+			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameRaw, cb.literal("\\s+"),
+					cb.literal(" "), cb.literal("g"));
+
+			var fullNameLower = cb.lower(fullNameSpNorm);
+
+			String pattern = "%" + nombreCompleto.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+			return cb.like(fullNameLower, pattern);
 		};
 	}
-
+	
 	public static Specification<FacturaEntity> consumoEquals(Integer consumo) {
 	    if (consumo == null) return null;
 
@@ -170,5 +176,9 @@ public final class FacturaSpecifications {
         return (root, query, cb) -> cb.equal(root.get("precio"), precio);
     }
 
-
+	public static Specification<FacturaEntity> tipoPagoLike(String tipoPago) {
+		if (tipoPago == null || tipoPago.isBlank())
+			return null;
+		return (root, query, cb) -> cb.like(cb.upper(root.get("tipoPago").get("nombre")), "%" + tipoPago.trim().toUpperCase() + "%");
+	}
 }

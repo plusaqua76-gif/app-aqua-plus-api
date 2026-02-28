@@ -93,10 +93,12 @@ dian:
     credito: 2
   codigo-unidades:
     metro-cubico: MTQ
+    unidad: 94
   estados:
     en-proceso: EN_PROCESO
     er-reintento: ERROR_REINTENTO
-  iva: 19
+    sin-tarifas: SIN_TARIFAS
+  iva: 0
   usuario: codemakerssasaut
 logging:
   level:
@@ -203,9 +205,11 @@ dian:
     credito: ${DIAN_FORMA_PAGO_CREDITO}
   codigo-unidades:
     metro-cubico:  ${DIAN_CODIGO_UNIDADES_MC}
+    unidad: ${DIAN_CODIGO_UNIDAD:94}
   estados:
     en-proceso: ${DIAN_ESTADO_EN_PROCESO}
     er-reintento:  ${DIAN_ESTADO_REINTENTO}
+    sin-tarifas:  ${SIN_TARIFAS}
   iva: ${DIAN_IVA}
   usuario:  ${USUARIO_CODE_AUT}
 logging:
