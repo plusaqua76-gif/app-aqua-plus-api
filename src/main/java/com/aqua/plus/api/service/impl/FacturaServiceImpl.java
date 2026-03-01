@@ -222,7 +222,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Map<String, Object> bodyOut = Map.of("success", sp.getOrDefault("success", code >= 200 && code < 300),
 					"message", String.valueOf(sp.getOrDefault("message", "")), "code", code, "response",
-					sp.get("response"));
+					Objects.nonNull(sp.get("response")) ? sp.get("response"):"");
 			
 			long duration = System.currentTimeMillis() - startTime;
 	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalProcess, code, duration);
