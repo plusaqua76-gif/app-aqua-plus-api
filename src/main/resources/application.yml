@@ -48,7 +48,7 @@ app:
     - https://app-aqua-plus-web-test.azurewebsites.net
   azure:
     storage:
-      connection-string: DefaultEndpointsProtocol=https;AccountName=staquaplus;AccountKey=39HBTX+ixhH+3oTkjomHzBPLLeu0EVtAyfLzzhqnv8I03E6YomTgpNLNT/CXrTuKLEZMq9P6p1tZ+AStU4afMQ==;EndpointSuffix=core.windows.net
+      connection-string: DefaultEndpointsProtocol=https;AccountName=staquaplustest;AccountKey=7dugeZ6JMGH6BC8qXuT2uheu+BeqI6w+lWfObHkxZFLvF6dcRU/ppMusVERykc9NMFUv60a5KYDB+AStanUQjQ==;EndpointSuffix=core.windows.net
       container-name: document
       container-name-public: document-public
   jobs:
