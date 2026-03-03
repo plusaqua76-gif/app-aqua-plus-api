@@ -284,11 +284,11 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByIdEnterprise(Integer idEmpresa, String clienteNombreLike,
 			String facturaCodigoLike, String descripcionLike, LocalDate fechaDeuda, Double valor,
-			String tipoDeudaNombre, String plazoPagoNombre, Pageable pageable) {
+			String tipoDeudaNombre, Integer plazoPago, Pageable pageable) {
 		log.info(
-				"Listar DeudaCliente por empresaId={} con filtros: clienteNombreLike={}, facturaCodigoLike={}, descripcionLike={}, fechaDeuda={}, valor={}, tipoDeudaNombre={}, plazoPagoNombre={}",
+				"Listar DeudaCliente por empresaId={} con filtros: clienteNombreLike={}, facturaCodigoLike={}, descripcionLike={}, fechaDeuda={}, valor={}, tipoDeudaNombre={}, plazoPago={}",
 				idEmpresa, clienteNombreLike, facturaCodigoLike, descripcionLike, fechaDeuda, valor, tipoDeudaNombre,
-				plazoPagoNombre);
+				plazoPago);
 
 		try {
 			if (idEmpresa == null) {
@@ -304,7 +304,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 					DeudaClienteSpecifications.facturaCodigoLike(facturaCodigoLike),
 					DeudaClienteSpecifications.clienteNombreLike(clienteNombreLike),
 					DeudaClienteSpecifications.tipoDeudaNombreLike(tipoDeudaNombre),
-					DeudaClienteSpecifications.plazoPagoNombreLike(plazoPagoNombre));
+					DeudaClienteSpecifications.plazoPagoIgual(plazoPago));
 
 			Pageable pageToUse = (pageable != null) ? pageable : Pageable.unpaged();
 

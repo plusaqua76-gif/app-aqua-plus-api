@@ -116,10 +116,10 @@ public class DeudaClienteController {
 			@Parameter(description = "Fecha exacta de la deuda (yyyy-MM-dd), opcional", example = "2025-09-17") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDeuda,
 			@Parameter(description = "Filtrar por valor exacto de la deuda, opcional", example = "50000") @RequestParam(required = false) Double valor,
 			@Parameter(description = "Filtrar por nombre del tipo de deuda (LIKE), opcional", example = "Factura Vencida") @RequestParam(required = false) String tipoDeudaNombre,
-			@Parameter(description = "Filtrar por nombre del plazo de pago (LIKE), opcional", example = "2") @RequestParam(required = false) String plazoPagoNombre,
+			@Parameter(description = "Filtrar por plazo pago, opcional", example = "2") @RequestParam(required = false) Integer plazoPago,
 			@ParameterObject Pageable pageable) {
 		return deudaClienteServiceImpl.findByIdEnterprise(idEmpresa, clienteNombreLike, facturaCodigoLike,
-				descripcionLike, fechaDeuda, valor, tipoDeudaNombre, plazoPagoNombre, pageable);
+				descripcionLike, fechaDeuda, valor, tipoDeudaNombre, plazoPago, pageable);
 	}
 
 	@Operation(summary = "Listar todos las deudas del cliente")

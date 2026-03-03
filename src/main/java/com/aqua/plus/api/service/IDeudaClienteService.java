@@ -16,7 +16,7 @@ public interface IDeudaClienteService {
 
 	ResponseEntity<ResponseDTO> findByIdEnterprise(Integer idEmpresa, String clienteNombreLike,
 			String facturaCodigoLike, String descripcionLike, LocalDate fechaDeuda, Double valor,
-			String tipoDeudaNombre, String plazoPagoNombre, Pageable pageable);
+			String tipoDeudaNombre, Integer plazoPago, Pageable pageable);
 
 	ResponseEntity<ResponseDTO> findAll();
 
