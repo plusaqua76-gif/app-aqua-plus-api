@@ -1,4 +1,4 @@
-name: Cleanup Artifacts and Old Runs (Keep 2 Days)
+name: Cleanup Artifacts and Old Runs (Keep 2 Dias)
 
 on:
   workflow_dispatch:
