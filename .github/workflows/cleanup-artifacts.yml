@@ -1,4 +1,4 @@
-name: Cleanup Artifacts and Old Runs
+name: Cleanup Artifacts and Old Runs (Keep 2 Days)
 
 on:
   workflow_dispatch:
@@ -15,10 +15,13 @@ jobs:
       contents: read
 
     steps:
-      - name: Delete ALL artifacts
+      - name: Delete artifacts older than 2 days
         uses: actions/github-script@v7
         with:
           script: |
+            const maxAge = 2 * 24 * 60 * 60 * 1000; // 2 días
+            const now = new Date();
+
             const artifacts = await github.rest.actions.listArtifactsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -26,19 +29,22 @@ jobs:
             });
 
             for (const artifact of artifacts.data.artifacts) {
-              console.log(`Deleting artifact: ${artifact.name}`);
-              await github.rest.actions.deleteArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id
-              });
+              const created = new Date(artifact.created_at);
+              if (now - created > maxAge) {
+                console.log(`Deleting artifact: ${artifact.name}`);
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+              }
             }
 
-      - name: Delete workflow runs older than 5 days
+      - name: Delete workflow runs older than 2 days
         uses: actions/github-script@v7
         with:
           script: |
-            const maxAge = 5 * 24 * 60 * 60 * 1000;
+            const maxAge = 2 * 24 * 60 * 60 * 1000; // 2 días
             const now = new Date();
 
             const runs = await github.rest.actions.listWorkflowRunsForRepo({
