@@ -39,7 +39,6 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.dtos.TipoUsoDTO;
-import com.aqua.plus.commons.entities.AforoContadorEntity;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
@@ -811,11 +810,10 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 							}
 
 							/* ================= AFORO ================= */
-
 							List<AforoDTO> aforos = aforoContadorRepository.findByContadorConAforo(contador.getId())
-									.stream().map(AforoContadorEntity::getAforo).filter(Objects::nonNull)
-									.map(a -> AforoDTO.builder().id(a.getId()).nombre(a.getNombre())
-											.tarifaBase(a.getTarifaBase()).build())
+									.stream().filter(ac -> ac.getAforo() != null)
+									.map(ac -> AforoDTO.builder().id(ac.getId()).nombre(ac.getAforo().getNombre())
+											.tarifaBase(ac.getAforo().getTarifaBase()).build())
 									.toList();
 
 							dto.setAforoContador(aforos);
