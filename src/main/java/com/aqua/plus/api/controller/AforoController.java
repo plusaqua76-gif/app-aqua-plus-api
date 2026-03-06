@@ -75,9 +75,9 @@ public class AforoController {
 
 	@Operation(summary = "Eliminar aforo por id")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
+			@ApiResponse(responseCode = "200", description = "Aforo eliminado correctamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
+			@ApiResponse(responseCode = "404", description = "Aforo no encontrado", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
