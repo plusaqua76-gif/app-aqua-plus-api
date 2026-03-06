@@ -16,6 +16,12 @@ jobs:
       actions: write   # necesario para limpiar artifacts
 
     steps:
+      # Limpieza automática de artifacts viejos
+      - name: Cleanup old artifacts
+        uses: kolpav/purge-artifacts-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          expire-in: 1days
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -64,10 +70,3 @@ jobs:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
           package: target/*.jar
-
-      # Limpieza automática de artifacts viejos
-      - name: Cleanup old artifacts
-        uses: kolpav/purge-artifacts-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          expire-in: 1days
