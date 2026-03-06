@@ -13,22 +13,26 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: write   # necesario para limpiar artifacts
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'microsoft'
+          cache: maven   # acelera build y reduce uso de storage
 
       - name: Configure Maven settings for GitHub Packages
         run: |
           mkdir -p ~/.m2
-          echo '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+          cat <<EOF > ~/.m2/settings.xml
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
                 <id>github</id>
@@ -36,7 +40,8 @@ jobs:
                 <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
               </server>
             </servers>
-          </settings>' > ~/.m2/settings.xml
+          </settings>
+          EOF
 
       - name: Build project
         run: mvn -B clean package -DskipTests
@@ -59,3 +64,10 @@ jobs:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
           package: target/*.jar
+
+      # Limpieza automática de artifacts viejos
+      - name: Cleanup old artifacts
+        uses: kolpav/purge-artifacts-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          expire-in: 1days
