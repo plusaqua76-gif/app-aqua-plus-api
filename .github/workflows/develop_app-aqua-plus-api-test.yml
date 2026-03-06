@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy JAR app to Azure Web App - app-aqua-plus-api-test
 
 on:
@@ -10,26 +7,38 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
+      actions: write   # necesario para limpiar artifacts
 
     steps:
-      - uses: actions/checkout@v4
+      # Limpieza automática de artifacts viejos
+      - name: Cleanup old artifacts
+        uses: kolpav/purge-artifacts-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          expire-in: 1days
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Java version
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'microsoft'
+          cache: maven   # acelera build y reduce uso de storage
 
       - name: Configure Maven settings for GitHub Packages
         run: |
           mkdir -p ~/.m2
-          echo '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+          cat <<EOF > ~/.m2/settings.xml
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
                 <id>github</id>
@@ -37,62 +46,27 @@ jobs:
                 <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
               </server>
             </servers>
-          </settings>' > ~/.m2/settings.xml
+          </settings>
+          EOF
 
-      - name: Build with Maven
+      - name: Build project
         run: mvn -B clean package -DskipTests
 
-      - name: List target directory (verificación)
+      - name: Verify JAR exists
         run: |
-          echo "🔍 Listando archivos generados en target/"
-          ls -lh target || echo "⚠️ No se encontró el directorio target"
-
-      - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: jar-package
-          path: target/*.jar
-          
-      - name: Build with Maven
-        run: mvn clean install -P release
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/develop'
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download JAR artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: jar-package
-
-      - name: Verify JAR downloaded
-        run: |
-          echo "🔍 Archivos descargados:"
-          ls -lh || echo "⚠️ No se encontró ningún archivo"
-          echo ""
-          echo "Verificando existencia del .jar..."
-          find . -name "*.jar" || echo "⚠️ No se encontró ningún JAR"
+          echo "Contenido de target:"
+          ls -lh target/
 
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2E05CBABA90D4F77AEA57DADA4FDB54B  }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_4CD3B89E2B2D4E2EB0684252D28FE700  }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_CCE96E1964DF473AA438B569E8860C62  }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CCDAD8596A384C279208F464E847227D }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F06F5144686A486E9B4969D95899E166 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_27BA111081574C95B6AFB2403A1BBF07 }}
 
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
-          package: '*.jar'
-          
-
+          package: target/*.jar

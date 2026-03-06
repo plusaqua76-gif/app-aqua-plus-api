@@ -7,6 +7,7 @@ import java.util.Date;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.FacturaEntity;
 
 import jakarta.persistence.criteria.JoinType;
@@ -180,5 +181,19 @@ public final class FacturaSpecifications {
 		if (tipoPago == null || tipoPago.isBlank())
 			return null;
 		return (root, query, cb) -> cb.like(cb.upper(root.get("tipoPago").get("nombre")), "%" + tipoPago.trim().toUpperCase() + "%");
+	}
+
+	public static Specification<FacturaEntity> corregimientoNombreLike(String corregimientoNombre) {
+		if (corregimientoNombre == null || corregimientoNombre.isBlank())
+			return null;
+		String like = "%" + corregimientoNombre.trim().toUpperCase() + "%";
+		return (root, query, cb) -> {
+			query.distinct(true);
+			var ecc = root.join("empresaClienteContador", JoinType.INNER);
+			var cliente = ecc.join("cliente", JoinType.INNER);
+			var direccion = cliente.join("direccion", JoinType.LEFT);
+			var corregimiento = direccion.join("corregimiento", JoinType.LEFT);
+			return cb.like(cb.upper(corregimiento.get("nombre")), like);
+		};
 	}
 }

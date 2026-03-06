@@ -107,15 +107,9 @@ public class DeudaClienteSpecifications {
 		};
 	}
 
-	/** plazoPago.nombre ILIKE %nombre%. */
-	public static Specification<DeudaClienteEntity> plazoPagoNombreLike(String plazoPagoNombre) {
-		if (plazoPagoNombre == null || plazoPagoNombre.isBlank())
-			return null;
-		String like = "%" + plazoPagoNombre.trim().toLowerCase() + "%";
-		return (root, cq, cb) -> {
-			var pp = root.join("plazoPago", JoinType.LEFT);
-			return cb.like(cb.lower(cb.coalesce(pp.get("nombre"), "")), like);
-		};
+	/** plazoPago igual a valor. */
+	public static Specification<DeudaClienteEntity> plazoPagoIgual(Integer plazoPago) {
+    return (root, cq, cb) -> plazoPago != null ? cb.equal(root.get("plazoPago"), plazoPago) : cb.conjunction();
 	}
 
 	/**
