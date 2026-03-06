@@ -1,10 +1,10 @@
-name: Cleanup Artifacts and Old Runs (Keep 2 Dias)
+name: Cleanup Artifacts
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - develop
+  workflow_dispatch:
 
 jobs:
   cleanup:
@@ -21,4 +21,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           retain_days: 1
-          keep_minimum_runs: 1
+          keep_minimum_runs: 2
