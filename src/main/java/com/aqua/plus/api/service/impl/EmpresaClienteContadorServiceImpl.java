@@ -811,12 +811,17 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 							/* ================= AFORO ================= */
 							List<AforoDTO> aforos = aforoContadorRepository.findByContadorConAforo(contador.getId())
-									.stream().filter(ac -> ac.getAforo() != null)
-									.map(ac -> AforoDTO.builder().id(ac.getId()).nombre(ac.getAforo().getNombre())
-											.tarifaBase(ac.getAforo().getTarifaBase()).build())
-									.toList();
+								    .stream()
+								    .filter(ac -> ac.getAforo() != null)
+								    .map(ac -> AforoDTO.builder()
+								            .id(ac.getAforo().getId())
+								            .idAforoContador(ac.getId())
+								            .nombre(ac.getAforo().getNombre())
+								            .tarifaBase(ac.getAforo().getTarifaBase())
+								            .build())
+								    .toList();
 
-							dto.setAforoContador(aforos);
+								dto.setAforoContador(aforos);
 
 							return dto;
 
