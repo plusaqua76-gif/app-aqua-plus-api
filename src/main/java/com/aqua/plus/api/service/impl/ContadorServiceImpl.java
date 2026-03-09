@@ -15,13 +15,11 @@ import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.DireccionEntity;
-import com.aqua.plus.commons.entities.PersonaEntity;
 import com.aqua.plus.commons.entities.TipoContadorEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.DireccionRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
-import com.aqua.plus.commons.repositories.PersonaRepository;
 import com.aqua.plus.commons.repositories.TipoContadorRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -41,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ContadorServiceImpl implements IContadorService {
 
 	private final ContadorRepository contadorRepository;
-	private final PersonaRepository personaRepository;
 	private final TipoContadorRepository tipoContadorRepository;
 	private final DireccionRepository direccionRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
@@ -65,12 +62,6 @@ public class ContadorServiceImpl implements IContadorService {
 				entity.setFechaCreacion(new Date());
 				entity.setUsuarioCreacion(contadorDTO.getUsuarioCreacion());
 				entity.setActivo(true);
-			}
-
-			if (contadorDTO.getCliente() != null && contadorDTO.getCliente().getId() != null) {
-				PersonaEntity cliente = personaRepository.findById(contadorDTO.getCliente().getId())
-						.orElseThrow(() -> new RuntimeException(Constantes.CLIENT_NOT_FOUND));
-				entity.setCliente(cliente);
 			}
 
 			if (contadorDTO.getTipoContador() != null && contadorDTO.getTipoContador().getId() != null) {
