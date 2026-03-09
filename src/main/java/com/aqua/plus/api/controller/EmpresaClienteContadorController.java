@@ -196,23 +196,6 @@ public class EmpresaClienteContadorController {
 				codigo, departamento, ciudad, corregimiento, telefono, correo, tipoDocumento, direccion, estado);
 	}
 
-	@Operation(summary = "Buscar contadores por id de la empresa")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "404", description = "No se encontraron contadores", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
-					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
-	@GetMapping("/contadores/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(@PathVariable Integer idEmpresa,
-			@RequestParam(required = false) String serial, @RequestParam(required = false) String tipoContadorNombre,
-			@RequestParam(required = false) String direccionDescripcion, @RequestParam(required = false) String nombre,
-			@RequestParam(required = false) String cedula, Pageable pageable) {
-		return empresaClienteContadorServiceImpl.findContadoresByEmpresaId(idEmpresa, pageable, serial,
-				tipoContadorNombre, direccionDescripcion, nombre, cedula);
-	}
-
 	@Operation(summary = "Buscar Empresa Cliente Contador por id de la empresa")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
