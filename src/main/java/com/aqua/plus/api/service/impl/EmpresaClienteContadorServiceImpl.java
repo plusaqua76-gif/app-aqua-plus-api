@@ -663,15 +663,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			            .findAllByCliente_Id(personaId);
 
 			    contadoresDTO = eccsPersona.stream()
-			            .filter(eccRel -> eccRel.getContador() != null)
+			            .filter(eccRel -> eccRel.getContador() != null && Boolean.TRUE.equals(eccRel.getActivo()))
 			            .map(eccRel -> {
-			                // 1. Mapeamos la entidad Contador a su DTO
 			                ContadorDTO dto = contadorMapper.entityToDto(eccRel.getContador());
 			                
-			                // 2. Inyectamos el ID de la relación Empresa-Cliente-Contador (ECC)
 			                dto.setIdEmpresaClienteContador(eccRel.getId());
 
-			                // 3. Mantener lógica de Tipo Uso
 			                TipoUsoEntity tipoUso = eccRel.getContador().getTipoUso();
 			                if (tipoUso != null) {
 			                    dto.setTipoUso(TipoUsoDTO.builder()
@@ -680,7 +677,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			                            .build());
 			                }
 
-			                // 4. Mantener lógica de Aforos
 			                List<AforoDTO> aforos = aforoContadorRepository
 			                        .findByContadorConAforo(eccRel.getContador().getId())
 			                        .stream()
