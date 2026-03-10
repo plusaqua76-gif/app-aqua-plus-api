@@ -21,6 +21,7 @@ import com.aqua.plus.api.service.IFacturaService;
 import com.aqua.plus.api.service.impl.specification.FacturaSpecifications;
 import com.aqua.plus.commons.dtos.CarteraAntiguedadDTO;
 import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.commons.dtos.FacturaResumenDTO;
 import com.aqua.plus.commons.dtos.MetricasFinancierasDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.EmpresaEntity;
@@ -169,10 +170,10 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Transactional
 	public ResponseEntity<Map<String, Object>> guardarFacturas(JsonNode body) {
-		
+
 		log.warn("Iniciando procesamiento masivo de facturas (guardarFacturas).");
 		long startTime = System.currentTimeMillis();
-		
+
 		try {
 			final ArrayNode payloadArray;
 			if (body == null) {
@@ -190,9 +191,8 @@ public class FacturaServiceImpl implements IFacturaService {
 						"El cuerpo debe ser objeto, arreglo o {\"facturas\": [...]}", "code", 400, "response", null);
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
 			}
-			Integer totalProcess=payloadArray.size();
-	        log.warn("Total de facturas detectadas para procesar: {}", totalProcess);
-
+			Integer totalProcess = payloadArray.size();
+			log.warn("Total de facturas detectadas para procesar: {}", totalProcess);
 
 			String jsonString = objectMapper.writeValueAsString(payloadArray);
 			String sql = "SELECT public.registrar_facturas(CAST(:jsonData AS jsonb)) AS result";
@@ -200,7 +200,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Map<String, Object> raw = namedParameterJdbcTemplate.queryForMap(sql, params);
 			long fin = System.currentTimeMillis();
-			log.warn("Tiempo de ejecución SP: {}  " , (fin - startTime) + " ms");
+			log.warn("Tiempo de ejecución SP: {}  ", (fin - startTime) + " ms");
 			Object wrapper = raw.get("result");
 			String jsonOut;
 			if (wrapper instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
@@ -222,11 +222,12 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Map<String, Object> bodyOut = Map.of("success", sp.getOrDefault("success", code >= 200 && code < 300),
 					"message", String.valueOf(sp.getOrDefault("message", "")), "code", code, "response",
-					Objects.nonNull(sp.get("response")) ? sp.get("response"):"");
-			
+					Objects.nonNull(sp.get("response")) ? sp.get("response") : "");
+
 			long duration = System.currentTimeMillis() - startTime;
-	        log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms", totalProcess, code, duration);
-			
+			log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms",
+					totalProcess, code, duration);
+
 			return ResponseEntity.status(status).body(bodyOut);
 
 		} catch (JsonProcessingException e) {
@@ -316,7 +317,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
-			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre, 
+			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre,
 			String corregimientoNombre, Pageable pageable) {
 
 		log.info(
@@ -330,8 +331,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
 					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre,
-					corregimientoNombre)
-					.and(FacturaSpecifications.activoTrue());
+					corregimientoNombre).and(FacturaSpecifications.activoTrue());
 
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
 
@@ -400,7 +400,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
-			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, 
+			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax,
 			String tipoPagoNombre, String corregimientoNombre) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
@@ -416,8 +416,7 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.fechaFinBetween(finDesde, finHasta),
 				FacturaSpecifications.estadoNombreLike(estadoNombre),
 				FacturaSpecifications.consumoAnormalEquals(consumoAnormal),
-				FacturaSpecifications.consumoEquals(consumo),
-				FacturaSpecifications.precioBetween(precioMin, precioMax),
+				FacturaSpecifications.consumoEquals(consumo), FacturaSpecifications.precioBetween(precioMin, precioMax),
 				FacturaSpecifications.tipoPagoLike(tipoPagoNombre),
 				FacturaSpecifications.corregimientoNombreLike(corregimientoNombre));
 	}
@@ -537,9 +536,8 @@ public class FacturaServiceImpl implements IFacturaService {
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
 			String payload = (String) row.get("payload");
 
-			Map<String, Object> body = objectMapper.readValue(payload,
-					new TypeReference<Map<String, Object>>() {
-					});
+			Map<String, Object> body = objectMapper.readValue(payload, new TypeReference<Map<String, Object>>() {
+			});
 
 			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
 			boolean success = Boolean.TRUE.equals(body.getOrDefault("success", true));
@@ -573,9 +571,8 @@ public class FacturaServiceImpl implements IFacturaService {
 			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
 			String payload = (String) row.get("payload");
 
-			Map<String, Object> body = objectMapper.readValue(payload,
-					new TypeReference<Map<String, Object>>() {
-					});
+			Map<String, Object> body = objectMapper.readValue(payload, new TypeReference<Map<String, Object>>() {
+			});
 
 			Integer code = Integer.valueOf(String.valueOf(body.getOrDefault("code", 200)));
 			boolean success = Boolean.TRUE.equals(body.getOrDefault("success", true));
@@ -608,17 +605,14 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Object wrappedValue = rawResult.get("payload");
 
-			if (wrappedValue instanceof PGobject pg
-					&& ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
+			if (wrappedValue instanceof PGobject pg && ("jsonb".equals(pg.getType()) || "json".equals(pg.getType()))) {
 				String jsonValue = pg.getValue();
-				return objectMapper.readValue(jsonValue,
-						new TypeReference<Map<String, Object>>() {
-						});
+				return objectMapper.readValue(jsonValue, new TypeReference<Map<String, Object>>() {
+				});
 			}
 			if (wrappedValue instanceof String s) {
-				return objectMapper.readValue(s,
-						new TypeReference<Map<String, Object>>() {
-						});
+				return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+				});
 			}
 
 			return Map.of(Constantes.ERROR_KEY, Constantes.RESULT_COULD_NOT_PROCESSED);
@@ -655,14 +649,12 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Object resultObj = row.get("actualizar_facturas");
 			if (resultObj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-				return objectMapper.readValue(pg.getValue(),
-						new TypeReference<Map<String, Object>>() {
-						});
+				return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
+				});
 			}
 			if (resultObj instanceof String s) {
-				return objectMapper.readValue(s,
-						new TypeReference<Map<String, Object>>() {
-						});
+				return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+				});
 			}
 
 			return Map.of(Constantes.ERROR_KEY, "No fue posible procesar la respuesta del SP");
@@ -707,144 +699,144 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura, Integer idEmpresa) {
 
-	    if (idFactura == null || idFactura <= 0) {
-	        ResponseDTO dto = new ResponseDTO();
-	        dto.setSuccess(false);
-	        dto.setMessage("El id de la factura es obligatorio.");
-	        dto.setCode(400);
-	        dto.setResponse(null);
-	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
-	    }
+		if (idFactura == null || idFactura <= 0) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("El id de la factura es obligatorio.");
+			dto.setCode(400);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+		}
 
-	    if (idEmpresa == null) {
-	        ResponseDTO dto = new ResponseDTO();
-	        dto.setSuccess(false);
-	        dto.setMessage("El id de la empresa es obligatorio.");
-	        dto.setCode(400);
-	        dto.setResponse(null);
-	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
-	    }
+		if (idEmpresa == null) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("El id de la empresa es obligatorio.");
+			dto.setCode(400);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+		}
 
-	    EmpresaEntity empresa = empresaRepository.findById(idEmpresa).orElse(null);
+		EmpresaEntity empresa = empresaRepository.findById(idEmpresa).orElse(null);
 
-	    if (empresa == null) {
-	        ResponseDTO dto = new ResponseDTO();
-	        dto.setSuccess(false);
-	        dto.setMessage("La empresa no existe.");
-	        dto.setCode(404);
-	        dto.setResponse(null);
-	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
-	    }
+		if (empresa == null) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("La empresa no existe.");
+			dto.setCode(404);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+		}
 
-	    Boolean facAutomatica = empresa.getFacAutomatica();
+		Boolean facAutomatica = empresa.getFacAutomatica();
 
-	    String sql;
+		String sql;
 
-	    if (Boolean.TRUE.equals(facAutomatica)) {
-	        sql = "SELECT public.obtener_factura_detalle_sin_lectura(:id) AS result";
-	    } else {
-	        sql = "SELECT public.obtener_factura_detalle(:id) AS result";
-	    }
+		if (Boolean.TRUE.equals(facAutomatica)) {
+			sql = "SELECT public.obtener_factura_detalle_sin_lectura(:id) AS result";
+		} else {
+			sql = "SELECT public.obtener_factura_detalle(:id) AS result";
+		}
 
-	    MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
+		MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
 
-	    try {
-	        String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
-	            Object obj = rs.getObject("result");
-	            if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-	                return pg.getValue();
-	            }
-	            return (obj != null) ? obj.toString() : null;
-	        });
+		try {
+			String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
+				Object obj = rs.getObject("result");
+				if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+					return pg.getValue();
+				}
+				return (obj != null) ? obj.toString() : null;
+			});
 
-	        if (json == null) {
-	            ResponseDTO dto = new ResponseDTO();
-	            dto.setSuccess(false);
-	            dto.setMessage("Respuesta vacía del SP.");
-	            dto.setCode(500);
-	            dto.setResponse(null);
-	            return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-	        }
+			if (json == null) {
+				ResponseDTO dto = new ResponseDTO();
+				dto.setSuccess(false);
+				dto.setMessage("Respuesta vacía del SP.");
+				dto.setCode(500);
+				dto.setResponse(null);
+				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+			}
 
-	        var root = objectMapper.readTree(json);
-	        if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
-	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-	        }
+			var root = objectMapper.readTree(json);
+			if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+			}
 
-	        var responseObj = asObject(rootObj.path("response"));
-	        if (responseObj == null) {
-	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-	        }
+			var responseObj = asObject(rootObj.path("response"));
+			if (responseObj == null) {
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+			}
 
-	        com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
-	        com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
-	        String empresaPathUsed = null;
+			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
+			com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
+			String empresaPathUsed = null;
 
-	        var dataObj = asObject(responseObj.path("data"));
-	        if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
-	            empresaObj = asObject(dataObj.get("empresa"));
-	            parentOfEmpresa = dataObj;
-	            empresaPathUsed = "response.data.empresa";
-	        }
+			var dataObj = asObject(responseObj.path("data"));
+			if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
+				empresaObj = asObject(dataObj.get("empresa"));
+				parentOfEmpresa = dataObj;
+				empresaPathUsed = "response.data.empresa";
+			}
 
-	        if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
-	            empresaObj = asObject(responseObj.get("empresa"));
-	            parentOfEmpresa = responseObj;
-	            empresaPathUsed = "response.empresa";
-	        }
+			if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
+				empresaObj = asObject(responseObj.get("empresa"));
+				parentOfEmpresa = responseObj;
+				empresaPathUsed = "response.empresa";
+			}
 
-	        if (empresaObj == null || parentOfEmpresa == null) {
-	            log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+			if (empresaObj == null || parentOfEmpresa == null) {
+				log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
 
-	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-	        }
+				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+			}
 
-	        Integer empresaId = parseIntSafe(empresaObj.get("id"));
-	        log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
+			Integer empresaId = parseIntSafe(empresaObj.get("id"));
+			log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
 
-	        try {
-	            var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
-	            empresaObj.set("puntosPago", puntosPagoArr);
-	            log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
-	        } catch (Exception ex) {
-	            log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
-	            empresaObj.set("puntosPago", objectMapper.createArrayNode());
-	        }
+			try {
+				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
+				empresaObj.set("puntosPago", puntosPagoArr);
+				log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
+			} catch (Exception ex) {
+				log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
+				empresaObj.set("puntosPago", objectMapper.createArrayNode());
+			}
 
-	        try {
-	            var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
-	            empresaObj.set("codigoQr", codigoQrObj);
-	            log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
-	                    codigoQrObj.hasNonNull("imagen"));
-	        } catch (Exception ex) {
-	            log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
-	            empresaObj.set("codigoQr", objectMapper.createObjectNode());
-	        }
+			try {
+				var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
+				empresaObj.set("codigoQr", codigoQrObj);
+				log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
+						codigoQrObj.hasNonNull("imagen"));
+			} catch (Exception ex) {
+				log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
+				empresaObj.set("codigoQr", objectMapper.createObjectNode());
+			}
 
-	        parentOfEmpresa.set("empresa", empresaObj);
+			parentOfEmpresa.set("empresa", empresaObj);
 
-	        ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
-	        return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
+			ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
+			return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
 
-	    } catch (EmptyResultDataAccessException e) {
-	        ResponseDTO dto = new ResponseDTO();
-	        dto.setSuccess(false);
-	        dto.setMessage("No existe una factura con ese id.");
-	        dto.setCode(404);
-	        dto.setResponse(null);
-	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+		} catch (EmptyResultDataAccessException e) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("No existe una factura con ese id.");
+			dto.setCode(404);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
 
-	    } catch (Exception e) {
-	        ResponseDTO dto = new ResponseDTO();
-	        dto.setSuccess(false);
-	        dto.setMessage("Error inesperado: " + e.getMessage());
-	        dto.setCode(500);
-	        dto.setResponse(null);
-	        return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
+		} catch (Exception e) {
+			ResponseDTO dto = new ResponseDTO();
+			dto.setSuccess(false);
+			dto.setMessage("Error inesperado: " + e.getMessage());
+			dto.setCode(500);
+			dto.setResponse(null);
+			return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	/*
@@ -1154,37 +1146,67 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Transactional(readOnly = true)
 	public Map<String, Object> obtenerDetalleFacturaDian(Integer idFactura) {
-	    try {
-	        if (idFactura == null || idFactura <= 0) {
-	            return Map.of("message", "idFactura es obligatorio y debe ser > 0", "statusCode", "400");
-	        }
+		try {
+			if (idFactura == null || idFactura <= 0) {
+				return Map.of("message", "idFactura es obligatorio y debe ser > 0", "statusCode", "400");
+			}
 
-	        String sql = """
-	                SELECT public.obtener_detalle_factura_dian_lectura(
-	                    :idFactura
-	                ) AS result
-	                """;
+			String sql = """
+					SELECT public.obtener_detalle_factura_dian_lectura(
+					    :idFactura
+					) AS result
+					""";
 
-	        var params = new MapSqlParameterSource().addValue("idFactura", idFactura);
+			var params = new MapSqlParameterSource().addValue("idFactura", idFactura);
 
-	        Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
-	        Object value = row.get("result");
+			Map<String, Object> row = namedParameterJdbcTemplate.queryForMap(sql, params);
+			Object value = row.get("result");
 
-	        if (value instanceof PGobject pg && "jsonb".equals(pg.getType())) {
-	            return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
-	            });
-	        }
-	        if (value instanceof String s) {
-	            return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
-	            });
-	        }
+			if (value instanceof PGobject pg && "jsonb".equals(pg.getType())) {
+				return objectMapper.readValue(pg.getValue(), new TypeReference<Map<String, Object>>() {
+				});
+			}
+			if (value instanceof String s) {
+				return objectMapper.readValue(s, new TypeReference<Map<String, Object>>() {
+				});
+			}
 
-	        return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+			return Map.of("error", "El resultado no pudo ser procesado correctamente.");
 
-	    } catch (Exception e) {
-	        log.error("Error ejecutando obtener detalle factura Dian", e);
-	        throw new RuntimeException("Error ejecutando obtener detalle factura Dian: " + e.getMessage(), e);
-	    }
+		} catch (Exception e) {
+			log.error("Error ejecutando obtener detalle factura Dian", e);
+			throw new RuntimeException("Error ejecutando obtener detalle factura Dian: " + e.getMessage(), e);
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(Integer idEmpresaClienteContador,
+			String codigo) {
+
+		log.info("Buscar facturas por idEmpresaClienteContador: {} y codigo: {}", idEmpresaClienteContador, codigo);
+		try {
+			List<FacturaResumenDTO> facturas = facturaRepository
+					.findByEmpresaClienteContadorAndCodigoLike(idEmpresaClienteContador, codigo);
+
+			if (!facturas.isEmpty()) {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+						.code(HttpStatus.OK.value()).response(facturas).build();
+				return ResponseEntity.ok(responseDTO);
+
+			} else {
+				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
+			}
+
+		} catch (Exception e) {
+			log.error("Error al buscar facturas por idEmpresaClienteContador: {} y codigo: {}",
+					idEmpresaClienteContador, codigo, e);
+			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+		}
 	}
 
 }
