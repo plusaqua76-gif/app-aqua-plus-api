@@ -446,9 +446,6 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			var responseMap = new LinkedHashMap<String, Object>();
 			responseMap.put("nombre", empresa.getNombre());
 
-			correoGeneralRepository.findCorreoPrincipalByEmpresaId(empresa.getId())
-					.ifPresent(c -> responseMap.put("correo", c));
-
 			List<?> documentos = List.of();
 			Long totalDocs = 0L;
 			try {
