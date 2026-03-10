@@ -28,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
-import com.aqua.plus.api.service.impl.specification.ContadorSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
 import com.aqua.plus.commons.dtos.AforoDTO;
 import com.aqua.plus.commons.dtos.ContadorDTO;
@@ -39,7 +38,6 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.dtos.TipoUsoDTO;
-import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
@@ -55,7 +53,6 @@ import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.maps.TarifaContadorMapper;
 import com.aqua.plus.commons.maps.TipoTarifaMapper;
 import com.aqua.plus.commons.repositories.AforoContadorRepository;
-import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
@@ -85,7 +82,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	private final ObjectMapper objectMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final NotificacionServiceImpl notificacionServiceImpl;
-	private final ContadorRepository contadorRepository;
 	private final TelefonoGeneralRepository telefonoGeneralRepository;
 	private final CorreoGeneralRepository correoGeneralRepository;
 	private final RutaEmpleadoRepository rutaEmpleadoRepository;
@@ -612,136 +608,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findContadoresByEmpresaId(Integer idEmpresa, Pageable pageable, String serial,
-			String tipoContadorNombre, String direccionDescripcion, String nombreLike, String cedula) {
-
-		log.info(
-				"Buscar contadores por empresa: {}, filtros: [serial={}, tipoContador={}, dir={}, nombreLike={}, cedula={}]",
-				idEmpresa, serial, tipoContadorNombre, direccionDescripcion, nombreLike, cedula);
-
-		try {
-			var spec = Specification.allOf(ContadorSpecification.belongsToEmpresa(idEmpresa),
-					ContadorSpecification.isActivoTrue(), ContadorSpecification.serialLike(serial),
-					ContadorSpecification.tipoContadorNombreLike(tipoContadorNombre),
-					ContadorSpecification.direccionDescripcionLike(direccionDescripcion),
-					ContadorSpecification.personaNombreLike(nombreLike),
-					ContadorSpecification.personaCedulaEquals(cedula));
-
-			Pageable pageToUse = (pageable != null ? pageable : Pageable.unpaged());
-			Page<ContadorEntity> page = contadorRepository.findAll(spec, pageToUse);
-
-			long totalCount = page.getTotalElements();
-			int pageSize = page.getSize();
-			int currentPage = page.getNumber();
-			int totalPages = page.getTotalPages();
-
-			if (page.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron contadores para los filtros dados")
-								.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(totalCount)
-								.pageSize(pageSize).currentPage(currentPage).totalPages(totalPages).build());
-			}
-
-			List<Map<String, Object>> rows = new ArrayList<>(page.getNumberOfElements());
-
-			for (ContadorEntity c : page.getContent()) {
-				Map<String, Object> item = new LinkedHashMap<>();
-
-				item.put("id", c.getId());
-				item.put("serial", c.getSerial());
-				item.put("activo", c.getActivo());
-
-				Map<String, Object> tipoCont = new LinkedHashMap<>();
-				if (c.getTipoContador() != null) {
-					tipoCont.put("id", c.getTipoContador().getId());
-					tipoCont.put("nombre", c.getTipoContador().getNombre());
-				} else {
-					tipoCont.put("id", null);
-					tipoCont.put("nombre", null);
-				}
-				item.put("tipoContador", tipoCont);
-
-				Map<String, Object> dir = new LinkedHashMap<>();
-				if (c.getDescripcion() != null) {
-					var d = c.getDescripcion();
-					dir.put("id", d.getId());
-
-					Map<String, Object> dep = new LinkedHashMap<>();
-					if (d.getDepartamento() != null) {
-						dep.put("id", d.getDepartamento().getId());
-						dep.put("nombre", d.getDepartamento().getNombre());
-					} else {
-						dep.put("id", null);
-						dep.put("nombre", null);
-					}
-					dir.put("departamento", dep);
-
-					Map<String, Object> city = new LinkedHashMap<>();
-					if (d.getCiudad() != null) {
-						city.put("id", d.getCiudad().getId());
-						city.put("nombre", d.getCiudad().getNombre());
-					} else {
-						city.put("id", null);
-						city.put("nombre", null);
-					}
-					dir.put("ciudad", city);
-
-					Map<String, Object> corr = new LinkedHashMap<>();
-					if (d.getCorregimiento() != null) {
-						corr.put("id", d.getCorregimiento().getId());
-						corr.put("nombre", d.getCorregimiento().getNombre());
-					} else {
-						corr.put("id", null);
-						corr.put("nombre", null);
-					}
-					dir.put("corregimiento", corr);
-
-					dir.put("descripcion", d.getDescripcion());
-				} else {
-					dir.put("id", null);
-					dir.put("departamento", Map.of("id", null, "nombre", null));
-					dir.put("ciudad", Map.of("id", null, "nombre", null));
-					dir.put("corregimiento", Map.of("id", null, "nombre", null));
-					dir.put("descripcion", null);
-				}
-				item.put("descripcion", dir);
-
-				String clienteNombreCompleto = null;
-				String clienteCedula = null;
-				var p = c.getCliente();
-				if (p != null) {
-					StringBuilder full = new StringBuilder();
-					if (p.getNombre() != null)
-						full.append(p.getNombre()).append(' ');
-					if (p.getSegundoNombre() != null)
-						full.append(p.getSegundoNombre()).append(' ');
-					if (p.getApellido() != null)
-						full.append(p.getApellido()).append(' ');
-					if (p.getSegundoApellido() != null)
-						full.append(p.getSegundoApellido());
-					clienteNombreCompleto = full.toString().trim().replaceAll("\\s+", " ");
-					clienteCedula = p.getNumeroCedula();
-				}
-				item.put("clienteNombreCompleto", clienteNombreCompleto);
-				item.put("clienteCedula", clienteCedula);
-
-				rows.add(item);
-			}
-
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(rows).totalCount(totalCount).pageSize(pageSize)
-					.currentPage(currentPage).totalPages(totalPages).build());
-
-		} catch (Exception e) {
-			log.error("Error al consultar contadores por id de empresa: {}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
-					.message(Constantes.CONSULTING_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-		}
-	}
-
-	@Override
-	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaIdResponseId(Integer idEmpresa) {
 		log.info("Buscar Empresa Cliente Contador por id de empresa: {}", idEmpresa);
 		try {
@@ -790,37 +656,44 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
 
+			// ================== CONTADORES CON ID DE RELACIÓN ==================
 			List<ContadorDTO> contadoresDTO = Collections.emptyList();
 			if (personaId != null) {
-				List<EmpresaClienteContadorEntity> eccsPersona = empresaClienteContadorRepository
-						.findAllByCliente_Id(personaId);
+			    List<EmpresaClienteContadorEntity> eccsPersona = empresaClienteContadorRepository
+			            .findAllByCliente_Id(personaId);
 
-				contadoresDTO = eccsPersona.stream().map(EmpresaClienteContadorEntity::getContador)
-						.filter(Objects::nonNull).map(contador -> {
+			    contadoresDTO = eccsPersona.stream()
+			            .filter(eccRel -> eccRel.getContador() != null && Boolean.TRUE.equals(eccRel.getActivo()))
+			            .map(eccRel -> {
+			                ContadorDTO dto = contadorMapper.entityToDto(eccRel.getContador());
+			                
+			                dto.setIdEmpresaClienteContador(eccRel.getId());
 
-							ContadorDTO dto = contadorMapper.entityToDto(contador);
+			                TipoUsoEntity tipoUso = eccRel.getContador().getTipoUso();
+			                if (tipoUso != null) {
+			                    dto.setTipoUso(TipoUsoDTO.builder()
+			                            .id(tipoUso.getId())
+			                            .nombre(tipoUso.getNombre())
+			                            .build());
+			                }
 
-							/* ================= TIPO USO ================= */
+			                List<AforoDTO> aforos = aforoContadorRepository
+			                        .findByContadorConAforo(eccRel.getContador().getId())
+			                        .stream()
+			                        .filter(ac -> ac.getAforo() != null)
+			                        .map(ac -> AforoDTO.builder()
+			                                .id(ac.getAforo().getId())
+			                                .idAforoContador(ac.getId())
+			                                .nombre(ac.getAforo().getNombre())
+			                                .tarifaBase(ac.getAforo().getTarifaBase())
+			                                .build())
+			                        .toList();
+			                
+			                dto.setAforoContador(aforos);
 
-							TipoUsoEntity tipoUso = contador.getTipoUso();
-
-							if (tipoUso != null) {
-								dto.setTipoUso(TipoUsoDTO.builder().id(tipoUso.getId()).nombre(tipoUso.getNombre())
-										.descripcion(tipoUso.getDescripcion()).codigo(tipoUso.getCodigo()).build());
-							}
-
-							/* ================= AFORO ================= */
-							List<AforoDTO> aforos = aforoContadorRepository.findByContadorConAforo(contador.getId())
-									.stream().filter(ac -> ac.getAforo() != null)
-									.map(ac -> AforoDTO.builder().id(ac.getId()).nombre(ac.getAforo().getNombre())
-											.tarifaBase(ac.getAforo().getTarifaBase()).build())
-									.toList();
-
-							dto.setAforoContador(aforos);
-
-							return dto;
-
-						}).distinct().toList();
+			                return dto;
+			            })
+			            .toList();
 			}
 
 			// ================== CONTACTO (CORREO / TELÉFONO) ==================

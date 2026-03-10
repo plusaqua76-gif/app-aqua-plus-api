@@ -6,7 +6,7 @@ spring:
     version: v1.0
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://bd-aqua-plus.postgres.database.azure.com:5432/aquaplus
+    url: jdbc:postgresql://bd-aqua-plus-test.postgres.database.azure.com:5432/aquaplus
     username: aquaPlus
     password: ji62inmB2Ps5L4zcJE84lw==
     driver-class-name: org.postgresql.Driver

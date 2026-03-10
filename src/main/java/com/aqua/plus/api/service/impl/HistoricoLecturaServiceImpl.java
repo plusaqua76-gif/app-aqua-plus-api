@@ -13,7 +13,9 @@ import com.aqua.plus.commons.dtos.HistoricoLecturaDTO;
 import com.aqua.plus.commons.dtos.LecturaDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.HistoricoLecturaEntity;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.HistoricoLecturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -33,11 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 public class HistoricoLecturaServiceImpl implements IHistoricoLecturaService {
 
 	private final HistoricoLecturaRepository historicoLecturaRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findHistoricoByLecturaId(Integer idLectura) {
-		log.info("Buscar histórico de lectura por idLectura={}", idLectura);
+		log.info("Buscando histórico de lectura para idLectura={}", idLectura);
 		try {
 			if (idLectura == null) {
 				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
@@ -54,34 +57,34 @@ public class HistoricoLecturaServiceImpl implements IHistoricoLecturaService {
 								.code(HttpStatus.NOT_FOUND.value()).totalCount(0L).build());
 			}
 
-			List<HistoricoLecturaDTO> dtos = entities.stream().map(h -> {
-				ContadorDTO contadorDTO = null;
-				if (h.getContador() != null) {
-					var c = h.getContador();
+			var primerContador = entities.getFirst().getContador();
+			var eccOpt = empresaClienteContadorRepository.findByContador_IdAndActivoTrue(primerContador.getId());
 
-					PersonaDTO clienteDTO = null;
-					if (c.getCliente() != null) {
-						var cli = c.getCliente();
-						clienteDTO = PersonaDTO.builder().id(cli.getId()).nombre(cli.getNombre())
+			PersonaDTO clienteDTO = eccOpt.map(ecc -> {
+				var cli = ecc.getCliente();
+				return (cli != null)
+						? PersonaDTO.builder().id(cli.getId()).nombre(cli.getNombre())
 								.segundoNombre(cli.getSegundoNombre()).apellido(cli.getApellido())
-								.segundoApellido(cli.getSegundoApellido()).build();
-					}
+								.segundoApellido(cli.getSegundoApellido()).build()
+						: null;
+			}).orElse(null);
 
-					contadorDTO = ContadorDTO.builder().id(c.getId()).cliente(clienteDTO).serial(c.getSerial())
-							.fechaInstalacion(c.getFechaInstalacion()).build();
-				}
+			Integer eccId = eccOpt.map(EmpresaClienteContadorEntity::getId).orElse(null);
 
-				LecturaDTO lecturaDTO = null;
-				if (h.getLectura() != null) {
-					var l = h.getLectura();
-					lecturaDTO = LecturaDTO.builder().id(l.getId()).build();
-				}
+			List<HistoricoLecturaDTO> dtos = entities.stream().map(h -> {
 
-				return HistoricoLecturaDTO.builder().id(h.getId()).lectura(lecturaDTO).contador(contadorDTO)
-						.consumo(h.getConsumo()).fechaLectura(h.getFechaLectura()).consumoAnormal(h.getConsumoAnormal())
-						.descripcion(h.getDescripcion()).activo(h.getActivo()).usuarioCreacion(h.getUsuarioCreacion())
-						.fechaCreacion(h.getFechaCreacion()).usuarioModificacion(h.getUsuarioModificacion())
-						.fechaModificacion(h.getFechaModificacion()).build();
+				ContadorDTO contadorDTO = ContadorDTO.builder().id(h.getContador().getId())
+						.idEmpresaClienteContador(eccId).cliente(clienteDTO).serial(h.getContador().getSerial())
+						.fechaInstalacion(h.getContador().getFechaInstalacion()).build();
+
+				return HistoricoLecturaDTO.builder().id(h.getId())
+						.lectura(
+								h.getLectura() != null ? LecturaDTO.builder().id(h.getLectura().getId()).build() : null)
+						.contador(contadorDTO).consumo(h.getConsumo()).fechaLectura(h.getFechaLectura())
+						.consumoAnormal(h.getConsumoAnormal()).descripcion(h.getDescripcion()).activo(h.getActivo())
+						.usuarioCreacion(h.getUsuarioCreacion()).fechaCreacion(h.getFechaCreacion())
+						.usuarioModificacion(h.getUsuarioModificacion()).fechaModificacion(h.getFechaModificacion())
+						.build();
 			}).toList();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
