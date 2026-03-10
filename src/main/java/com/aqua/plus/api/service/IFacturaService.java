@@ -40,5 +40,7 @@ public interface IFacturaService {
 
 
 	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio);
+	
+	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(Integer idEmpresaClienteContador, String codigo);
 
 }
