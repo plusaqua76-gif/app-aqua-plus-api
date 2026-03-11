@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -42,10 +41,8 @@ import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.PersonaEntity;
-import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.entities.TarifaContadorEntity;
 import com.aqua.plus.commons.entities.TelefonoGeneralEntity;
-import com.aqua.plus.commons.entities.TipoTarifaEntity;
 import com.aqua.plus.commons.entities.TipoUsoEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
@@ -650,50 +647,83 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
 			var ecc = opt.get();
 
+			// ================== EMPRESA ID ==================
+			Integer empresaId = (ecc.getEmpresa() != null ? ecc.getEmpresa().getId() : null);
+
 			// ================== CLIENTE / PERSONA ==================
 			var personaEntity = ecc.getCliente();
 			Integer personaId = (personaEntity != null ? personaEntity.getId() : null);
-
 			PersonaDTO personaDTO = (personaEntity != null ? personaMapper.entityToDto(personaEntity) : null);
 
 			// ================== CONTADORES CON ID DE RELACIÓN ==================
 			List<ContadorDTO> contadoresDTO = Collections.emptyList();
 			if (personaId != null) {
-			    List<EmpresaClienteContadorEntity> eccsPersona = empresaClienteContadorRepository
-			            .findAllByCliente_Id(personaId);
+				List<EmpresaClienteContadorEntity> eccsPersona = empresaClienteContadorRepository
+						.findAllByCliente_Id(personaId);
 
-			    contadoresDTO = eccsPersona.stream()
-			            .filter(eccRel -> eccRel.getContador() != null && Boolean.TRUE.equals(eccRel.getActivo()))
-			            .map(eccRel -> {
-			                ContadorDTO dto = contadorMapper.entityToDto(eccRel.getContador());
-			                
-			                dto.setIdEmpresaClienteContador(eccRel.getId());
+				contadoresDTO = eccsPersona.stream()
+						.filter(eccRel -> eccRel.getContador() != null && Boolean.TRUE.equals(eccRel.getActivo()))
+						.map(eccRel -> {
+							ContadorDTO dto = contadorMapper.entityToDto(eccRel.getContador());
+							dto.setIdEmpresaClienteContador(eccRel.getId());
 
-			                TipoUsoEntity tipoUso = eccRel.getContador().getTipoUso();
-			                if (tipoUso != null) {
-			                    dto.setTipoUso(TipoUsoDTO.builder()
-			                            .id(tipoUso.getId())
-			                            .nombre(tipoUso.getNombre())
-			                            .build());
-			                }
+							// Tipo uso
+							TipoUsoEntity tipoUso = eccRel.getContador().getTipoUso();
+							if (tipoUso != null) {
+								dto.setTipoUso(
+										TipoUsoDTO.builder().id(tipoUso.getId()).nombre(tipoUso.getNombre()).build());
+							}
 
-			                List<AforoDTO> aforos = aforoContadorRepository
-			                        .findByContadorConAforo(eccRel.getContador().getId())
-			                        .stream()
-			                        .filter(ac -> ac.getAforo() != null)
-			                        .map(ac -> AforoDTO.builder()
-			                                .id(ac.getAforo().getId())
-			                                .idAforoContador(ac.getId())
-			                                .nombre(ac.getAforo().getNombre())
-			                                .tarifaBase(ac.getAforo().getTarifaBase())
-			                                .build())
-			                        .toList();
-			                
-			                dto.setAforoContador(aforos);
+							// Aforos
+							List<AforoDTO> aforos = aforoContadorRepository
+									.findByContadorConAforo(eccRel.getContador().getId()).stream()
+									.filter(ac -> ac.getAforo() != null)
+									.map(ac -> AforoDTO.builder().id(ac.getAforo().getId()).idAforoContador(ac.getId())
+											.nombre(ac.getAforo().getNombre()).tarifaBase(ac.getAforo().getTarifaBase())
+											.build())
+									.toList();
+							dto.setAforoContador(aforos);
 
-			                return dto;
-			            })
-			            .toList();
+							// Empleado asignado a este contador
+							rutaEmpleadoRepository.findByEmpresaClienteContador_Id(eccRel.getId()).ifPresent(ruta -> {
+								EmpleadoEmpresaEntity emp = ruta.getEmpleadoEmpresa();
+								if (emp != null) {
+									dto.setEmpleadoEmpresaId(emp.getId());
+									dto.setEmpleadoNombre(resolveEmpleadoNombreSeguro(emp));
+								}
+							});
+
+							// Tarifas de este contador
+							List<TarifaContadorEntity> tarifasContador = Collections.emptyList();
+							List<TarifaContadorDTO> tarifasContadorDTO = Collections.emptyList();
+							try {
+								tarifasContador = tarifaContadorRepository
+										.findByEmpresaClienteContador_Id(eccRel.getId());
+								tarifasContadorDTO = (tarifasContador == null || tarifasContador.isEmpty())
+										? Collections.emptyList()
+										: tarifasContador.stream().map(tarifaContadorMapper::entityToDto).toList();
+							} catch (Exception ex) {
+								log.warn("No se pudieron cargar tarifas para eccId {}: {}", eccRel.getId(),
+										ex.getMessage());
+							}
+							dto.setTarifasContadores(tarifasContadorDTO);
+
+							// Tipos tarifa faltantes para este contador
+							List<TipoTarifaDTO> tiposFaltantesDTO = Collections.emptyList();
+							if (empresaId != null) {
+								final List<TarifaContadorEntity> tarifasRef = tarifasContador;
+								Set<Integer> tiposUsados = tarifasRef.stream()
+										.filter(t -> t.getTipoTarifa() != null && t.getTipoTarifa().getId() != null)
+										.map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
+
+								tiposFaltantesDTO = tipoTarifaRepository.findByEmpresa_Id(empresaId).stream()
+										.filter(tt -> tt.getId() != null && !tiposUsados.contains(tt.getId()))
+										.map(tipoTarifaMapper::entityToDto).toList();
+							}
+							dto.setTiposTarifaFaltantes(tiposFaltantesDTO);
+
+							return dto;
+						}).toList();
 			}
 
 			// ================== CONTACTO (CORREO / TELÉFONO) ==================
@@ -707,52 +737,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 							.map(TelefonoGeneralEntity::getNumero).orElse(null)
 					: null;
 
-			// ================== RUTA / EMPLEADO ==================
-			Optional<RutaEmpleadoEntity> rutaOpt = rutaEmpleadoRepository.findByEmpresaClienteContador_Id(id);
-
-			Integer empleadoEmpresaId = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-					.map(EmpleadoEmpresaEntity::getId).orElse(null);
-
-			String empleadoNombre = rutaOpt.map(RutaEmpleadoEntity::getEmpleadoEmpresa)
-					.map(this::resolveEmpleadoNombreSeguro).orElse(null);
-
-			// ================== TARIFAS CONTADOR ==================
-			List<TarifaContadorDTO> tarifasDTO;
-			List<TarifaContadorEntity> tarifas;
-
-			try {
-				tarifas = tarifaContadorRepository.findByEmpresaClienteContador_Id(id);
-				tarifasDTO = (tarifas == null || tarifas.isEmpty()) ? Collections.emptyList()
-						: tarifas.stream().map(tarifaContadorMapper::entityToDto).toList();
-			} catch (Exception ex) {
-				log.warn("No se pudieron cargar tarifas para eccId {}: {}", id, ex.getMessage());
-				tarifas = Collections.emptyList();
-				tarifasDTO = Collections.emptyList();
-			}
-
-			/* ================== TIPOS TARIFA FALTANTES */
-			Integer empresaId = (ecc.getEmpresa() != null ? ecc.getEmpresa().getId() : null);
-
-			List<TipoTarifaDTO> tiposTarifaFaltantesDTO = Collections.emptyList();
-			if (empresaId != null) {
-				Set<Integer> tiposUsadosIds = tarifas.stream()
-						.filter(t -> t.getTipoTarifa() != null && t.getTipoTarifa().getId() != null)
-						.map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
-
-				List<TipoTarifaEntity> tiposEmpresa = tipoTarifaRepository.findByEmpresa_Id(empresaId);
-
-				List<TipoTarifaEntity> tiposFaltantes = (tiposEmpresa == null
-						? Collections.<TipoTarifaEntity>emptyList()
-						: tiposEmpresa).stream()
-						.filter(tt -> tt.getId() != null && !tiposUsadosIds.contains(tt.getId())).toList();
-
-				tiposTarifaFaltantesDTO = tiposFaltantes.stream().map(tipoTarifaMapper::entityToDto).toList();
-			}
-
+			// ================== PAYLOAD ==================
 			EccDetalleDTO payload = EccDetalleDTO.builder().persona(personaDTO).contadores(contadoresDTO)
-					.empleadoEmpresaId(empleadoEmpresaId).empleadoNombre(empleadoNombre).correo(correoVal)
-					.telefono(telVal).tarifasContadores(tarifasDTO).tiposTarifaFaltantes(tiposTarifaFaltantesDTO)
-					.build();
+					.correo(correoVal).telefono(telVal).build();
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
 					.code(HttpStatus.OK.value()).response(payload).build());
