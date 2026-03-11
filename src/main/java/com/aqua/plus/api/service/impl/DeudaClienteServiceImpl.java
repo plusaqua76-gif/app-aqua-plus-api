@@ -31,6 +31,9 @@ import com.aqua.plus.commons.maps.DeudaClienteMapper;
 import com.aqua.plus.commons.maps.DeudaClienteResponseMapper;
 import com.aqua.plus.commons.repositories.AbonoRepository;
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
+import com.aqua.plus.commons.repositories.FacturaRepository;
+import com.aqua.plus.commons.repositories.TipoDeudaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.RequiredArgsConstructor;
@@ -45,6 +48,9 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	private final DeudaClienteMapper deudaClienteMapper;
 	private final DeudaClienteResponseMapper deudaClienteResponseMapper;
 	private final AbonoRepository abonoRepository;
+	private final FacturaRepository facturaRepository;
+	private final TipoDeudaRepository tipoDeudaRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 
 	@Override
 	@Transactional
@@ -385,48 +391,78 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> updateDeuda(DeudaClienteDTO deudaClienteDTO) {
-		log.info("Inicio del método para actualizar Deuda de Cliente");
+	    log.info("Inicio del método para actualizar Deuda de Cliente");
 
-		try {
-			if (deudaClienteDTO.getId() == null) {
-				log.warn("ID de la deuda es nulo. No se puede actualizar.");
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false)
-						.message("El ID de la deuda es requerido para actualizar.").code(HttpStatus.BAD_REQUEST.value())
-						.build();
-				return ResponseEntity.badRequest().body(responseDTO);
-			}
+	    try {
+	        if (deudaClienteDTO.getId() == null) {
+	            log.warn("ID de la deuda es nulo. No se puede actualizar.");
+	            return ResponseEntity.badRequest().body(ResponseDTO.builder()
+	                    .success(false)
+	                    .message("El ID de la deuda es requerido para actualizar.")
+	                    .code(HttpStatus.BAD_REQUEST.value())
+	                    .build());
+	        }
 
-			Optional<DeudaClienteEntity> optionalEntity = deudaClienteRepository.findById(deudaClienteDTO.getId());
+	        Optional<DeudaClienteEntity> optionalEntity = deudaClienteRepository.findById(deudaClienteDTO.getId());
 
-			if (optionalEntity.isEmpty()) {
-				log.warn("No se encontró la Deuda de Cliente con ID: {}", deudaClienteDTO.getId());
-				ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.RECORD_NOT_FOUND)
-						.code(HttpStatus.NOT_FOUND.value()).build();
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseDTO);
-			}
+	        if (optionalEntity.isEmpty()) {
+	            log.warn("No se encontró la Deuda de Cliente con ID: {}", deudaClienteDTO.getId());
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder()
+	                    .success(false)
+	                    .message(Constantes.RECORD_NOT_FOUND)
+	                    .code(HttpStatus.NOT_FOUND.value())
+	                    .build());
+	        }
 
-			DeudaClienteEntity entity = optionalEntity.get();
+	        DeudaClienteEntity entity = optionalEntity.get();
 
-			deudaClienteMapper.updateEntityFromDto(deudaClienteDTO, entity);
+	        deudaClienteMapper.updateEntityFromDto(deudaClienteDTO, entity);
 
-			entity.setFechaModificacion(new Date());
-			entity.setUsuarioModificacion(deudaClienteDTO.getUsuarioModificacion());
+	        entity.setFechaModificacion(new Date());
+	        entity.setUsuarioModificacion(deudaClienteDTO.getUsuarioModificacion());
 
-			DeudaClienteEntity updatedEntity = deudaClienteRepository.save(entity);
-			DeudaClienteDTO updatedDTO = deudaClienteMapper.entityToDto(updatedEntity);
+	        if (deudaClienteDTO.getFactura() != null && deudaClienteDTO.getFactura().getId() != null) {
+	            facturaRepository.findById(deudaClienteDTO.getFactura().getId())
+	                    .ifPresentOrElse(
+	                            entity::setFactura,
+	                            () -> log.warn("No se encontró factura con id: {}",
+	                                    deudaClienteDTO.getFactura().getId())
+	                    );
+	        } else {
+	            entity.setFactura(null);
+	        }
 
-			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.UPDATED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(updatedDTO).build();
+	        if (deudaClienteDTO.getTipoDeuda() != null && deudaClienteDTO.getTipoDeuda().getId() != null) {
+	            tipoDeudaRepository.findById(deudaClienteDTO.getTipoDeuda().getId())
+	                    .ifPresent(entity::setTipoDeuda);
+	        }
 
-			log.info("Deuda de Cliente actualizada exitosamente");
-			return ResponseEntity.ok(responseDTO);
+	        if (deudaClienteDTO.getEmpresaClienteContador() != null
+	                && deudaClienteDTO.getEmpresaClienteContador().getId() != null) {
+	            empresaClienteContadorRepository
+	                    .findById(deudaClienteDTO.getEmpresaClienteContador().getId())
+	                    .ifPresent(entity::setEmpresaClienteContador);
+	        }
 
-		} catch (Exception e) {
-			log.error("Error actualizando Deuda de Cliente", e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.UPDATE_ERROR)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
-		}
+	        DeudaClienteEntity updatedEntity = deudaClienteRepository.save(entity);
+	        DeudaClienteDTO updatedDTO = deudaClienteMapper.entityToDto(updatedEntity);
+
+	        log.info("Deuda de Cliente actualizada exitosamente");
+	        return ResponseEntity.ok(ResponseDTO.builder()
+	                .success(true)
+	                .message(Constantes.UPDATED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .response(updatedDTO)
+	                .build());
+
+	    } catch (Exception e) {
+	        log.error("Error actualizando Deuda de Cliente", e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder()
+	                .success(false)
+	                .message(Constantes.UPDATE_ERROR)
+	                .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                .build());
+	    }
 	}
 
 }
