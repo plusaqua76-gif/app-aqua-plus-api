@@ -84,7 +84,8 @@ public class FacturaController {
 			@RequestParam(required = false) Double precioMax, @RequestParam(required = false) String tipoPagoNombre,
 			@RequestParam(required = false) String corregimientoNombre, Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
-				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre, corregimientoNombre, pageable);
+				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre, corregimientoNombre,
+				pageable);
 	}
 
 	@Operation(summary = "Listar todas las facturas de una persona (con filtros y paginación)")
@@ -256,14 +257,11 @@ public class FacturaController {
 			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/empresas/{empresaId}/facturas/{facturaId}")
-	public ResponseEntity<ResponseDTO> getFactura(
-	        @PathVariable Integer empresaId,
-	        @PathVariable Integer facturaId) {
+	public ResponseEntity<ResponseDTO> getFactura(@PathVariable Integer empresaId, @PathVariable Integer facturaId) {
 
-	    return facturaServiceImpl.obtenerFacturaDetalle(facturaId, empresaId);
+		return facturaServiceImpl.obtenerFacturaDetalle(facturaId, empresaId);
 	}
-	
-	
+
 	@Operation(summary = "consultar metricas de agua factura")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Consulta realizada correctamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
@@ -271,53 +269,47 @@ public class FacturaController {
 			@ApiResponse(responseCode = "400", description = "La petición contiene errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado en el servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/agua-facturada")
-	public ResponseEntity<?> consultarAguaFacturada(
-	        @RequestParam Integer idEmpresa,
-	        @RequestParam Integer anio,
-	        @RequestParam(required = false) Integer mes
-	) {
-	    return ResponseEntity.ok(
-	    		facturaServiceImpl.consultarAguaFacturadaMesEmpresa(idEmpresa, anio, mes)
-	    );
+	public ResponseEntity<?> consultarAguaFacturada(@RequestParam Integer idEmpresa, @RequestParam Integer anio,
+			@RequestParam(required = false) Integer mes) {
+		return ResponseEntity.ok(facturaServiceImpl.consultarAguaFacturadaMesEmpresa(idEmpresa, anio, mes));
 	}
 
-
-	@Operation(summary = "Obtener métricas de cartera por antigüedad", 
-			   description = "Obtiene las métricas de cartera agrupadas por rangos de antigüedad (0-30, 31-60, 61-90, 90+ días)")
+	@Operation(summary = "Obtener métricas de cartera por antigüedad", description = "Obtiene las métricas de cartera agrupadas por rangos de antigüedad (0-30, 31-60, 61-90, 90+ días)")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "500", description = "Error interno del servidor", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/cartera/antiguedad/{empresaId}")
 	public ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(
-			@Parameter(description = "ID de la empresa", required = true)
-			@PathVariable Integer empresaId) {
+			@Parameter(description = "ID de la empresa", required = true) @PathVariable Integer empresaId) {
 		return facturaServiceImpl.obtenerMetricasCarteraPorAntiguedad(empresaId);
 	}
 
-	@Operation(summary = "Obtener métricas financieras consolidadas por período", 
-			   description = "Obtiene indicadores financieros calculados de una empresa para un mes y año específicos")
+	@Operation(summary = "Obtener métricas financieras consolidadas por período", description = "Obtiene indicadores financieros calculados de una empresa para un mes y año específicos")
 	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "404", description = "No se pudieron calcular las métricas", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "500", description = "Error interno del servidor", 
-					content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+			@ApiResponse(responseCode = "200", description = "Métricas obtenidas exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "No se pudieron calcular las métricas", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/metricas-financieras/{empresaId}")
 	public ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(
-			@Parameter(description = "ID de la empresa", required = true)
-			@PathVariable Integer empresaId,
-			@Parameter(description = "Mes del período (1-12)", required = true, example = "2")
-			@RequestParam Integer mes,
-			@Parameter(description = "Año del período", required = true, example = "2026")
-			@RequestParam Integer anio) {
+			@Parameter(description = "ID de la empresa", required = true) @PathVariable Integer empresaId,
+			@Parameter(description = "Mes del período (1-12)", required = true, example = "2") @RequestParam Integer mes,
+			@Parameter(description = "Año del período", required = true, example = "2026") @RequestParam Integer anio) {
 		return facturaServiceImpl.obtenerMetricasFinancieras(empresaId, mes, anio);
+	}
+
+	@Operation(summary = "Buscar Facturas por Empresa y similitud de Código")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta realizada satisfactoriamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/empresa-cliente-contador/{idEmpresaClienteContador}/factura")
+	public ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(
+			@PathVariable Integer idEmpresaClienteContador, @RequestParam(required = false) String codigo) {
+
+		return facturaServiceImpl.findByEmpresaClienteContadorAndCodigo(idEmpresaClienteContador, codigo);
 	}
 
 }
