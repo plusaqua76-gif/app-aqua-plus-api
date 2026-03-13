@@ -381,12 +381,12 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre, String direccion, Boolean estado) {
+			String correo, String tipoDocumentoNombre, String direccion, Boolean estado,Integer nuid) {
 
 		log.info(
-				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, direccion={}, estado={}]",
+				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, direccion={}, estado={}, nuid={}]",
 				idEmpresa, nombre, cedula, codigo, departamento, ciudad, corregimiento, telefono, correo,
-				tipoDocumentoNombre, direccion, estado);
+				tipoDocumentoNombre, direccion, estado, nuid);
 
 		try {
 			if (idEmpresa == null) {
@@ -405,7 +405,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
 					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre),
 					PersonaSpecification.direccionDescripcionLike(direccion),
-					PersonaSpecification.clienteEstado(estado));
+					PersonaSpecification.clienteEstado(estado),
+					PersonaSpecification.contadorNuid(nuid));
 
 			Page<EmpresaClienteContadorEntity> pageECC = empresaClienteContadorRepository.findAll(spec, pageable);
 
@@ -561,7 +562,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 				row.put("corregimientoId", corrId);
 				row.put("correo", correoVal);
 				row.put("telefono", telVal);
-
+				row.put("nuid", ecc.getContador() != null ? ecc.getContador().getNuid() : null);
 				rows.add(row);
 			}
 

@@ -172,4 +172,10 @@ public final class PersonaSpecification {
 		cb.equal(root.get("cliente").get("activo"), estado) : cb.conjunction();
 	}
 
+	/** Cliente NUID */
+	public static Specification<EmpresaClienteContadorEntity> contadorNuid(Integer nuid) {
+		return (root, q, cb) -> nuid != null ? 
+		cb.equal(root.get("contador").get("nuid"), nuid) : cb.conjunction();
+	}
+
 }
