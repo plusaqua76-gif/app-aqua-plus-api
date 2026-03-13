@@ -24,7 +24,7 @@ public interface IEmpresaClienteContadorService {
 
 	ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombreLike,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre, String direccion, Boolean estado);
+			String correo, String tipoDocumentoNombre, String direccion, Boolean estado, Integer nuid);
 
 	ResponseEntity<ResponseDTO> findByEmpresaAndPersona(Integer idEmpresa, Integer idPersona);
 }

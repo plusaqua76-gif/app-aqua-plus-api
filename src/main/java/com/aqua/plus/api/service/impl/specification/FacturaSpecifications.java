@@ -7,7 +7,6 @@ import java.util.Date;
 
 import org.springframework.data.jpa.domain.Specification;
 
-import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.FacturaEntity;
 
 import jakarta.persistence.criteria.JoinType;
@@ -195,5 +194,10 @@ public final class FacturaSpecifications {
 			var corregimiento = direccion.join("corregimiento", JoinType.LEFT);
 			return cb.like(cb.upper(corregimiento.get("nombre")), like);
 		};
+	}
+	
+	public static Specification<FacturaEntity> contadorNuid(Integer nuid) {
+		return (root, q, cb) -> nuid != null ? 
+		cb.equal(root.get("empresaClienteContador").get("contador").get("nuid"), nuid) : cb.conjunction();
 	}
 }
