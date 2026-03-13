@@ -82,9 +82,9 @@ public class FacturaController {
 			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
 			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) Double precioMin,
 			@RequestParam(required = false) Double precioMax, @RequestParam(required = false) String tipoPagoNombre,
-			@RequestParam(required = false) String corregimientoNombre, Pageable pageable) {
+			@RequestParam(required = false) String corregimientoNombre, @RequestParam(required = false) Integer nuid, Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
-				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre, corregimientoNombre,
+				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre, corregimientoNombre, nuid,
 				pageable);
 	}
 
