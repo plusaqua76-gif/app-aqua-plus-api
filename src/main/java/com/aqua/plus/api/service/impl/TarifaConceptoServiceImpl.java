@@ -52,11 +52,12 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			final String KEY_CONCEPTO = "concepto";
 
 			final String SQL_GET = """
-					    SELECT public."get_tarifa_concepto_estrato"(
-					        CAST(:idEmpresa AS int),
-					        CAST(:idTipoTarifa AS int),
-					        CAST(:idTipoConcepto AS int)
-					    ) AS result
+					SELECT public."get_tarifa_concepto_estrato"(
+					    CAST(:idEmpresa      AS int),
+					    CAST(:idTipoTarifa   AS int),
+					    CAST(:idTipoConcepto AS int),
+					    CAST(:idTipoUso      AS int)
+					) AS result
 					""";
 			final String SQL_UPD = "SELECT public.\"actualizar_tarifa_concepto\"(:jsonData) AS result";
 			final String SQL_INS = "SELECT public.\"creartarifa_concepto\"(:jsonData) AS result";
@@ -66,7 +67,6 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			boolean isBatch = (itemsObj instanceof List<?>);
 
 			if (isBatch) {
-				// Normalizar a List<Map<String,Object>> de forma segura
 				List<Map<String, Object>> items = objectMapper.convertValue(itemsObj, new TypeReference<>() {
 				});
 
@@ -74,202 +74,238 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				boolean allOk = true;
 
 				for (int i = 0; i < items.size(); i++) {
-					Map<String, Object> item = items.get(i);
-					Map<String, Object> concepto = objectMapper.convertValue(item.get(KEY_CONCEPTO),
-							new TypeReference<>() {
-							});
-
-					Integer idEmpresa = (item.get("idEmpresa") instanceof Number n) ? n.intValue() : null;
-					Integer idTipoTarifa = (item.get("idTipoTarifa") instanceof Number n) ? n.intValue() : null;
-					Integer idTipoConcepto = (concepto != null && (concepto.get("idTipoConcepto") instanceof Number n))
-							? n.intValue()
-							: null;
-
-					if (idEmpresa == null || idTipoTarifa == null || idTipoConcepto == null) {
-						allOk = false;
-						resultados.add(Map.of("index", i, "status", HttpStatus.BAD_REQUEST.value(), "message",
-								"Faltan idEmpresa, idTipoTarifa o concepto.idTipoConcepto"));
-						continue;
-					}
-
-					// ---------- 1) GET existencia ----------
-					MapSqlParameterSource paramsGet = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa)
-							.addValue("idTipoTarifa", idTipoTarifa).addValue("idTipoConcepto", idTipoConcepto);
-
-					Map<String, Object> rowGet = namedParameterJdbcTemplate.queryForMap(SQL_GET, paramsGet);
-					String jsonGet;
-					Object roGet = rowGet.get("result");
-					if (roGet instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-						jsonGet = pg.getValue();
-					} else if (roGet instanceof String s) {
-						jsonGet = s;
-					} else {
-						jsonGet = (roGet != null) ? String.valueOf(roGet) : null;
-					}
-
-					if (jsonGet == null || jsonGet.isBlank()) {
-						allOk = false;
-						resultados.add(java.util.Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
-								"message", "SP de consulta no retornó contenido"));
-						continue;
-					}
-
-					Map<String, Object> mapGet = objectMapper.readValue(jsonGet,
-							new TypeReference<Map<String, Object>>() {
-							});
-
-					int statusGet;
 					try {
-						statusGet = Integer.parseInt(String.valueOf(mapGet.getOrDefault("statusCode", 500)));
-					} catch (Exception ex) {
-						statusGet = 500;
-					}
-
-					if (statusGet == 200) {
-						// ---------- EXISTE -> UPDATE ----------
-						Map<String, Object> resp = objectMapper.convertValue(mapGet.get("response"),
+						Map<String, Object> item = items.get(i);
+						Map<String, Object> concepto = objectMapper.convertValue(item.get(KEY_CONCEPTO),
 								new TypeReference<>() {
 								});
-						Integer idTarifaConcepto = (resp != null && (resp.get("idTarifaConcepto") instanceof Number n))
-								? n.intValue()
-								: null;
 
-						if (idTarifaConcepto == null) {
+						Integer idEmpresa = (item.get("idEmpresa") instanceof Number n) ? n.intValue() : null;
+						Integer idTipoTarifa = (item.get("idTipoTarifa") instanceof Number n) ? n.intValue() : null;
+						Integer idTipoConcepto = (concepto != null
+								&& concepto.get("idTipoConcepto") instanceof Number n) ? n.intValue() : null;
+						Integer idTipoUso = (item.get("idTipoUso") instanceof Number n) ? n.intValue() : null;
+
+						if (idEmpresa == null || idTipoTarifa == null || idTipoConcepto == null) {
 							allOk = false;
-							resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
-									"message", "Respuesta inválida del SP de consulta (faltó idTarifaConcepto)"));
+							resultados.add(Map.of("index", i, "status", HttpStatus.BAD_REQUEST.value(), "message",
+									"Faltan idEmpresa, idTipoTarifa o concepto.idTipoConcepto"));
 							continue;
 						}
 
-						Map<String, Object> jsonUpd = new HashMap<>();
-						jsonUpd.put("idTarifaConcepto", idTarifaConcepto);
-						if (concepto != null) {
-							if (concepto.containsKey("valor"))
-								jsonUpd.put("valor", concepto.get("valor"));
-							if (concepto.containsKey("valoresEstrato"))
-								jsonUpd.put("estratos", concepto.get("valoresEstrato"));
-							if (concepto.containsKey("estratosEliminarIds"))
-								jsonUpd.put("estratosEliminarIds", concepto.get("estratosEliminarIds"));
-							if (concepto.containsKey("indCalcularMc"))
-								jsonUpd.put("indCalcularMc", concepto.get("indCalcularMc"));
-						}
-						if (item.containsKey("activo"))
-							jsonUpd.put("activo", item.get("activo"));
-						jsonUpd.put("usuarioModificacion", item.getOrDefault("usuarioModificacion",
-								item.getOrDefault("usuarioCreacion", "system")));
+						// ── GET existencia ──────────────────────────────────────────
+						MapSqlParameterSource paramsGet = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa)
+								.addValue("idTipoTarifa", idTipoTarifa).addValue("idTipoConcepto", idTipoConcepto)
+								.addValue("idTipoUso", idTipoUso);
 
-						String jsonUpdStr = objectMapper.writeValueAsString(jsonUpd);
+						Map<String, Object> rowGet = namedParameterJdbcTemplate.queryForMap(SQL_GET, paramsGet);
 
-						PGobject jsonbParamUpd = new PGobject();
-						jsonbParamUpd.setType("jsonb");
-						jsonbParamUpd.setValue(jsonUpdStr);
+						log.info("SQL_GET raw result item[{}]: {}", i, rowGet);
 
-						MapSqlParameterSource paramsUpd = new MapSqlParameterSource().addValue("jsonData",
-								jsonbParamUpd);
-						Map<String, Object> rowUpd = namedParameterJdbcTemplate.queryForMap(SQL_UPD, paramsUpd);
+						Object roGet = rowGet.get("result");
 
-						String jsonUpdResp;
-						Object roUpd = rowUpd.get("result");
-						if (roUpd instanceof PGobject pg2 && "jsonb".equalsIgnoreCase(pg2.getType())) {
-							jsonUpdResp = pg2.getValue();
-						} else if (roUpd instanceof String s2) {
-							jsonUpdResp = s2;
+						log.info("roGet item[{}] type={} value={}", i,
+								roGet != null ? roGet.getClass().getName() : "null", roGet);
+
+						String jsonGet;
+						if (roGet instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
+							jsonGet = pg.getValue();
+						} else if (roGet instanceof String s) {
+							jsonGet = s;
 						} else {
-							jsonUpdResp = (roUpd != null) ? String.valueOf(roUpd) : null;
+							jsonGet = (roGet != null) ? String.valueOf(roGet) : null;
 						}
 
-						if (jsonUpdResp == null || jsonUpdResp.isBlank()) {
+						if (jsonGet == null || jsonGet.isBlank()) {
 							allOk = false;
 							resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
-									"message", "SP de actualización no retornó contenido"));
+									"message", "SP de consulta no retornó contenido"));
 							continue;
 						}
 
-						Map<String, Object> updMap = objectMapper.readValue(jsonUpdResp,
-								new TypeReference<Map<String, Object>>() {
-								});
-						int code = HttpStatus.OK.value();
-						Object codeObj = updMap.getOrDefault("statusCode", updMap.get("code"));
-						if (codeObj != null) {
-							try {
-								code = Integer.parseInt(codeObj.toString());
-							} catch (Exception ignore) {
-							}
+						Map<String, Object> mapGet = objectMapper.readValue(jsonGet, new TypeReference<>() {
+						});
+
+						log.info("mapGet item[{}]: {}", i, mapGet);
+
+						int statusGet;
+						try {
+							statusGet = Integer.parseInt(String.valueOf(mapGet.getOrDefault("statusCode", 500)));
+						} catch (Exception ex) {
+							statusGet = 500;
 						}
-						resultados.add(Map.of("index", i, "status", code, "body", updMap));
-						if (code < 200 || code >= 300)
-							allOk = false;
 
-					} else if (statusGet == 404) {
-						// ---------- NO EXISTE -> INSERT ----------
-						Map<String, Object> jsonIns = new HashMap<>();
-						jsonIns.put("idEmpresa", idEmpresa);
-						jsonIns.put("idTipoTarifa", idTipoTarifa);
-						jsonIns.put("usuarioCreacion", item.getOrDefault("usuarioCreacion", "system"));
+						if (statusGet == 200) {
+							// ── EXISTE → UPDATE ─────────────────────────────────────
+							Map<String, Object> resp = objectMapper.convertValue(mapGet.get("response"),
+									new TypeReference<>() {
+									});
 
-						Map<String, Object> conceptoIns = new HashMap<>();
-						conceptoIns.put("idTipoConcepto", idTipoConcepto);
-						if (concepto != null) {
-							if (concepto.containsKey("valor")) {
-								conceptoIns.put("valor", concepto.get("valor"));
-							} else if (concepto.containsKey("valoresEstrato")) {
-								conceptoIns.put("valoresEstrato", concepto.get("valoresEstrato"));
+							Integer idTarifaConcepto = (resp != null
+									&& resp.get("idTarifaConcepto") instanceof Number n) ? n.intValue() : null;
+
+							if (idTarifaConcepto == null) {
+								allOk = false;
+								resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
+										"message", "Respuesta inválida del SP de consulta (faltó idTarifaConcepto)"));
+								continue;
 							}
-							if (concepto.containsKey("indCalcularMc")) {
-								conceptoIns.put("indCalcularMc", concepto.get("indCalcularMc"));
+
+							Map<String, Object> jsonUpd = new HashMap<>();
+							jsonUpd.put("idTarifaConcepto", idTarifaConcepto);
+
+							if (idTipoUso != null) {
+								jsonUpd.put("idTipoUso", idTipoUso);
 							}
-						}
-						jsonIns.put("concepto", conceptoIns);
 
-						String jsonInsStr = objectMapper.writeValueAsString(jsonIns);
+							if (concepto != null) {
+								boolean tieneEstratos = concepto.containsKey("valoresEstrato")
+										&& concepto.get("valoresEstrato") != null;
 
-						// Parametro tipado JSONB
-						PGobject jsonbParamIns = new PGobject();
-						jsonbParamIns.setType("jsonb");
-						jsonbParamIns.setValue(jsonInsStr);
+								if (tieneEstratos) {
+									jsonUpd.put("estratos", concepto.get("valoresEstrato"));
+									jsonUpd.put("valor", null);
+								} else if (concepto.containsKey("valor")) {
+									jsonUpd.put("valor", concepto.get("valor"));
+								}
 
-						MapSqlParameterSource paramsIns = new MapSqlParameterSource().addValue("jsonData",
-								jsonbParamIns);
-						Map<String, Object> rowIns = namedParameterJdbcTemplate.queryForMap(SQL_INS, paramsIns);
+								if (concepto.containsKey("estratosEliminarIds"))
+									jsonUpd.put("estratosEliminarIds", concepto.get("estratosEliminarIds"));
+								if (concepto.containsKey("indCalcularMc"))
+									jsonUpd.put("indCalcularMc", concepto.get("indCalcularMc"));
+							}
 
-						String jsonInsResp;
-						Object roIns = rowIns.get("result");
-						if (roIns instanceof PGobject pg3 && "jsonb".equalsIgnoreCase(pg3.getType())) {
-							jsonInsResp = pg3.getValue();
-						} else if (roIns instanceof String s3) {
-							jsonInsResp = s3;
+							if (item.containsKey("activo"))
+								jsonUpd.put("activo", item.get("activo"));
+							jsonUpd.put("usuarioModificacion", item.getOrDefault("usuarioModificacion",
+									item.getOrDefault("usuarioCreacion", "system")));
+
+							log.info("jsonUpd que se envía al SP UPDATE item[{}]: {}", i, jsonUpd);
+
+							String jsonUpdStr = objectMapper.writeValueAsString(jsonUpd);
+
+							PGobject jsonbParamUpd = new PGobject();
+							jsonbParamUpd.setType("jsonb");
+							jsonbParamUpd.setValue(jsonUpdStr);
+
+							MapSqlParameterSource paramsUpd = new MapSqlParameterSource().addValue("jsonData",
+									jsonbParamUpd);
+							Map<String, Object> rowUpd = namedParameterJdbcTemplate.queryForMap(SQL_UPD, paramsUpd);
+
+							Object roUpd = rowUpd.get("result");
+							String jsonUpdResp;
+							if (roUpd instanceof PGobject pg2 && "jsonb".equalsIgnoreCase(pg2.getType())) {
+								jsonUpdResp = pg2.getValue();
+							} else if (roUpd instanceof String s2) {
+								jsonUpdResp = s2;
+							} else {
+								jsonUpdResp = (roUpd != null) ? String.valueOf(roUpd) : null;
+							}
+
+							if (jsonUpdResp == null || jsonUpdResp.isBlank()) {
+								allOk = false;
+								resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
+										"message", "SP de actualización no retornó contenido"));
+								continue;
+							}
+
+							Map<String, Object> updMap = objectMapper.readValue(jsonUpdResp, new TypeReference<>() {
+							});
+							int code = HttpStatus.OK.value();
+							Object codeObj = updMap.getOrDefault("statusCode", updMap.get("code"));
+							if (codeObj != null) {
+								try {
+									code = Integer.parseInt(codeObj.toString());
+								} catch (Exception ignore) {
+								}
+							}
+							resultados.add(Map.of("index", i, "status", code, "body", updMap));
+							if (code < 200 || code >= 300)
+								allOk = false;
+
+						} else if (statusGet == 404) {
+							// ── NO EXISTE → INSERT ───────────────────────────────────
+							Map<String, Object> jsonIns = new HashMap<>();
+							jsonIns.put("idEmpresa", idEmpresa);
+							jsonIns.put("idTipoTarifa", idTipoTarifa);
+							jsonIns.put("usuarioCreacion", item.getOrDefault("usuarioCreacion", "system"));
+
+							if (idTipoUso != null) {
+								jsonIns.put("idTipoUso", idTipoUso);
+							}
+
+							Map<String, Object> conceptoIns = new HashMap<>();
+							conceptoIns.put("idTipoConcepto", idTipoConcepto);
+							if (concepto != null) {
+								if (concepto.containsKey("valor"))
+									conceptoIns.put("valor", concepto.get("valor"));
+								if (concepto.containsKey("valoresEstrato"))
+									conceptoIns.put("valoresEstrato", concepto.get("valoresEstrato"));
+								if (concepto.containsKey("indCalcularMc"))
+									conceptoIns.put("indCalcularMc", concepto.get("indCalcularMc"));
+							}
+							jsonIns.put("concepto", conceptoIns);
+
+							log.info("jsonIns que se envía al SP INSERT item[{}]: {}", i, jsonIns);
+
+							String jsonInsStr = objectMapper.writeValueAsString(jsonIns);
+
+							PGobject jsonbParamIns = new PGobject();
+							jsonbParamIns.setType("jsonb");
+							jsonbParamIns.setValue(jsonInsStr);
+
+							MapSqlParameterSource paramsIns = new MapSqlParameterSource().addValue("jsonData",
+									jsonbParamIns);
+							Map<String, Object> rowIns = namedParameterJdbcTemplate.queryForMap(SQL_INS, paramsIns);
+
+							Object roIns = rowIns.get("result");
+							String jsonInsResp;
+							if (roIns instanceof PGobject pg3 && "jsonb".equalsIgnoreCase(pg3.getType())) {
+								jsonInsResp = pg3.getValue();
+							} else if (roIns instanceof String s3) {
+								jsonInsResp = s3;
+							} else {
+								jsonInsResp = (roIns != null) ? String.valueOf(roIns) : null;
+							}
+
+							if (jsonInsResp == null || jsonInsResp.isBlank()) {
+								allOk = false;
+								resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
+										"message", "SP de creación no retornó contenido"));
+								continue;
+							}
+
+							Map<String, Object> insMap = objectMapper.readValue(jsonInsResp, new TypeReference<>() {
+							});
+							int code = HttpStatus.CREATED.value();
+							Object codeObj = insMap.getOrDefault("statusCode", insMap.get("code"));
+							if (codeObj != null) {
+								try {
+									code = Integer.parseInt(codeObj.toString());
+								} catch (Exception ignore) {
+								}
+							}
+							resultados.add(Map.of("index", i, "status", code, "body", insMap));
+							if (code < 200 || code >= 300)
+								allOk = false;
+
 						} else {
-							jsonInsResp = (roIns != null) ? String.valueOf(roIns) : null;
-						}
-
-						if (jsonInsResp == null || jsonInsResp.isBlank()) {
+							// ── ERROR DEL SP ─────────────────────────────────────────
+							String msg = String.valueOf(mapGet.getOrDefault("message", "Fallo consultando existencia"));
+							log.error("SP retornó error item[{}] statusCode={} message={} error={}", i, statusGet, msg,
+									mapGet.get("error"));
 							allOk = false;
-							resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(),
-									"message", "SP de creación no retornó contenido"));
-							continue;
+							resultados.add(Map.of("index", i, "status", statusGet, "message", msg, "detalle",
+									String.valueOf(mapGet.getOrDefault("error", "sin detalle"))));
 						}
 
-						Map<String, Object> insMap = objectMapper.readValue(jsonInsResp,
-								new TypeReference<Map<String, Object>>() {
-								});
-						int code = HttpStatus.CREATED.value();
-						Object codeObj = insMap.getOrDefault("statusCode", insMap.get("code"));
-						if (codeObj != null) {
-							try {
-								code = Integer.parseInt(codeObj.toString());
-							} catch (Exception ignore) {
-							}
-						}
-						resultados.add(Map.of("index", i, "status", code, "body", insMap));
-						if (code < 200 || code >= 300)
-							allOk = false;
-
-					} else {
-						String msg = String.valueOf(mapGet.getOrDefault("message", "Fallo consultando existencia"));
+					} catch (Exception ex) {
+						log.error("Error procesando item [{}]: {}", i, ex.getMessage(), ex);
 						allOk = false;
-						resultados.add(Map.of("index", i, "status", statusGet, "message", msg));
+						resultados.add(Map.of("index", i, "status", HttpStatus.INTERNAL_SERVER_ERROR.value(), "message",
+								ex.getMessage()));
 					}
-				}
+				} // fin for
 
 				HttpStatus http = allOk ? HttpStatus.OK : HttpStatus.MULTI_STATUS;
 				ResponseDTO dto = ResponseDTO.builder().success(allOk)
@@ -278,14 +314,16 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				return ResponseEntity.status(http).body(dto);
 			}
 
+			// ===== SINGLE =====
 			Map<String, Object> concepto = objectMapper.convertValue(payload.get(KEY_CONCEPTO), new TypeReference<>() {
 			});
 
 			Integer idEmpresa = (payload.get("idEmpresa") instanceof Number n1) ? n1.intValue() : null;
 			Integer idTipoTarifa = (payload.get("idTipoTarifa") instanceof Number n2) ? n2.intValue() : null;
-			Integer idTipoConcepto = (concepto != null && (concepto.get("idTipoConcepto") instanceof Number n3))
+			Integer idTipoConcepto = (concepto != null && concepto.get("idTipoConcepto") instanceof Number n3)
 					? n3.intValue()
 					: null;
+			Integer idTipoUso = (payload.get("idTipoUso") instanceof Number n4) ? n4.intValue() : null;
 
 			if (idEmpresa == null || idTipoTarifa == null || idTipoConcepto == null) {
 				ResponseDTO dto = ResponseDTO.builder().success(false)
@@ -295,11 +333,18 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			}
 
 			MapSqlParameterSource paramsGet = new MapSqlParameterSource().addValue("idEmpresa", idEmpresa)
-					.addValue("idTipoTarifa", idTipoTarifa).addValue("idTipoConcepto", idTipoConcepto);
+					.addValue("idTipoTarifa", idTipoTarifa).addValue("idTipoConcepto", idTipoConcepto)
+					.addValue("idTipoUso", idTipoUso);
+
 			Map<String, Object> rowGet = namedParameterJdbcTemplate.queryForMap(SQL_GET, paramsGet);
 
-			String jsonGet;
+			log.info("SQL_GET single raw result: {}", rowGet);
+
 			Object roGet = rowGet.get("result");
+
+			log.info("roGet single type={} value={}", roGet != null ? roGet.getClass().getName() : "null", roGet);
+
+			String jsonGet;
 			if (roGet instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
 				jsonGet = pg.getValue();
 			} else if (roGet instanceof String s) {
@@ -314,9 +359,11 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
 			}
 
-			Map<String, Object> mapGet = objectMapper.readValue(jsonGet,
-					new TypeReference<java.util.Map<String, Object>>() {
-					});
+			Map<String, Object> mapGet = objectMapper.readValue(jsonGet, new TypeReference<>() {
+			});
+
+			log.info("mapGet single: {}", mapGet);
+
 			int statusGet;
 			try {
 				statusGet = Integer.parseInt(String.valueOf(mapGet.getOrDefault("statusCode", 500)));
@@ -325,12 +372,12 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 			}
 
 			if (statusGet == 200) {
-				java.util.Map<String, Object> resp = objectMapper.convertValue(mapGet.get("response"),
-						new TypeReference<>() {
-						});
-				Integer idTarifaConcepto = (resp != null && (resp.get("idTarifaConcepto") instanceof Number n))
+				Map<String, Object> resp = objectMapper.convertValue(mapGet.get("response"), new TypeReference<>() {
+				});
+				Integer idTarifaConcepto = (resp != null && resp.get("idTarifaConcepto") instanceof Number n)
 						? n.intValue()
 						: null;
+
 				if (idTarifaConcepto == null) {
 					ResponseDTO dto = ResponseDTO.builder().success(false)
 							.message("Respuesta inválida del SP de consulta (faltó idTarifaConcepto)")
@@ -338,22 +385,36 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
 				}
 
-				Map<String, Object> jsonUpd = new java.util.HashMap<>();
+				Map<String, Object> jsonUpd = new HashMap<>();
 				jsonUpd.put("idTarifaConcepto", idTarifaConcepto);
+
+				if (idTipoUso != null) {
+					jsonUpd.put("idTipoUso", idTipoUso);
+				}
+
 				if (concepto != null) {
-					if (concepto.containsKey("valor"))
-						jsonUpd.put("valor", concepto.get("valor"));
-					if (concepto.containsKey("valoresEstrato"))
+					boolean tieneEstratos = concepto.containsKey("valoresEstrato")
+							&& concepto.get("valoresEstrato") != null;
+
+					if (tieneEstratos) {
 						jsonUpd.put("estratos", concepto.get("valoresEstrato"));
+						jsonUpd.put("valor", null);
+					} else if (concepto.containsKey("valor")) {
+						jsonUpd.put("valor", concepto.get("valor"));
+					}
+
 					if (concepto.containsKey("estratosEliminarIds"))
 						jsonUpd.put("estratosEliminarIds", concepto.get("estratosEliminarIds"));
 					if (concepto.containsKey("indCalcularMc"))
 						jsonUpd.put("indCalcularMc", concepto.get("indCalcularMc"));
 				}
+
 				if (payload.containsKey("activo"))
 					jsonUpd.put("activo", payload.get("activo"));
 				jsonUpd.put("usuarioModificacion",
 						payload.getOrDefault("usuarioModificacion", payload.getOrDefault("usuarioCreacion", "system")));
+
+				log.info("jsonUpd que se envía al SP UPDATE single: {}", jsonUpd);
 
 				String jsonUpdStr = objectMapper.writeValueAsString(jsonUpd);
 
@@ -364,8 +425,8 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				MapSqlParameterSource paramsUpd = new MapSqlParameterSource().addValue("jsonData", jsonbParamUpd);
 				Map<String, Object> rowUpd = namedParameterJdbcTemplate.queryForMap(SQL_UPD, paramsUpd);
 
-				String jsonUpdResp;
 				Object roUpd = rowUpd.get("result");
+				String jsonUpdResp;
 				if (roUpd instanceof PGobject pg2 && "jsonb".equalsIgnoreCase(pg2.getType())) {
 					jsonUpdResp = pg2.getValue();
 				} else if (roUpd instanceof String s2) {
@@ -381,9 +442,8 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
 				}
 
-				Map<String, Object> updMap = objectMapper.readValue(jsonUpdResp,
-						new TypeReference<Map<String, Object>>() {
-						});
+				Map<String, Object> updMap = objectMapper.readValue(jsonUpdResp, new TypeReference<>() {
+				});
 				int code = HttpStatus.OK.value();
 				Object codeObj = updMap.getOrDefault("statusCode", updMap.get("code"));
 				if (codeObj != null) {
@@ -407,19 +467,23 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				jsonIns.put("idTipoTarifa", idTipoTarifa);
 				jsonIns.put("usuarioCreacion", payload.getOrDefault("usuarioCreacion", "system"));
 
+				if (idTipoUso != null) {
+					jsonIns.put("idTipoUso", idTipoUso);
+				}
+
 				Map<String, Object> conceptoIns = new HashMap<>();
 				conceptoIns.put("idTipoConcepto", idTipoConcepto);
 				if (concepto != null) {
-					if (concepto.containsKey("valor")) {
+					if (concepto.containsKey("valor"))
 						conceptoIns.put("valor", concepto.get("valor"));
-					} else if (concepto.containsKey("valoresEstrato")) {
+					if (concepto.containsKey("valoresEstrato"))
 						conceptoIns.put("valoresEstrato", concepto.get("valoresEstrato"));
-					}
-					if (concepto.containsKey("indCalcularMc")) {
+					if (concepto.containsKey("indCalcularMc"))
 						conceptoIns.put("indCalcularMc", concepto.get("indCalcularMc"));
-					}
 				}
 				jsonIns.put("concepto", conceptoIns);
+
+				log.info("jsonIns que se envía al SP INSERT single: {}", jsonIns);
 
 				String jsonInsStr = objectMapper.writeValueAsString(jsonIns);
 
@@ -430,8 +494,8 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 				MapSqlParameterSource paramsIns = new MapSqlParameterSource().addValue("jsonData", jsonbParamIns);
 				Map<String, Object> rowIns = namedParameterJdbcTemplate.queryForMap(SQL_INS, paramsIns);
 
-				String jsonInsResp;
 				Object roIns = rowIns.get("result");
+				String jsonInsResp;
 				if (roIns instanceof PGobject pg3 && "jsonb".equalsIgnoreCase(pg3.getType())) {
 					jsonInsResp = pg3.getValue();
 				} else if (roIns instanceof String s3) {
@@ -447,9 +511,8 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 					return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(dto);
 				}
 
-				Map<String, Object> insMap = objectMapper.readValue(jsonInsResp,
-						new TypeReference<Map<String, Object>>() {
-						});
+				Map<String, Object> insMap = objectMapper.readValue(jsonInsResp, new TypeReference<>() {
+				});
 				int code = HttpStatus.CREATED.value();
 				Object codeObj = insMap.getOrDefault("statusCode", insMap.get("code"));
 				if (codeObj != null) {
@@ -469,7 +532,11 @@ public class TarifaConceptoServiceImpl implements ITarifaConceptoService {
 
 			} else {
 				String msg = String.valueOf(mapGet.getOrDefault("message", "Fallo consultando existencia"));
-				ResponseDTO dto = ResponseDTO.builder().success(false).message(msg).code(statusGet).build();
+				log.error("SP retornó error single statusCode={} message={} error={}", statusGet, msg,
+						mapGet.get("error"));
+				ResponseDTO dto = ResponseDTO.builder().success(false).message(msg).code(statusGet)
+						.response(Map.of("detalle", String.valueOf(mapGet.getOrDefault("error", "sin detalle"))))
+						.build();
 				return ResponseEntity.status(statusGet).body(dto);
 			}
 
