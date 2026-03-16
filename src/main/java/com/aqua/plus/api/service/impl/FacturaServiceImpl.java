@@ -318,7 +318,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
 			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre,
-			String corregimientoNombre,Integer nuid, Pageable pageable) {
+			String corregimientoNombre, Integer nuid, Pageable pageable) {
 
 		log.info(
 				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}, corregimiento={},nuid={}",
@@ -700,144 +700,167 @@ public class FacturaServiceImpl implements IFacturaService {
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura, Integer idEmpresa) {
 
-		if (idFactura == null || idFactura <= 0) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("El id de la factura es obligatorio.");
-			dto.setCode(400);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
-		}
+	    if (idFactura == null || idFactura <= 0) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("El id de la factura es obligatorio.");
+	        dto.setCode(400);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+	    }
 
-		if (idEmpresa == null) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("El id de la empresa es obligatorio.");
-			dto.setCode(400);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
-		}
+	    if (idEmpresa == null) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("El id de la empresa es obligatorio.");
+	        dto.setCode(400);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.BAD_REQUEST);
+	    }
 
-		EmpresaEntity empresa = empresaRepository.findById(idEmpresa).orElse(null);
+	    EmpresaEntity empresa = empresaRepository.findById(idEmpresa).orElse(null);
 
-		if (empresa == null) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("La empresa no existe.");
-			dto.setCode(404);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
-		}
+	    if (empresa == null) {
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("La empresa no existe.");
+	        dto.setCode(404);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+	    }
 
-		Boolean facAutomatica = empresa.getFacAutomatica();
+	    Boolean facAutomatica = empresa.getFacAutomatica();
 
-		String sql;
+	    log.info("obtenerFacturaDetalle idFactura={} idEmpresa={} facAutomatica={}",
+	            idFactura, idEmpresa, facAutomatica);
 
-		if (Boolean.TRUE.equals(facAutomatica)) {
-			sql = "SELECT public.obtener_factura_detalle_sin_lectura(:id) AS result";
-		} else {
-			sql = "SELECT public.obtener_factura_detalle(:id) AS result";
-		}
+	    final String functionName = Boolean.TRUE.equals(facAutomatica)
+	            ? "public.obtener_factura_detalle_sin_lectura"
+	            : "public.obtener_factura_detalle";
 
-		MapSqlParameterSource params = new MapSqlParameterSource("id", idFactura);
+	    log.info("Función a ejecutar: {}", functionName);
 
-		try {
-			String json = namedParameterJdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> {
-				Object obj = rs.getObject("result");
-				if (obj instanceof PGobject pg && "jsonb".equalsIgnoreCase(pg.getType())) {
-					return pg.getValue();
-				}
-				return (obj != null) ? obj.toString() : null;
-			});
+	    try {
+	        String json;
+	        try (java.sql.Connection con = namedParameterJdbcTemplate
+	                .getJdbcTemplate().getDataSource().getConnection();
+	             java.sql.PreparedStatement ps = con.prepareStatement(
+	                     "SELECT " + functionName + "(?)")) {
 
-			if (json == null) {
-				ResponseDTO dto = new ResponseDTO();
-				dto.setSuccess(false);
-				dto.setMessage("Respuesta vacía del SP.");
-				dto.setCode(500);
-				dto.setResponse(null);
-				return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-			}
+	            ps.setInt(1, idFactura);
 
-			var root = objectMapper.readTree(json);
-			if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	            try (java.sql.ResultSet rs = ps.executeQuery()) {
+	                if (rs.next()) {
+	                    Object result = rs.getObject(1);
+	                    if (result instanceof PGobject pg
+	                            && "jsonb".equalsIgnoreCase(pg.getType())) {
+	                        json = pg.getValue();
+	                    } else {
+	                        json = result != null ? result.toString() : null;
+	                    }
+	                } else {
+	                    json = null;
+	                }
+	            }
+	        } catch (java.sql.SQLException ex) {
+	            log.error("SQLException ejecutando {}: SQLState={} message={}",
+	                    functionName, ex.getSQLState(), ex.getMessage(), ex);
+	            throw new RuntimeException("Error ejecutando SP: " + ex.getMessage(), ex);
+	        }
 
-			var responseObj = asObject(rootObj.path("response"));
-			if (responseObj == null) {
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	        log.info("JSON recibido del SP (primeros 300 chars): {}",
+	                json != null && json.length() > 300 ? json.substring(0, 300) : json);
 
-			com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
-			com.fasterxml.jackson.databind.node.ObjectNode empresaObj = null;
-			String empresaPathUsed = null;
+	        if (json == null) {
+	            ResponseDTO dto = new ResponseDTO();
+	            dto.setSuccess(false);
+	            dto.setMessage("Respuesta vacía del SP.");
+	            dto.setCode(500);
+	            dto.setResponse(null);
+	            return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+	        }
 
-			var dataObj = asObject(responseObj.path("data"));
-			if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
-				empresaObj = asObject(dataObj.get("empresa"));
-				parentOfEmpresa = dataObj;
-				empresaPathUsed = "response.data.empresa";
-			}
+	        var root = objectMapper.readTree(json);
+	        if (!(root instanceof com.fasterxml.jackson.databind.node.ObjectNode rootObj)) {
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
 
-			if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
-				empresaObj = asObject(responseObj.get("empresa"));
-				parentOfEmpresa = responseObj;
-				empresaPathUsed = "response.empresa";
-			}
+	        var responseObj = asObject(rootObj.path("response"));
+	        if (responseObj == null) {
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
 
-			if (empresaObj == null || parentOfEmpresa == null) {
-				log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+	        com.fasterxml.jackson.databind.node.ObjectNode parentOfEmpresa = null;
+	        com.fasterxml.jackson.databind.node.ObjectNode empresaObj      = null;
+	        String empresaPathUsed = null;
 
-				ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
-				return new ResponseEntity<>(dto, httpStatusFromCode(dto));
-			}
+	        var dataObj = asObject(responseObj.path("data"));
+	        if (dataObj != null && dataObj.has("empresa") && dataObj.get("empresa").isObject()) {
+	            empresaObj      = asObject(dataObj.get("empresa"));
+	            parentOfEmpresa = dataObj;
+	            empresaPathUsed = "response.data.empresa";
+	        }
 
-			Integer empresaId = parseIntSafe(empresaObj.get("id"));
-			log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
+	        if (empresaObj == null && responseObj.has("empresa") && responseObj.get("empresa").isObject()) {
+	            empresaObj      = asObject(responseObj.get("empresa"));
+	            parentOfEmpresa = responseObj;
+	            empresaPathUsed = "response.empresa";
+	        }
 
-			try {
-				var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
-				empresaObj.set("puntosPago", puntosPagoArr);
-				log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
-			} catch (Exception ex) {
-				log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
-				empresaObj.set("puntosPago", objectMapper.createArrayNode());
-			}
+	        if (empresaObj == null || parentOfEmpresa == null) {
+	            log.warn("No se encontró nodo 'empresa' ni en response.data.empresa ni en response.empresa");
+	            ResponseDTO dto = objectMapper.readValue(json, ResponseDTO.class);
+	            return new ResponseEntity<>(dto, httpStatusFromCode(dto));
+	        }
 
-			try {
-				var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
-				empresaObj.set("codigoQr", codigoQrObj);
-				log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
-						codigoQrObj.hasNonNull("imagen"));
-			} catch (Exception ex) {
-				log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
-				empresaObj.set("codigoQr", objectMapper.createObjectNode());
-			}
+	        Integer empresaId = parseIntSafe(empresaObj.get("id"));
+	        log.info("Ruta empresa detectada: {} | empresaId={}", empresaPathUsed, empresaId);
 
-			parentOfEmpresa.set("empresa", empresaObj);
+	        try {
+	            var puntosPagoArr = buildDocsArrayNombreImagen(empresaId, Constantes.TYPE_PUNTO_PAGO);
+	            empresaObj.set("puntosPago", puntosPagoArr);
+	            log.info("puntosPago inyectado (empresaId={} count={})", empresaId, puntosPagoArr.size());
+	        } catch (Exception ex) {
+	            log.warn("Fallo al inyectar puntosPago (empresaId={}): {}", empresaId, ex.getMessage());
+	            empresaObj.set("puntosPago", objectMapper.createArrayNode());
+	        }
 
-			ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
-			return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
+	        try {
+	            var codigoQrObj = buildCodigoQrNombreImagen(empresaId);
+	            empresaObj.set("codigoQr", codigoQrObj);
+	            log.info("codigoQr inyectado (empresaId={} tieneImagen?={})", empresaId,
+	                    codigoQrObj.hasNonNull("imagen"));
+	        } catch (Exception ex) {
+	            log.warn("Fallo al inyectar codigoQr (empresaId={}): {}", empresaId, ex.getMessage());
+	            empresaObj.set("codigoQr", objectMapper.createObjectNode());
+	        }
 
-		} catch (EmptyResultDataAccessException e) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("No existe una factura con ese id.");
-			dto.setCode(404);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+	        parentOfEmpresa.set("empresa", empresaObj);
 
-		} catch (Exception e) {
-			ResponseDTO dto = new ResponseDTO();
-			dto.setSuccess(false);
-			dto.setMessage("Error inesperado: " + e.getMessage());
-			dto.setCode(500);
-			dto.setResponse(null);
-			return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
-		}
+	        ResponseDTO enriched = objectMapper.treeToValue(rootObj, ResponseDTO.class);
+	        return new ResponseEntity<>(enriched, httpStatusFromCode(enriched));
+
+	    } catch (EmptyResultDataAccessException e) {
+	        log.warn("EmptyResultDataAccessException para idFactura={}", idFactura);
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("No existe una factura con ese id.");
+	        dto.setCode(404);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.NOT_FOUND);
+
+	    } catch (Exception e) {
+	        log.error("Error en obtenerFacturaDetalle idFactura={} idEmpresa={}: {}",
+	                idFactura, idEmpresa, e.getMessage(), e);
+	        ResponseDTO dto = new ResponseDTO();
+	        dto.setSuccess(false);
+	        dto.setMessage("Error inesperado: " + e.getMessage());
+	        dto.setCode(500);
+	        dto.setResponse(null);
+	        return new ResponseEntity<>(dto, HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 	}
 
 	/*
