@@ -8,7 +8,6 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -202,88 +201,130 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findConsolidadoByEmpresaClienteContadorId(Integer eccId) {
-		log.info("Listar deudas CONSOLIDADAS por tipoDeuda para eccId: {}", eccId);
+	    log.info("Listar deudas CONSOLIDADAS por tipoDeuda para eccId: {}", eccId);
 
-		try {
-			if (eccId == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
-			}
+	    try {
+	        if (eccId == null) {
+	            return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+	                    .message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
+	        }
 
-			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+	        List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
 
-			if (deudas == null || deudas.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron deudas activas para el ECC con id " + eccId)
-								.code(HttpStatus.NOT_FOUND.value()).build());
-			}
+	        if (deudas == null || deudas.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                    .body(ResponseDTO.builder().success(false)
+	                            .message("No se encontraron deudas activas para el ECC con id " + eccId)
+	                            .code(HttpStatus.NOT_FOUND.value()).build());
+	        }
 
-			Map<TipoDeudaEntity, List<DeudaClienteEntity>> agrupadoPorTipo = deudas.stream()
-					.filter(d -> d.getTipoDeuda() != null)
-					.collect(Collectors.groupingBy(DeudaClienteEntity::getTipoDeuda));
+	        List<Integer> deudaIds = deudas.stream()
+	                .map(DeudaClienteEntity::getId)
+	                .collect(Collectors.toList());
 
-			var items = new ArrayList<Map<String, Object>>(agrupadoPorTipo.size());
+	        Map<Integer, Double> abonosPorDeuda = abonoRepository
+	                .findAllActiveByDeudaIds(deudaIds)
+	                .stream()
+	                .collect(Collectors.groupingBy(
+	                        a -> a.getDeudaCliente().getId(),
+	                        Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())
+	                ));
 
-			for (Map.Entry<TipoDeudaEntity, List<DeudaClienteEntity>> entry : agrupadoPorTipo.entrySet()) {
-				TipoDeudaEntity tipo = entry.getKey();
-				List<DeudaClienteEntity> lista = entry.getValue();
+	        List<DeudaClienteEntity> deudasConSaldo = deudas.stream()
+	                .filter(d -> {
+	                    double valorDeuda   = d.getValor() == null ? 0.0 : d.getValor();
+	                    double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+	                    return (valorDeuda - totalAbonado) > 0;
+	                })
+	                .collect(Collectors.toList());
 
-				BigDecimal totalSaldo = lista.stream()
-						.map(d -> d.getValor() == null ? BigDecimal.ZERO : BigDecimal.valueOf(d.getValor()))
-						.reduce(BigDecimal.ZERO, BigDecimal::add);
+	        if (deudasConSaldo.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                    .body(ResponseDTO.builder().success(false)
+	                            .message("No se encontraron deudas pendientes para el ECC con id " + eccId)
+	                            .code(HttpStatus.NOT_FOUND.value()).build());
+	        }
 
-				int cuotasPendientes = lista.stream().map(DeudaClienteEntity::getPlazoPago).filter(Objects::nonNull)
-						.filter(m -> m > 0).mapToInt(Integer::intValue).sum();
+	        Map<TipoDeudaEntity, List<DeudaClienteEntity>> agrupadoPorTipo = deudasConSaldo.stream()
+	                .filter(d -> d.getTipoDeuda() != null)
+	                .collect(Collectors.groupingBy(DeudaClienteEntity::getTipoDeuda));
 
-				int numeroCuotas = cuotasPendientes;
+	        var items = new ArrayList<Map<String, Object>>(agrupadoPorTipo.size());
 
-				BigDecimal valorCuota = BigDecimal.ZERO;
-				if (numeroCuotas > 0) {
-					valorCuota = totalSaldo.divide(BigDecimal.valueOf(numeroCuotas), 2, RoundingMode.HALF_UP);
-				}
+	        for (Map.Entry<TipoDeudaEntity, List<DeudaClienteEntity>> entry : agrupadoPorTipo.entrySet()) {
+	            TipoDeudaEntity tipo  = entry.getKey();
+	            List<DeudaClienteEntity> lista = entry.getValue();
 
-				BigDecimal abonosRealizados = BigDecimal.ZERO;
-				int cuotasCanceladas = 0;
+	            BigDecimal totalSaldo = lista.stream()
+	                    .map(d -> {
+	                        double valorDeuda   = d.getValor() == null ? 0.0 : d.getValor();
+	                        double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+	                        return BigDecimal.valueOf(Math.max(valorDeuda - totalAbonado, 0));
+	                    })
+	                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+	        
+	            BigDecimal totalOriginal = lista.stream()
+	                    .map(d -> BigDecimal.valueOf(d.getValor() == null ? 0.0 : d.getValor()))
+	                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-				Map<String, Object> row = new LinkedHashMap<>();
+	            BigDecimal abonosRealizados = lista.stream()
+	                    .map(d -> BigDecimal.valueOf(abonosPorDeuda.getOrDefault(d.getId(), 0.0)))
+	                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-				row.put("idTipoDeuda", tipo.getId());
-				row.put("nombreTipoDeuda", tipo.getNombre());
-				row.put("codigoTipoDeuda", tipo.getCodigo());
+	            int numeroCuotas = lista.stream()
+	                    .mapToInt(d -> d.getPlazoPago() == null ? 1 : d.getPlazoPago())
+	                    .sum();
 
-				row.put("numeroCuotas", numeroCuotas);
-				row.put("valorCuota", valorCuota.doubleValue());
-				row.put("abonosRealizados", abonosRealizados.doubleValue());
-				row.put("cuotasCanceladas", cuotasCanceladas);
-				row.put("cuotasPendientes", cuotasPendientes);
-				row.put("nuevoSaldo", totalSaldo.doubleValue());
+	            int cuotasPendientes = lista.stream()
+	                    .filter(d -> {
+	                        double valorDeuda   = d.getValor() == null ? 0.0 : d.getValor();
+	                        double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+	                        return (valorDeuda - totalAbonado) > 0;
+	                    })
+	                    .mapToInt(d -> d.getPlazoPago() == null ? 1 : d.getPlazoPago())
+	                    .sum();
 
-				items.add(row);
-			}
+	            int cuotasCanceladas = numeroCuotas - cuotasPendientes;
 
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
+	            BigDecimal valorCuota = numeroCuotas > 0
+	                    ? totalOriginal.divide(BigDecimal.valueOf(numeroCuotas), 2, RoundingMode.HALF_UP)
+	                    : BigDecimal.ZERO;
 
-		} catch (Exception ex) {
-			log.error("Error al listar deudas consolidadas por eccId: {}", eccId, ex);
+	            Map<String, Object> row = new LinkedHashMap<>();
+	            row.put("idTipoDeuda",      tipo.getId());
+	            row.put("nombreTipoDeuda",  tipo.getNombre());
+	            row.put("codigoTipoDeuda",  tipo.getCodigo());
+	            row.put("numeroCuotas",     numeroCuotas);
+	            row.put("valorCuota",       valorCuota.doubleValue());
+	            row.put("abonosRealizados", abonosRealizados.doubleValue());
+	            row.put("cuotasCanceladas", cuotasCanceladas);
+	            row.put("cuotasPendientes", cuotasPendientes);
+	            row.put("nuevoSaldo",       totalSaldo.doubleValue());
 
-			Throwable root = ex;
-			while (root.getCause() != null && root.getCause() != root) {
-				root = root.getCause();
-			}
+	            items.add(row);
+	        }
 
-			Map<String, Object> errorInfo = new LinkedHashMap<>();
-			errorInfo.put("exception", ex.getClass().getName());
-			errorInfo.put("message", ex.getMessage());
-			errorInfo.put("rootCause", root.getMessage());
+	        return ResponseEntity.ok(ResponseDTO.builder().success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value())
+	                .totalCount((long) items.size())
+	                .response(items).build());
 
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false)
-							.message("Error al consultar deudas consolidadas: "
-									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
-		}
+	    } catch (Exception ex) {
+	        log.error("Error al listar deudas consolidadas por eccId: {}", eccId, ex);
+	        Throwable root = ex;
+	        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+	        Map<String, Object> errorInfo = new LinkedHashMap<>();
+	        errorInfo.put("exception", ex.getClass().getName());
+	        errorInfo.put("message",   ex.getMessage());
+	        errorInfo.put("rootCause", root.getMessage());
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(ResponseDTO.builder().success(false)
+	                        .message("Error al consultar deudas consolidadas: "
+	                                + (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+	                        .response(errorInfo).build());
+	    }
 	}
 
 	@Override
