@@ -305,7 +305,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 
 	private CorreoGeneralDTO getCorreoPersona(final RequestFacturaDto request) {
 		return correoGeneralMapper
-				.entityToDto(this.correoGeneralRepository.findByPersonaIdAndActivoTrue(request.getIdCliente())
+				.entityToDto(this.correoGeneralRepository.findByPersonaIdAndEmpresa_IdAndActivoTrue(request.getIdCliente(), request.getIdEmpresa())
 						.orElseThrow(() -> new ProcessGenericException(Constantes.EMAIL_NOT_FOUND)));
 	}
 
