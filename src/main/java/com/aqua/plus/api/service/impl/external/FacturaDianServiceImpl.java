@@ -216,7 +216,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 	@Transactional
 	public Long actualizarResolucion(final RequestFacturaDto request, final ResolutionDto resolucion) {
 		log.info("Inicio metodo actualizarResolucion:{} ", request.getIdEmpresa());
-		ResolutionEntity entityResolucion = obtenerConBloqueo(resolucion.getId());
+		ResolutionEntity entityResolucion =this.resolutionRepository.findByIdForUpdate(resolucion.getId());
 
 		if (entityResolucion.getNumeroActual() >= entityResolucion.getNumeroMaximo()) {
 			throw new ProcessGenericException(Constantes.RANGE_DIAN_EXHAUSTED);
