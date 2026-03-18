@@ -8,6 +8,7 @@ import com.aqua.plus.commons.dtos.InvoiceDto;
 import com.aqua.plus.commons.dtos.TarifaConceptoDianDto;
 import com.aqua.plus.commons.maps.InvoiceMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FacturaDianHelper {
 
     @Value("${app.jobs.facturas.electronica.limite}")
@@ -40,6 +42,9 @@ public class FacturaDianHelper {
 
     @Value("${dian.formas-pago.credito}")
     private String formaCredito;
+
+    @Value("${dian.formas-pago.contado}")
+    private String formaContado;
 
     @Value("${dian.estados.er-reintento}")
     private String estadoReintento;
@@ -71,7 +76,7 @@ public class FacturaDianHelper {
         try {
             List<TarifaConceptoDianDto> tarifas = mapearConceptos( factura);
             if (Objects.nonNull(tarifas) && !tarifas.isEmpty()) {
-                ResponseEntity<ResponseDTO> response = dianService.crearFacturaElectronica(FacturaDianMapper.INSTANCE.mapFactura(factura, obtenerProducto(), obtenerProductoUnidad(), iva, formaCredito, usuario, tarifas));
+                ResponseEntity<ResponseDTO> response = dianService.crearFacturaElectronica(FacturaDianMapper.INSTANCE.mapFactura(factura, obtenerProducto(), obtenerProductoUnidad(), iva, formaCredito, formaContado, usuario, tarifas));
                 if (!response.getStatusCode().equals(HttpStatus.OK) && !response.getStatusCode().equals(HttpStatus.CREATED)) {
                     this.facturaTxService.actualizarEstadoFinal(factura.getId(), this.estadoReintento);
                 }
@@ -81,7 +86,7 @@ public class FacturaDianHelper {
 
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error: {} " ,e.getLocalizedMessage());
             this.facturaTxService.actualizarEstadoFinal(factura.getId(), this.estadoReintento);
         }
     }
