@@ -70,6 +70,7 @@ public class FacturaDianHelper {
         boolean tomado = facturaTxService.marcarEnProceso(factura.getId());
 
         if (!tomado) {
+            log.warn("YA FUE TOMADA POR OTRO PROCESO:{} " , factura.getId());
             return; // alguien más lo tomó
         }
 
