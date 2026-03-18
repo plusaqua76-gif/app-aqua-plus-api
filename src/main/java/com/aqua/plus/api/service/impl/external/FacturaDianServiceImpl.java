@@ -96,7 +96,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> crearFacturaElectronica(final RequestFacturaDto request) {
-		log.info("Inicio metodo crearFacturaElectronica: {},{},{} ", request.getIdCliente(), request.getIdEmpresa(),
+		log.warn("Inicio metodo crearFacturaElectronica: {},{},{} ", request.getIdCliente(), request.getIdEmpresa(),
 				request.getProductos().size());
 		ResponseEntity<ResponseInvoiceDto> response = null;
 		ResolutionDto resolucion = null;
@@ -215,7 +215,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 
 	@Transactional
 	public Long actualizarResolucion(final RequestFacturaDto request, final ResolutionDto resolucion) {
-		log.info("Inicio metodo actualizarResolucion:{} ", request.getIdEmpresa());
+		log.warn("Inicio metodo actualizarResolucion:{} ", request.getIdEmpresa());
 		ResolutionEntity entityResolucion =this.resolutionRepository.findByIdForUpdate(resolucion.getId());
 
 		if (entityResolucion.getNumeroActual() >= entityResolucion.getNumeroMaximo()) {
@@ -225,7 +225,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 		Long siguiente = entityResolucion.getNumeroActual() + 1;
 		entityResolucion.setNumeroActual(siguiente);
 		resolutionRepository.save(entityResolucion);
-		log.info("Fin metodo actualizarResolucion:{},{} ", request.getIdEmpresa(), siguiente);
+		log.warn("Fin metodo actualizarResolucion:{},{} ", request.getIdEmpresa(), siguiente);
 
 		return siguiente;
 	}
@@ -312,7 +312,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 	public static void print(String nombre, Object objeto) {
 		ObjectMapper mapper = new ObjectMapper();
 		try {
-			log.info(nombre, mapper.writeValueAsString(objeto));
+			log.warn(nombre, mapper.writeValueAsString(objeto));
 		} catch (JsonProcessingException e) {
 			log.error(e.getLocalizedMessage());
 		}
