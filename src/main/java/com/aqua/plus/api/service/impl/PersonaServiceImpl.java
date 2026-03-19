@@ -3,6 +3,8 @@ package com.aqua.plus.api.service.impl;
 import java.util.Date;
 import java.util.Optional;
 
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -260,4 +262,10 @@ public class PersonaServiceImpl implements IPersonaService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
 		}
 	}
+
+    @Transactional(readOnly = true)
+    public PersonaDTO getCliente(final RequestFacturaDto request) {
+        return personaMapper.entityToDto(this.personaRepository.findById(request.getIdCliente())
+                .orElseThrow(() -> new ProcessGenericException(Constantes.CLIENT_NOT_FOUND)));
+    }
 }

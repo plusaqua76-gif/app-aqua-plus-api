@@ -1,5 +1,6 @@
 package com.aqua.plus.api.controller;
 
+import com.aqua.plus.api.service.impl.external.ResolucionDianServiceImpl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 public class EmpresaDianController {
 	
     private final IEmpresaDianService empresaDianService;
+	private final ResolucionDianServiceImpl resolucionDianServiceImpl;
 	
 	@Operation(summary = "Buscar la empresa por id generado en dar alta empresa")
 	@ApiResponses(value = {
@@ -60,7 +62,7 @@ public class EmpresaDianController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping("/resolucion/{id}")
 	public ResponseEntity<ResponseDTO> consultarResolucionPorId(@PathVariable(name = "id") Integer id) {
-		return this.empresaDianService.consultarResolucionPorId(id);
+		return this.resolucionDianServiceImpl.consultarResolucionPorId(id);
 	}
 	
 	@Operation(summary = "Servicio encargado de dar alta la empresa")
@@ -96,6 +98,6 @@ public class EmpresaDianController {
 	})
     @PostMapping("/resolucion")
     public ResponseEntity<ResponseDTO> guardarResolution(@RequestBody ResolutionDto resolucion) {
-        return empresaDianService.guardarResolution(resolucion);
+        return resolucionDianServiceImpl.guardarResolution(resolucion);
     }
 }

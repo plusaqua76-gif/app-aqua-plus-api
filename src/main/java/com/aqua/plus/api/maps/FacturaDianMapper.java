@@ -68,6 +68,7 @@ public interface FacturaDianMapper {
 	@Mapping(target = "identificationNumber", source = "numeroCedula")
 	@Mapping(target = "email", source = "correo")
 	@Mapping(target = "regimeCode", source = "codigosResidenciaFiscal")
+	@Mapping(target = "dv", source = "digitoVerificacion")
 	Customer clienteDtoToCustomerDian(PersonaDTO persona);
 
 	@Named("getTypeOrganization")

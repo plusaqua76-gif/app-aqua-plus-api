@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -554,6 +556,12 @@ public class EmpresaServiceImpl implements IEmpresaService {
 							.message("Error inesperado al consultar la empresa por usuario.")
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
 		}
+	}
+
+	@Transactional(readOnly = true)
+	public EmpresaDTO getEmpresa(final RequestFacturaDto request) {
+		return EmpresaMapper.INSTANCE.entityToDto(this.empresaRepository.findById(request.getIdEmpresa())
+				.orElseThrow(() -> new ProcessGenericException(Constantes.EMP_NOT_FOUND)));
 	}
 
 }

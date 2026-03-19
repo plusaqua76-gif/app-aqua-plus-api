@@ -97,21 +97,4 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 		}
 		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.ER_CONSUME_SERVICE_DIAN.concat(endPointEmpresa).concat("/").concat(id)).build(), HttpStatus.CONFLICT);
 	}
-
-	@Override
-	@Transactional
-	public ResponseEntity<ResponseDTO> guardarResolution(ResolutionDto resolution) {
-		log.info("Inicio metodo guardarResolution: {} " , resolution);
-		this.resolutionRepository.save(ResolucionMapper.INSTANCE.dtoToEntity(resolution));
-		log.info("Fin metodo guardarResolution: {} " , resolution);
-		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).build(), HttpStatus.CREATED);
-	}
-
-	@Override
-	public ResponseEntity<ResponseDTO> consultarResolucionPorId(Integer id) {
-		log.info("Inicio metodo consultarResolucionPorId: {} " , id);
-		ResolutionEntity entity = resolutionRepository.findByEmpresaId(id).orElseThrow(() -> new ProcessGenericException(Constantes.RESOLUTION_NOT_FOUND));
-		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.OK.value()).message(HttpStatus.OK.name()).response(ResolucionMapper.INSTANCE.entityToDto(entity)).build(), HttpStatus.CREATED);
-	}
-
 }

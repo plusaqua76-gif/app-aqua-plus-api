@@ -67,7 +67,7 @@ app:
         scheduled: 60000
       masiva:
        automatica:
-         scheduled: 120000
+         scheduled: 0 0 0 * * ?
 rest-template:
   connect: 5
   read: 60

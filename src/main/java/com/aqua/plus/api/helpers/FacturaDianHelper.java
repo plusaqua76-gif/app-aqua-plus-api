@@ -4,8 +4,7 @@ import java.util.*;
 
 import com.aqua.plus.api.service.impl.FacturaServiceImpl;
 import com.aqua.plus.api.tx.FacturaTxComponent;
-import com.aqua.plus.commons.dtos.InvoiceDto;
-import com.aqua.plus.commons.dtos.TarifaConceptoDianDto;
+import com.aqua.plus.commons.dtos.*;
 import com.aqua.plus.commons.maps.InvoiceMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import com.aqua.plus.api.maps.FacturaDianMapper;
 import com.aqua.plus.api.service.impl.external.FacturaDianServiceImpl;
-import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.InvoiceEntity;
 import com.aqua.plus.commons.entities.ProductEntity;
 import com.aqua.plus.commons.repositories.InvoiceRepository;
