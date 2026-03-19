@@ -50,24 +50,24 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	
 	@Override
 	public ResponseEntity<ResponseDTO> darAltaEmpresa(CompanyDto request) {
-		log.info("Inicio metodo darAltaEmpresa: {} " , request.getIdentification());
+		log.warn("Inicio metodo darAltaEmpresa: {} " , request.getIdentification());
         HttpEntity<CompanyDto> entity = new HttpEntity<>(request,utilsRestemplate.getHeader());
-        FacturaDianServiceImpl.print("##########REQUEST########## ", entity);
+        FacturaDianServiceImpl.print("##########REQUEST########## :{}", entity);
 		ResponseEntity<ResponseEmpresaAltaDto> response = this.restTemplateConfig.restTemplate().exchange(
 		        this.url.concat(this.endPointEmpresa),
 		        HttpMethod.POST,
 		        entity,
 		        ResponseEmpresaAltaDto.class
 		);
-	    FacturaDianServiceImpl.print("##########response########## ", response);
-		log.info("Fin metodo darAltaEmpresa:{} " , response.getStatusCode());
+	    FacturaDianServiceImpl.print("##########response########## :{}", response);
+		log.warn("Fin metodo darAltaEmpresa:{},{} " , response.getStatusCode(), request.getIdentification());
 		if(response.getStatusCode().equals(HttpStatus.CREATED)) {
 			actualizarEmpresa(request, response.getBody());
 			return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CREATED.value()).message(HttpStatus.CREATED.name()).response(response.getBody()).build(), HttpStatus.CREATED);
 		}else {
 			log.error("Reponse darAltaEmpresa: {} ", response);
 		}
-		return new ResponseEntity<ResponseDTO>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.ER_CONSUME_SERVICE_DIAN.concat(this.endPointEmpresa)).build(), HttpStatus.CONFLICT);
+		return new ResponseEntity<>(ResponseDTO.builder().code(HttpStatus.CONFLICT.value()).message(Constantes.ER_CONSUME_SERVICE_DIAN.concat(this.endPointEmpresa)).build(), HttpStatus.CONFLICT);
 	}
 
 	@Transactional

@@ -88,10 +88,10 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 			rq = FacturaDianMapper.INSTANCE.mapDataFacturaEletronica(resolucion, empresa, persona, request,
 					this.correoGeneralService.getCorreoPersona(request), numeroFactura, this.parametrosEmpresaService.obtenerMesesPeriodo(request.getIdEmpresa()));
 			HttpEntity<RequestInvoiceDto> entity = new HttpEntity<>(rq, utilsRestemplate.getHeader());
-			print("#############REQUEST ################3: {} ", entity.getBody());
+			print("#############REQUEST ################: {} ", entity.getBody());
 			response = this.restTemplateConfig.restTemplate().exchange(this.url.concat(this.endPointFactura),
 					HttpMethod.POST, entity, ResponseInvoiceDto.class);
-			print("################RESPONSE ############## ", response.getBody());
+			print("################RESPONSE ############## :{} ", response.getBody());
 			log.info("Fin metodo crearFacturaElectronica:{} ", response.getStatusCode());
 			String descripcion = obtenerDescripcion(response.getBody());
 			this.facturaDianFacade.guardarFactura(request, persona, empresa, numeroFactura, descripcion, response.getBody(), rq);
