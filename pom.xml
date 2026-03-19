@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>com.aqua.plus.commons</groupId>
 			<artifactId>aqua-plus-commons</artifactId>
-			<version>0.0.6</version>
+			<version>0.0.8</version>
 		</dependency>
 
 		<dependency>
@@ -101,7 +101,6 @@
 			<artifactId>shedlock-provider-jdbc-template</artifactId>
 			<version>7.5.0</version>
 		</dependency>
-
 
 	</dependencies>
 

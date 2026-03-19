@@ -1,5 +1,6 @@
 package com.aqua.plus.api.controller;
 
+import com.aqua.plus.api.service.impl.external.facade.FacturaDianFacade;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -36,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class FacturaDianController {
 	
 	private final FacturaDianServiceImpl facturaDianService;
+	private final FacturaDianFacade facturaDianFacade;
 	
 	@Operation(summary = "Servicio encargado de crear el set prueba")
 	@ApiResponses(value = {
@@ -81,7 +83,7 @@ public class FacturaDianController {
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/factura/{id}")
 	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(@PathVariable("id") Integer idEmpresa,Pageable pageable) {
-		return this.facturaDianService.consultarFacturasPorEmpresa(idEmpresa, pageable);
+		return this.facturaDianFacade.consultarFacturasPorEmpresa(idEmpresa, pageable);
 	}
 	
 	@Operation(summary = "Buscar documento por id empresa de la dian")
@@ -110,7 +112,7 @@ public class FacturaDianController {
 	})
     @PutMapping("/factura/{id}")
     public ResponseEntity<ResponseDTO> actualizarEstadoFactura(@PathVariable("id") Long id,@RequestParam String estadoActual,@RequestParam String nuevoEstado,@RequestParam String usuario) {
-        return facturaDianService.actualizarEstadoFactura(id, estadoActual, nuevoEstado,usuario);
+        return facturaDianFacade.actualizarEstadoFactura(id, estadoActual, nuevoEstado,usuario);
     }
 	
 	@Operation(summary = "Crear nota electronica dian")
@@ -139,7 +141,7 @@ public class FacturaDianController {
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/data/{id}")
 	public ResponseEntity<ResponseDTO> consultarDataEnviaDian(@PathVariable("id") Integer id) {
-		return this.facturaDianService.consultarDataEnviaDian(id);
+		return this.facturaDianFacade.consultarDataEnviaDian(id);
 	}
 	
 }

@@ -2,6 +2,7 @@ package com.aqua.plus.api.maps;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -67,6 +68,7 @@ public interface FacturaDianMapper {
 	@Mapping(target = "identificationNumber", source = "numeroCedula")
 	@Mapping(target = "email", source = "correo")
 	@Mapping(target = "regimeCode", source = "codigosResidenciaFiscal")
+	@Mapping(target = "dv", source = "digitoVerificacion")
 	Customer clienteDtoToCustomerDian(PersonaDTO persona);
 
 	@Named("getTypeOrganization")
@@ -213,7 +215,7 @@ public interface FacturaDianMapper {
 		return total;
 	}
 	
-	default RequestFacturaDto mapFactura(InvoiceDto factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPago, String usuario, List<TarifaConceptoDianDto> tarifas) {
+	default RequestFacturaDto mapFactura(InvoiceDto factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPagoCredito, String formaPagoContado, String usuario, List<TarifaConceptoDianDto> tarifas) {
 		RequestFacturaDto request =RequestFacturaDto.builder().build();
 		request.setId(factura.getId());
 		request.setIdCliente(factura.getCliente().getId());
@@ -231,7 +233,14 @@ public interface FacturaDianMapper {
 		}
 
 		request.setProductos(productos);
-		request.setMedioPago(Pago.builder().forma(formaPago).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build());
+		Pago pago =null;
+		Date actual = Utils.obtenerFechaActual();
+		if(factura.getFactura().getFechaFin().after(actual)){
+			pago =Pago.builder().forma(formaPagoCredito).medio(factura.getFactura().getTipoPago().getCodigoDian()).fechaFin(formatFechaFin(factura.getFactura().getFechaFin())).build();
+		}else{
+			pago =Pago.builder().forma(formaPagoContado).medio(factura.getFactura().getTipoPago().getCodigoDian()).build();
+		}
+		request.setMedioPago(pago);
 		request.setUsuario(usuario);
 		request.setFechaUltimoIntento(new Date());
 		request.setFechaEmision(factura.getFactura().getFechaEmision());

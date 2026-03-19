@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.aqua.plus.commons.enums.ParametroEmpresaEnum;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -155,6 +157,13 @@ public class ParametrosEmpresaServiceImpl implements IParametrosEmpresaService {
 									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
+	}
+
+	public Integer obtenerMesesPeriodo(Integer idEmpresa) {
+		ParametrosEmpresaEntity entity = this.parametrosEmpresaRepository
+				.findFirstByEmpresa_IdAndLlaveAndActivoTrue(idEmpresa, ParametroEmpresaEnum.PERIODOS_FACT.getCodigo())
+				.orElseThrow(() -> new ProcessGenericException(Constantes.PARAM_NOT_FOUND));
+		return Integer.parseInt(entity.getValorParametro());
 	}
 
 }

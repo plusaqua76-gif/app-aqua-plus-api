@@ -3,6 +3,8 @@ package com.aqua.plus.api.service.impl;
 import java.util.Date;
 import java.util.Optional;
 
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -210,4 +212,11 @@ public class CorreoGeneralServiceImpl implements ICorreoGeneralService{
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
         }
     }
+
+	@Transactional(readOnly = true)
+	public CorreoGeneralDTO getCorreoPersona(final RequestFacturaDto request) {
+		return correoGeneralMapper
+				.entityToDto(this.correoGeneralRepository.findByPersonaIdAndEmpresa_IdAndActivoTrue(request.getIdCliente(), request.getIdEmpresa())
+						.orElseThrow(() -> new ProcessGenericException(Constantes.EMAIL_NOT_FOUND)));
+	}
 }

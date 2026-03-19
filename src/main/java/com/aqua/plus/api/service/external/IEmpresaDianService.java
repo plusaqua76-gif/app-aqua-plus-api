@@ -11,8 +11,4 @@ public interface IEmpresaDianService {
 	public ResponseEntity<ResponseDTO> darAltaEmpresa(final CompanyDto request);
 	
 	public ResponseEntity<ResponseDTO> consultarEmpresaPorId(final String id);
-	
-	public ResponseEntity<ResponseDTO> guardarResolution(final ResolutionDto resolution);
-	
-	public ResponseEntity<ResponseDTO> consultarResolucionPorId(final Integer id);
 }
