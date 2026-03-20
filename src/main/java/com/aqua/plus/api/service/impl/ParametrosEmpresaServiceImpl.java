@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.aqua.plus.commons.enums.ParametroEmpresaEnum;
 import com.aqua.plus.commons.exceptions.ProcessGenericException;
@@ -47,6 +48,29 @@ public class ParametrosEmpresaServiceImpl implements IParametrosEmpresaService {
 			boolean isUpdate = parametrosEmpresaDTO.getId() != null
 					&& parametrosEmpresaRepository.existsById(parametrosEmpresaDTO.getId());
 
+			Integer empresaId = parametrosEmpresaDTO.getEmpresa() != null ? parametrosEmpresaDTO.getEmpresa().getId()
+					: null;
+
+			if (empresaId == null) {
+				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+						.message("El id de la empresa es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+			}
+
+			if (empresaId != null && parametrosEmpresaDTO.getLlave() != null) {
+				Optional<ParametrosEmpresaEntity> existente = parametrosEmpresaRepository
+						.findFirstByEmpresa_IdAndLlaveAndActivoTrue(empresaId, parametrosEmpresaDTO.getLlave());
+
+				boolean llaveEnUso = isUpdate
+						? existente.isPresent() && !existente.get().getId().equals(parametrosEmpresaDTO.getId())
+						: existente.isPresent();
+
+				if (llaveEnUso) {
+					return ResponseEntity.status(HttpStatus.CONFLICT).body(ResponseDTO.builder().success(false)
+							.message("La llave '" + parametrosEmpresaDTO.getLlave() + "' ya existe para esta empresa")
+							.code(HttpStatus.CONFLICT.value()).build());
+				}
+			}
+
 			ParametrosEmpresaEntity entity;
 			if (isUpdate) {
 				entity = parametrosEmpresaRepository.findById(parametrosEmpresaDTO.getId()).orElseThrow();
@@ -70,9 +94,17 @@ public class ParametrosEmpresaServiceImpl implements IParametrosEmpresaService {
 
 		} catch (Exception e) {
 			log.error("Error al guardar/actualizar Parametros Empresa", e);
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-					.body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
-							.code(HttpStatus.BAD_REQUEST.value()).response(Collections.emptyMap()).build());
+
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
+
+			String mensajeError = root.getMessage() != null ? root.getMessage() : Constantes.SAVE_ERROR;
+
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
+					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value())
+					.response(Map.of("exception", e.getClass().getSimpleName(), "detail", mensajeError)).build());
 		}
 	}
 
