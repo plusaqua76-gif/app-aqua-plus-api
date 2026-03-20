@@ -81,6 +81,13 @@ public class AbonoServiceImpl implements IAbonoService {
 				var deudas = deudaClienteRepository.findAllById(ids);
 				var mapDeudas = deudas.stream().collect(Collectors.toMap(DeudaClienteEntity::getId, d -> d));
 
+				Map<Integer, BigDecimal> abonosPrevios = abonoRepository.findAllActiveByDeudaIds(new ArrayList<>(ids))
+						.stream()
+						.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
+								Collectors.reducing(BigDecimal.ZERO,
+										a -> BigDecimal.valueOf(a.getValor() == null ? 0.0 : a.getValor()),
+										BigDecimal::add)));
+
 				List<AbonoEntity> abonosAInsertar = new ArrayList<>(abonoDTO.getItems().size());
 
 				for (AbonoDTO it : abonoDTO.getItems()) {
@@ -99,26 +106,19 @@ public class AbonoServiceImpl implements IAbonoService {
 										.code(HttpStatus.BAD_REQUEST.value()).build());
 					}
 
-					var saldo = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor()).setScale(2,
+					BigDecimal valorOriginal = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor())
+							.setScale(2, RoundingMode.HALF_UP);
+					BigDecimal totalAbonadoPrevio = abonosPrevios.getOrDefault(deudaId, BigDecimal.ZERO).setScale(2,
 							RoundingMode.HALF_UP);
-					var abono = BigDecimal.valueOf(it.getValor()).setScale(2, RoundingMode.HALF_UP);
+					BigDecimal saldoReal = valorOriginal.subtract(totalAbonadoPrevio).setScale(2, RoundingMode.HALF_UP);
+					BigDecimal abono = BigDecimal.valueOf(it.getValor()).setScale(2, RoundingMode.HALF_UP);
 
-					if (abono.compareTo(saldo) > 0) {
+					if (abono.compareTo(saldoReal) > 0) {
 						return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
 								.message(Constantes.MAYOR_VALUE).code(HttpStatus.BAD_REQUEST.value()).build());
 					}
 
-					var nuevoSaldo = saldo.subtract(abono).setScale(2, RoundingMode.HALF_UP);
-					deuda.setValor(nuevoSaldo.doubleValue());
-					deuda.setFechaModificacion(new Date());
-					deuda.setUsuarioModificacion(usuarioRaiz);
-
-					decrementarPlazoSiAplica(deuda, abono);
-
-					if (nuevoSaldo.compareTo(BigDecimal.ZERO) <= 0) {
-						deuda.setValor(0.0);
-						deuda.setActivo(false);
-					}
+					decrementarPlazoSiAplica(deuda, abono, totalAbonadoPrevio);
 
 					AbonoEntity abonoEntity = new AbonoEntity();
 					abonoEntity.setDeudaCliente(deuda);
@@ -164,27 +164,21 @@ public class AbonoServiceImpl implements IAbonoService {
 						.message("La deuda ya está inactiva").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			var saldo = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor()).setScale(2,
+			BigDecimal valorOriginal = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor()).setScale(2,
 					RoundingMode.HALF_UP);
-			var abono = BigDecimal.valueOf(abonoDTO.getValor()).setScale(2, RoundingMode.HALF_UP);
+			BigDecimal totalAbonadoPrevio = abonoRepository.findAllActiveByDeudaIds(List.of(deudaId)).stream()
+					.map(a -> BigDecimal.valueOf(a.getValor() == null ? 0.0 : a.getValor()))
+					.reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
 
-			if (abono.compareTo(saldo) > 0) {
+			BigDecimal saldoReal = valorOriginal.subtract(totalAbonadoPrevio).setScale(2, RoundingMode.HALF_UP);
+			BigDecimal abono = BigDecimal.valueOf(abonoDTO.getValor()).setScale(2, RoundingMode.HALF_UP);
+
+			if (abono.compareTo(saldoReal) > 0) {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
 						.message(Constantes.MAYOR_VALUE).code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			var nuevoSaldo = saldo.subtract(abono).setScale(2, RoundingMode.HALF_UP);
-			deuda.setValor(nuevoSaldo.doubleValue());
-			deuda.setFechaModificacion(new Date());
-			deuda.setUsuarioModificacion(usuarioRaiz);
-
-			decrementarPlazoSiAplica(deuda, abono);
-
-			if (nuevoSaldo.compareTo(BigDecimal.ZERO) <= 0) {
-				deuda.setValor(0.0);
-				deuda.setActivo(false);
-			}
-
+			decrementarPlazoSiAplica(deuda, abono, totalAbonadoPrevio);
 			deudaClienteRepository.save(deuda);
 
 			AbonoEntity entity = new AbonoEntity();
@@ -212,33 +206,39 @@ public class AbonoServiceImpl implements IAbonoService {
 		}
 	}
 
-	/* ==================== Helpers Plazo Pago ==================== */
-
 	private static boolean isPositive(BigDecimal v) {
 		return v != null && v.compareTo(BigDecimal.ZERO) > 0;
 	}
 
-	/**
-	 * Decrementa el plazo en 1 mes si el monto aplicado > 0. Usa el campo Integer
-	 * deuda.plazoPago como número de meses/cuotas.
-	 */
-	private void decrementarPlazoSiAplica(DeudaClienteEntity deuda, BigDecimal montoAplicado) {
-		if (deuda == null || !isPositive(montoAplicado)) {
+	private void decrementarPlazoSiAplica(DeudaClienteEntity deuda, BigDecimal montoAplicado,
+			BigDecimal totalAbonadoPrevio) {
+		if (deuda == null || !isPositive(montoAplicado))
 			return;
-		}
 
 		Integer plazoActual = deuda.getPlazoPago();
-		if (plazoActual == null || plazoActual <= 0) {
+		if (plazoActual == null || plazoActual <= 0)
 			return;
-		}
 
-		int nuevoPlazo = plazoActual - 1;
+		BigDecimal valorOriginal = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor());
+		if (valorOriginal.compareTo(BigDecimal.ZERO) <= 0)
+			return;
+
+		BigDecimal valorCuota = valorOriginal.divide(BigDecimal.valueOf(plazoActual), 2, RoundingMode.HALF_UP);
+		if (valorCuota.compareTo(BigDecimal.ZERO) <= 0)
+			return;
+
+		BigDecimal totalAbonadoConActual = totalAbonadoPrevio.add(montoAplicado);
+
+		int cuotasCanceladas = totalAbonadoConActual.divide(valorCuota, 0, RoundingMode.FLOOR).intValue();
+		int nuevoPlazo = Math.max(plazoActual - cuotasCanceladas, 0);
+
 		if (nuevoPlazo <= 0) {
 			deuda.setPlazoPago(null);
-			log.debug("Plazo de deuda {} agotado, se establece plazoPago=null", deuda.getId());
+			log.debug("Plazo de deuda {} agotado", deuda.getId());
 		} else {
 			deuda.setPlazoPago(nuevoPlazo);
-			log.debug("Plazo de deuda {} decrementado de {} a {}", deuda.getId(), plazoActual, nuevoPlazo);
+			log.debug("Plazo de deuda {} actualizado de {} a {} ({} cuotas canceladas)", deuda.getId(), plazoActual,
+					nuevoPlazo, cuotasCanceladas);
 		}
 	}
 
