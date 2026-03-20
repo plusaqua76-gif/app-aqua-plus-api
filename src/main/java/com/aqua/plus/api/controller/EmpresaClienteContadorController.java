@@ -61,7 +61,14 @@ public class EmpresaClienteContadorController {
 				return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(resultado);
 			}
 
-			return ResponseEntity.ok(resultado);
+			Object httpStatusObj = resultado.remove("_httpStatus");
+			if (httpStatusObj != null) {
+				HttpStatus status = HttpStatus.valueOf((Integer) httpStatusObj);
+				return ResponseEntity.status(status).body(resultado);
+			}
+
+			return ResponseEntity.status(HttpStatus.CREATED).body(resultado);
+
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(Map.of("error", "Error interno del servidor"));
@@ -191,8 +198,9 @@ public class EmpresaClienteContadorController {
 			@RequestParam(required = false) String codigo, @RequestParam(required = false) String departamento,
 			@RequestParam(required = false) String ciudad, @RequestParam(required = false) String corregimiento,
 			@RequestParam(required = false) String telefono, @RequestParam(required = false) String correo,
-			@RequestParam(required = false) String tipoDocumento,@RequestParam(required = false) String direccion, 
-			@RequestParam(required = false) Boolean estado, @RequestParam(required = false) Integer nuid, Pageable pageable) {
+			@RequestParam(required = false) String tipoDocumento, @RequestParam(required = false) String direccion,
+			@RequestParam(required = false) Boolean estado, @RequestParam(required = false) Integer nuid,
+			Pageable pageable) {
 		return empresaClienteContadorServiceImpl.findClientesByEmpresaId(idEmpresa, pageable, nombreCompleto, cedula,
 				codigo, departamento, ciudad, corregimiento, telefono, correo, tipoDocumento, direccion, estado, nuid);
 	}
