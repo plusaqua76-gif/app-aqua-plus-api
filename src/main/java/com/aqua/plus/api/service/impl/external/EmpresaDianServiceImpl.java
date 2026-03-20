@@ -52,7 +52,6 @@ public class EmpresaDianServiceImpl implements IEmpresaDianService {
 	public ResponseEntity<ResponseDTO> darAltaEmpresa(CompanyDto request) {
 		log.warn("Inicio metodo darAltaEmpresa: {} " , request.getIdentification());
         HttpEntity<CompanyDto> entity = new HttpEntity<>(request,utilsRestemplate.getHeader());
-        FacturaDianServiceImpl.print("##########REQUEST########## :{}", entity);
 		ResponseEntity<ResponseEmpresaAltaDto> response = this.restTemplateConfig.restTemplate().exchange(
 		        this.url.concat(this.endPointEmpresa),
 		        HttpMethod.POST,
