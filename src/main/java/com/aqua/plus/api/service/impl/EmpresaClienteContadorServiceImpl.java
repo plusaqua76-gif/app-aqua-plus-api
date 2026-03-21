@@ -160,6 +160,21 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						});
 
 				Object statusCode = response.get("statusCode");
+				
+				String statusStr = String.valueOf(statusCode);
+
+				if (!"200".equals(statusStr)) {
+				    HttpStatus httpStatus = switch (statusStr) {
+				        case "409" -> HttpStatus.CONFLICT;
+				        case "404" -> HttpStatus.NOT_FOUND;
+				        case "400" -> HttpStatus.BAD_REQUEST;
+				        case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+				        default    -> HttpStatus.BAD_REQUEST;
+				    };
+				    response.put("_httpStatus", httpStatus.value());
+				    return response;
+				}
+				
 				if ("200".equals(String.valueOf(statusCode))) {
 
 					String primerNombre = (String) jsonParams.get("primerNombre");
