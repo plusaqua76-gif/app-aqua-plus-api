@@ -1,7 +1,12 @@
 package com.aqua.plus.api.controller;
 
 import com.aqua.plus.api.service.impl.external.facade.FacturaDianFacade;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -82,8 +87,11 @@ public class FacturaDianController {
 			@ApiResponse(responseCode = "404", description = "No se encontraron datos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/factura/{id}")
-	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(@PathVariable("id") Integer idEmpresa,Pageable pageable) {
-		return this.facturaDianFacade.consultarFacturasPorEmpresa(idEmpresa, pageable);
+	public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(@PathVariable("id") Integer idEmpresa, @RequestParam(required = false) String codigoFactura,
+            @RequestParam(required = false) String estadoLegal,@RequestParam(required = false) String nombreCompleto, @RequestParam(required = false) String numeroCedula,
+		    @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fechaEmision, @RequestParam(required = false) Integer consumo, @RequestParam(required = false) BigDecimal precio, 
+			@RequestParam(required = false) Long numero, Pageable pageable) {
+		return this.facturaDianFacade.consultarFacturasPorEmpresa(idEmpresa, codigoFactura, estadoLegal, nombreCompleto, numeroCedula, fechaEmision, consumo, precio, numero, pageable);
 	}
 	
 	@Operation(summary = "Buscar documento por id empresa de la dian")
