@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl.external.facade;
 
+import com.aqua.plus.api.service.impl.specification.FacturaDianSpecifications;
 import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.api.utils.Utils;
 import com.aqua.plus.commons.dtos.*;
@@ -15,11 +16,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,8 +37,8 @@ public class FacturaDianFacade {
 
     @Transactional
     public void guardarFactura(final RequestFacturaDto request, PersonaDTO persona,
-                               EmpresaDTO empresa, Long numeroFactura, String descripcion, ResponseInvoiceDto response,
-                               RequestInvoiceDto rq) {
+            EmpresaDTO empresa, Long numeroFactura, String descripcion, ResponseInvoiceDto response,
+            RequestInvoiceDto rq) {
         log.info("Inicio metodo guardarFactura:{} ", numeroFactura);
 
         InvoiceDto invoiceDto = new InvoiceDto();
@@ -56,9 +60,9 @@ public class FacturaDianFacade {
         invoiceDto.setActivo(Boolean.TRUE);
         invoiceDto.setNumero(numeroFactura);
         invoiceDto.setDescripcion(descripcion);
-        if(Objects.nonNull(request.getId())) {
+        if (Objects.nonNull(request.getId())) {
             invoiceDto.setUsuarioModificacion(request.getUsuario());
-        }else {
+        } else {
             invoiceDto.setUsuarioCreacion(request.getUsuario());
         }
         invoiceDto.setFechaUltimoIntento(request.getFechaUltimoIntento());
@@ -70,7 +74,7 @@ public class FacturaDianFacade {
 
     @Transactional
     public ResponseEntity<ResponseDTO> actualizarEstadoFactura(Long idEmpresa, String estadoActual, String nuevoEstado,
-                                                               String usuario) {
+            String usuario) {
         log.info("Inicio metodo actualizarEstadoFactura: {},{},{} ", idEmpresa, estadoActual, nuevoEstado);
         int canditadAfectado = this.invoiceRepository.actualizarEstadoPorEmpresa(idEmpresa, estadoActual, nuevoEstado,
                 usuario);
@@ -89,11 +93,26 @@ public class FacturaDianFacade {
         }
     }
 
-    public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(Integer idEmpresa, Pageable pageable) {
+    public ResponseEntity<ResponseDTO> consultarFacturasPorEmpresa(Integer idEmpresa, String codigoFactura,
+            String estadoLegal,String nombreCompleto, String numeroCedula, LocalDate fechaEmision, Integer consumo, 
+            BigDecimal precio,Long numero, Pageable pageable) {
         log.info("Inicio metodo consultarFacturasPorEmpresa:{},{},{}", idEmpresa, pageable.getPageSize(),
                 pageable.getPageNumber());
 
-        Page<InvoiceEntity> page = this.invoiceRepository.findByEmpresaId(idEmpresa, pageable);
+        Specification<InvoiceEntity> spec = FacturaDianSpecifications.allOfNonNull(
+				FacturaDianSpecifications.idEmpresaEquals(idEmpresa),
+				FacturaDianSpecifications.codigoLike(codigoFactura),
+				FacturaDianSpecifications.estadoLegalLike(estadoLegal),
+				FacturaDianSpecifications.personaNombreCompletoLike(nombreCompleto),
+				FacturaDianSpecifications.numeroCedulaPersonaLike(numeroCedula),
+				FacturaDianSpecifications.fechaEmisionBetween(fechaEmision),
+				FacturaDianSpecifications.consumoEquals(consumo),
+				FacturaDianSpecifications.precioEquals(precio),
+				FacturaDianSpecifications.numeroEquals(numero)
+            
+		);
+
+        Page<InvoiceEntity> page = this.invoiceRepository.findAll(spec, pageable);
 
         log.info("Fin metodo consultarFacturasPorEmpresa:{}, totalElements:{}, totalPages:{}", idEmpresa,
                 page.getTotalElements(), page.getTotalPages());
