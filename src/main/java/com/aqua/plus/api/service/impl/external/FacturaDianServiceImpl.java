@@ -97,7 +97,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 			this.facturaDianFacade.guardarFactura(request, persona, empresa, numeroFactura, descripcion, response.getBody(), rq);
 			if (response.getStatusCode().equals(HttpStatus.CREATED) && Objects.nonNull(response.getBody())
 					&& Objects.nonNull(response.getBody().getInvoice())
-					&& response.getBody().getInvoice().getLegalStatus().equals(LegalStatusEnum.ACCEPTED.getCodigo())) {
+					&& (response.getBody().getInvoice().getLegalStatus().equals(LegalStatusEnum.ACCEPTED.getCodigo()) || response.getBody().getInvoice().getLegalStatus().equals(LegalStatusEnum.ACCEPTED_WITH_OBSERVATIONS.getCodigo()))) {
 				return new ResponseEntity<>(ResponseDTO.builder().code(HttpStatus.CREATED.value())
 						.message(descripcion).response(response.getBody()).build(), HttpStatus.CREATED);
 			} else {
@@ -253,7 +253,7 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 					rq);
 			if (response.getStatusCode().equals(HttpStatus.CREATED) && Objects.nonNull(response.getBody())
 					&& Objects.nonNull(response.getBody().getCreditNote())
-					&& response.getBody().getCreditNote().getLegalStatus().equals(LegalStatusEnum.ACCEPTED.getCodigo())) {
+					&& (response.getBody().getCreditNote().getLegalStatus().equals(LegalStatusEnum.ACCEPTED.getCodigo()) || response.getBody().getCreditNote().getLegalStatus().equals(LegalStatusEnum.ACCEPTED_WITH_OBSERVATIONS.getCodigo()))) {
 				return new ResponseEntity<>(ResponseDTO.builder().code(HttpStatus.CREATED.value())
 						.message(descripcion).response(response.getBody()).build(), HttpStatus.CREATED);
 			} else {
