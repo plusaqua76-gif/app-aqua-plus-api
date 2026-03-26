@@ -54,6 +54,7 @@ public class FacturaDianFacade {
             invoiceDto.setEstadoLegal(response.getCreditNote().getLegalStatus());
             invoiceDto.setIdDian(response.getCreditNote().getId());
             invoiceDto.setCufe(response.getCreditNote().getCufe());
+            invoiceDto.setCodigoConcepto(rq.getConceptCode());
         }
         invoiceDto.setCliente(persona);
         invoiceDto.setEmpresa(empresa);
