@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -8,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.postgresql.util.PGobject;
 import org.springframework.http.HttpStatus;
@@ -18,11 +20,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.service.IRutaEmpleadoService;
+import com.aqua.plus.commons.dtos.AsignacionMasivaRequestDTO;
+import com.aqua.plus.commons.dtos.AsignacionMasivaResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RutaEmpleadoDTO;
+import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
+import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.ParametrosEmpresaEntity;
 import com.aqua.plus.commons.entities.RutaEmpleadoEntity;
 import com.aqua.plus.commons.maps.RutaEmpleadoMapper;
+import com.aqua.plus.commons.repositories.EmpleadoEmpresaRepository;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.ParametrosEmpresaRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.utils.Constantes;
@@ -48,6 +56,8 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 	private final DocumentoServiceImpl documentoServiceImpl;
 	private final PlantillaServiceImpl plantillaService;
 	private final ParametrosEmpresaRepository parametrosEmpresaRepository;
+	private final EmpleadoEmpresaRepository empleadoEmpresaRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 
 	@Override
 	@Transactional
@@ -260,28 +270,28 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 
 			Integer empresaId = parseIntSafe(empresaObj.get("id"));
 			if (empresaId != null) {
-                try {
-                    Map<String, String> tplParams = new java.util.HashMap<>();
-                    tplParams.putAll(cargarParamsEmpresaFooter(empresaId));
+				try {
+					Map<String, String> tplParams = new java.util.HashMap<>();
+					tplParams.putAll(cargarParamsEmpresaFooter(empresaId));
 
-                    tplParams.put(Constantes.PARAMETRO_EMPRESAS_NOMBRE, textOrEmpty(empresaObj, "nombre"));
-                    tplParams.put(Constantes.PARAMETRO_SOPORTE_TELEFONO, textOrEmpty(empresaObj, "telefonoEmpresa"));
-                    tplParams.put(Constantes.PARAMETRO_SOPORTE_CORREO,  textOrEmpty(empresaObj, "correoEmpresa"));
+					tplParams.put(Constantes.PARAMETRO_EMPRESAS_NOMBRE, textOrEmpty(empresaObj, "nombre"));
+					tplParams.put(Constantes.PARAMETRO_SOPORTE_TELEFONO, textOrEmpty(empresaObj, "telefonoEmpresa"));
+					tplParams.put(Constantes.PARAMETRO_SOPORTE_CORREO, textOrEmpty(empresaObj, "correoEmpresa"));
 
-                    String aviso = plantillaService.renderByCodigoWithDefaults(Constantes.COD_FOOTER, tplParams);
-                    String pie   = plantillaService.renderByCodigoWithDefaults(Constantes.COD_AVISO, tplParams);
+					String aviso = plantillaService.renderByCodigoWithDefaults(Constantes.COD_FOOTER, tplParams);
+					String pie = plantillaService.renderByCodigoWithDefaults(Constantes.COD_AVISO, tplParams);
 
-                    empresaObj.put("avisoFactura", aviso != null ? aviso : "");
-                    empresaObj.put("piePagina",    pie   != null ? pie   : "");
+					empresaObj.put("avisoFactura", aviso != null ? aviso : "");
+					empresaObj.put("piePagina", pie != null ? pie : "");
 
-                    log.info("avisoFactura y piePagina inyectados para empresaId={} (avisoLen={}, pieLen={})",
-                            empresaId, (aviso == null ? 0 : aviso.length()), (pie == null ? 0 : pie.length()));
+					log.info("avisoFactura y piePagina inyectados para empresaId={} (avisoLen={}, pieLen={})",
+							empresaId, (aviso == null ? 0 : aviso.length()), (pie == null ? 0 : pie.length()));
 
-                } catch (Exception ex) {
-                    log.warn("Fallo al inyectar aviso/pie para empresaId={}: {}", empresaId, ex.getMessage());
-                    empresaObj.put("avisoFactura", "");
-                    empresaObj.put("piePagina", "");
-                }
+				} catch (Exception ex) {
+					log.warn("Fallo al inyectar aviso/pie para empresaId={}: {}", empresaId, ex.getMessage());
+					empresaObj.put("avisoFactura", "");
+					empresaObj.put("piePagina", "");
+				}
 
 				try {
 					var logoObj = buildSingleDocNombreImagen(empresaId, Constantes.TYPE_LOGO);
@@ -511,35 +521,33 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 	}
 
 	private Map<String, String> cargarParamsEmpresaFooter(Integer empresaId) {
-	    final Set<String> TARGET_KEYS = Set.of(
-	        Constantes.PARAMETRO_AVISO_TITULO,
-	        Constantes.PARAMETRO_AVISO_TEXTO,
-	        Constantes.PARAMETRO_SITIO_WEB
-	    );
+		final Set<String> TARGET_KEYS = Set.of(Constantes.PARAMETRO_AVISO_TITULO, Constantes.PARAMETRO_AVISO_TEXTO,
+				Constantes.PARAMETRO_SITIO_WEB);
 
-	    Map<String, String> out = new HashMap<>();
+		Map<String, String> out = new HashMap<>();
 
-	    for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findGlobalDefaultsActivos()) {
-	        if (pe.getLlave() == null) continue;
-	        String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
-	        if (TARGET_KEYS.contains(k)) {
-	            out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
-	        }
-	    }
+		for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findGlobalDefaultsActivos()) {
+			if (pe.getLlave() == null)
+				continue;
+			String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
+			if (TARGET_KEYS.contains(k)) {
+				out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
+			}
+		}
 
-	    if (empresaId != null) {
-	        for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findByEmpresa_IdAndActivoTrue(empresaId)) {
-	            if (pe.getLlave() == null) continue;
-	            String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
-	            if (TARGET_KEYS.contains(k)) {
-	                out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
-	            }
-	        }
-	    }
+		if (empresaId != null) {
+			for (ParametrosEmpresaEntity pe : parametrosEmpresaRepository.findByEmpresa_IdAndActivoTrue(empresaId)) {
+				if (pe.getLlave() == null)
+					continue;
+				String k = pe.getLlave().trim().toUpperCase(Locale.ROOT);
+				if (TARGET_KEYS.contains(k)) {
+					out.put(k, pe.getValorParametro() == null ? "" : pe.getValorParametro());
+				}
+			}
+		}
 
-	    return out;
+		return out;
 	}
-
 
 	private static String textOrEmpty(JsonNode obj, String... keys) {
 		for (String k : keys) {
@@ -549,6 +557,95 @@ public class RutaEmpleadoServiceImpl implements IRutaEmpleadoService {
 			}
 		}
 		return "";
+	}
+
+	@Override
+	@Transactional
+	public ResponseEntity<ResponseDTO> asignarClientesMasivo(AsignacionMasivaRequestDTO request) {
+		log.info("Asignación masiva de clientes - empleado: {}, total clientes: {}", request.getIdEmpleadoEmpresa(),
+				request.getIdsEmpresaClienteContador().size());
+		try {
+			EmpleadoEmpresaEntity empleado = empleadoEmpresaRepository
+					.findByIdAndActivoTrue(request.getIdEmpleadoEmpresa()).orElse(null);
+
+			if (empleado == null) {
+				ResponseDTO notFound = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(notFound);
+			}
+
+			List<EmpresaClienteContadorEntity> clientes = empresaClienteContadorRepository
+					.findAllByIdInAndActivoTrue(request.getIdsEmpresaClienteContador());
+
+			if (clientes.isEmpty()) {
+				ResponseDTO notFound = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
+						.code(HttpStatus.NOT_FOUND.value()).build();
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(notFound);
+			}
+
+			Set<Integer> idsValidos = clientes.stream().map(EmpresaClienteContadorEntity::getId)
+					.collect(Collectors.toSet());
+
+			List<Integer> idsOmitidos = new ArrayList<>();
+			List<String> errores = new ArrayList<>();
+
+			request.getIdsEmpresaClienteContador().stream().filter(id -> !idsValidos.contains(id)).forEach(id -> {
+				idsOmitidos.add(id);
+				errores.add("Cliente no encontrado o inactivo: " + id);
+			});
+
+			int totalReemplazados = 0;
+			if (Boolean.TRUE.equals(request.getReemplazarAsignacionPrevia())) {
+				totalReemplazados = rutaEmpleadoRepository
+						.desactivarPorEmpresaClienteContadorIds(request.getIdsEmpresaClienteContador());
+				log.info("Asignaciones previas desactivadas: {}", totalReemplazados);
+			}
+
+			List<RutaEmpleadoEntity> nuevasAsignaciones = new ArrayList<>();
+
+			for (EmpresaClienteContadorEntity cliente : clientes) {
+				boolean yaAsignado = rutaEmpleadoRepository
+						.existsByEmpresaClienteContador_IdAndEmpleadoEmpresa_IdAndActivoTrue(cliente.getId(),
+								empleado.getId());
+
+				if (yaAsignado) {
+					log.debug("Cliente {} ya asignado al empleado {}, se omite", cliente.getId(), empleado.getId());
+					idsOmitidos.add(cliente.getId());
+					errores.add("Cliente " + cliente.getId() + " ya está asignado a este empleado");
+					continue;
+				}
+
+				RutaEmpleadoEntity ruta = new RutaEmpleadoEntity();
+				ruta.setEmpresaClienteContador(cliente);
+				ruta.setEmpleadoEmpresa(empleado);
+				ruta.setLectura(null);
+				ruta.setActivo(true);
+
+				nuevasAsignaciones.add(ruta);
+			}
+
+			List<RutaEmpleadoDTO> asignados = new ArrayList<>();
+			if (!nuevasAsignaciones.isEmpty()) {
+				List<RutaEmpleadoEntity> guardadas = rutaEmpleadoRepository.saveAll(nuevasAsignaciones);
+				asignados = guardadas.stream().map(rutaEmpleadoMapper::entityToDto).toList();
+				log.info("Total asignaciones guardadas: {}", asignados.size());
+			}
+
+			AsignacionMasivaResponseDTO responseData = AsignacionMasivaResponseDTO.builder()
+					.totalRecibidos(request.getIdsEmpresaClienteContador().size()).totalAsignados(asignados.size())
+					.totalOmitidos(idsOmitidos.size()).totalReemplazados(totalReemplazados).asignados(asignados)
+					.idsOmitidos(idsOmitidos).errores(errores).build();
+
+			ResponseDTO ok = ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(responseData).build();
+			return ResponseEntity.ok(ok);
+
+		} catch (Exception e) {
+			log.error("Error en asignación masiva de clientes - empleado: {}", request.getIdEmpleadoEmpresa(), e);
+			ResponseDTO err = ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
+		}
 	}
 
 }
