@@ -47,5 +47,7 @@ public interface IFacturaService {
 	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(Integer idEmpresaClienteContador, String codigo);
 	
 	ResponseEntity<ResponseDTO> validarPagos(List<PagoFacturaRequestDTO> pagos);
+	
+	ResponseEntity<ResponseDTO> procesarPagos(List<PagoFacturaRequestDTO> pagos);
 
 }

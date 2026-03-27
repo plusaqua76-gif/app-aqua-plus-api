@@ -330,4 +330,19 @@ public class FacturaController {
 		return facturaServiceImpl.validarPagos(pagos);
 	}
 
+	@Operation(summary = "Procesar pagos de facturas")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Pagos procesados satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@PostMapping("/procesar-pagos")
+	public ResponseEntity<ResponseDTO> procesarPagos(@RequestBody List<PagoFacturaRequestDTO> pagos) {
+		return facturaServiceImpl.procesarPagos(pagos);
+	}
+
 }
