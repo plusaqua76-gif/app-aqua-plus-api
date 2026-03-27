@@ -1,9 +1,12 @@
 package com.aqua.plus.api.service;
 
+import java.util.List;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.commons.dtos.PagoFacturaRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
 public interface IFacturaService {
@@ -42,5 +45,7 @@ public interface IFacturaService {
 	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio);
 	
 	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(Integer idEmpresaClienteContador, String codigo);
+	
+	ResponseEntity<ResponseDTO> validarPagos(List<PagoFacturaRequestDTO> pagos);
 
 }

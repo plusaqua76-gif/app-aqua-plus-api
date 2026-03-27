@@ -1,5 +1,6 @@
 package com.aqua.plus.api.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.Pageable;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.FacturaServiceImpl;
 import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.commons.dtos.PagoFacturaRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -82,7 +84,8 @@ public class FacturaController {
 			@RequestParam(required = false) String estadoNombre, @RequestParam(required = false) Boolean consumoAnormal,
 			@RequestParam(required = false) Integer consumo, @RequestParam(required = false) Double precioMin,
 			@RequestParam(required = false) Double precioMax, @RequestParam(required = false) String tipoPagoNombre,
-			@RequestParam(required = false) String corregimientoNombre, @RequestParam(required = false) Integer nuid, Pageable pageable) {
+			@RequestParam(required = false) String corregimientoNombre, @RequestParam(required = false) Integer nuid,
+			Pageable pageable) {
 		return facturaServiceImpl.findByEnterpriseId(idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin,
 				estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre, corregimientoNombre, nuid,
 				pageable);
@@ -310,6 +313,21 @@ public class FacturaController {
 			@PathVariable Integer idEmpresaClienteContador, @RequestParam(required = false) String codigo) {
 
 		return facturaServiceImpl.findByEmpresaClienteContadorAndCodigo(idEmpresaClienteContador, codigo);
+	}
+
+	@Operation(summary = "Validar pagos de facturas")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Validación realizada satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@PostMapping("/validar-pagos")
+	public ResponseEntity<ResponseDTO> validarPagos(@RequestBody List<PagoFacturaRequestDTO> pagos) {
+		return facturaServiceImpl.validarPagos(pagos);
 	}
 
 }
