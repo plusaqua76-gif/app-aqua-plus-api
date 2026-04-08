@@ -39,6 +39,20 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "notificacionExecutor")
+    public Executor notificacionExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("Notificacion-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "cargaFacturaEmpresaExecutor")
     public Executor cargaEmpresaExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

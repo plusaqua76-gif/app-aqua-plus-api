@@ -101,6 +101,10 @@ dian:
     pendiente:  PEND
   iva: 0
   usuario: codemakerssasaut
+firebase:
+  enabled: true
+  project-id: notifications-aqua-plus
+  credentials: classpath:firebase-service-account.json
 logging:
   level:
     root: INFO
@@ -214,6 +218,10 @@ dian:
     pendiente:  ${ESTADO_PEND}
   iva: ${DIAN_IVA}
   usuario:  ${USUARIO_CODE_AUT}
+firebase:
+  enabled: true
+  project-id: notifications-aqua-plus
+  credentials: classpath:firebase-service-account.json  
 logging:
   level:
     root:  ${LOGGING_LEVEL_ROOT}
