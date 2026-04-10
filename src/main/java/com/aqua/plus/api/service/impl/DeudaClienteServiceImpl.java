@@ -126,14 +126,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
-
-			if (deudas == null || deudas.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron deudas activas para el ECC con id " + eccId)
-								.code(HttpStatus.NOT_FOUND.value()).build());
-			}
+			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdConFiltroEstado(eccId, "PAFA");
 
 			List<Integer> deudaIds = deudas.stream().map(DeudaClienteEntity::getId).collect(Collectors.toList());
 
@@ -144,47 +137,45 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			var items = new ArrayList<Map<String, Object>>(deudas.size());
 
 			for (DeudaClienteEntity d : deudas) {
-				var row = new LinkedHashMap<String, Object>(10);
 
-				row.put("id", d.getId());
-				row.put("fechaDeuda", d.getFechaDeuda());
-				row.put("descripcion", d.getDescripcion());
+			    var row = new LinkedHashMap<String, Object>(10);
+			    row.put("id", d.getId());
+			    row.put("fechaDeuda", d.getFechaCreacion());
+			    row.put("descripcion", d.getDescripcion());
 
-				Double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
-				row.put("valorTotal", valorTotal);
+			    Double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
+			    row.put("valorTotal", valorTotal);
 
-				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
-				double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
+			    double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+			    double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
 
-				if (saldoPendiente == 0.0)
-					continue;
+			    if (saldoPendiente == 0.0) continue;
 
-				row.put("totalAbonado", totalAbonado);
-				row.put("saldoPendiente", saldoPendiente);
+			    row.put("totalAbonado", totalAbonado);
+			    row.put("saldoPendiente", saldoPendiente);
 
-				String tipoDeudaNombre = (d.getTipoDeuda() != null) ? d.getTipoDeuda().getNombre() : null;
-				row.put("tipoDeudaNombre", tipoDeudaNombre);
+			    String tipoDeudaNombre = (d.getTipoDeuda() != null) ? d.getTipoDeuda().getNombre() : null;
+			    row.put("tipoDeudaNombre", tipoDeudaNombre);
 
-				Integer meses = d.getPlazoPago();
-				String plazoPagoNombre = (meses != null ? (meses + " meses") : null);
+			    Integer meses = d.getPlazoPago();
+			    String plazoPagoNombre = (meses != null ? (meses + " meses") : null);
 
-				if (meses != null && meses >= 2) {
-					BigDecimal mensual = BigDecimal.valueOf(valorTotal).divide(BigDecimal.valueOf(meses), 2,
-							RoundingMode.HALF_UP);
+			    if (meses != null && meses >= 2) {
+			        BigDecimal mensual = BigDecimal.valueOf(valorTotal)
+			            .divide(BigDecimal.valueOf(meses), 2, RoundingMode.HALF_UP);
+			        row.put("meses", meses);
+			        row.put("valorMes", mensual.doubleValue());
+			        row.put("plazoPagoNombre", plazoPagoNombre);
+			    } else {
+			        row.put("meses", meses);
+			        row.put("valorMes", null);
+			        row.put("plazoPagoNombre", plazoPagoNombre);
+			    }
 
-					row.put("meses", meses);
-					row.put("valorMes", mensual.doubleValue());
-					row.put("plazoPagoNombre", plazoPagoNombre);
-				} else {
-					row.put("meses", meses);
-					row.put("valorMes", null);
-					row.put("plazoPagoNombre", plazoPagoNombre);
-				}
+			    String facturaCodigo = (d.getFactura() != null) ? d.getFactura().getCodigo() : null;
+			    row.put("facturaCodigo", facturaCodigo);
 
-				String facturaCodigo = (d.getFactura() != null) ? d.getFactura().getCodigo() : null;
-				row.put("facturaCodigo", facturaCodigo);
-
-				items.add(row);
+			    items.add(row);
 			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
@@ -222,7 +213,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdConFiltroEstado(eccId, "PAFA");
 
 			if (deudas == null || deudas.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -231,13 +222,26 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			List<Integer> deudaIds = deudas.stream().map(DeudaClienteEntity::getId).collect(Collectors.toList());
+			// NUEVO: Filtrar por estado - solo mostrar si está NULL o tiene código 'PAFA'
+			List<DeudaClienteEntity> deudasFiltradas = deudas.stream()
+					.filter(d -> d.getEstado() == null || "PAFA".equals(d.getEstado().getCodigo()))
+					.collect(Collectors.toList());
+
+			if (deudasFiltradas.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron deudas activas para el ECC con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			List<Integer> deudaIds = deudasFiltradas.stream().map(DeudaClienteEntity::getId)
+					.collect(Collectors.toList());
 
 			Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
 					.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
 							Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
 
-			List<DeudaClienteEntity> deudasConSaldo = deudas.stream().filter(d -> {
+			List<DeudaClienteEntity> deudasConSaldo = deudasFiltradas.stream().filter(d -> {
 				double valorDeuda = d.getValor() == null ? 0.0 : d.getValor();
 				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
 				return (valorDeuda - totalAbonado) > 0;
