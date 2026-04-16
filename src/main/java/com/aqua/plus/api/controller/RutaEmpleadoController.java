@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.RutaEmpleadoServiceImpl;
+import com.aqua.plus.commons.dtos.AsignacionMasivaRequestDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.RutaEmpleadoDTO;
 
@@ -35,154 +36,158 @@ import lombok.RequiredArgsConstructor;
 		RequestMethod.PUT })
 @RequiredArgsConstructor
 public class RutaEmpleadoController {
-    
+
 	private final RutaEmpleadoServiceImpl rutaEmpleadoServiceImpl;
-	
+
 	@Operation(summary = "Guardar  Ruta Empleado")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
-    @PostMapping
-    public ResponseEntity<ResponseDTO> save(@RequestBody RutaEmpleadoDTO rutaEmpleadoDTO) {
-        return rutaEmpleadoServiceImpl.save(rutaEmpleadoDTO);
-    }
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PostMapping
+	public ResponseEntity<ResponseDTO> save(@RequestBody RutaEmpleadoDTO rutaEmpleadoDTO) {
+		return rutaEmpleadoServiceImpl.save(rutaEmpleadoDTO);
+	}
 
-    @Operation(summary = "Buscar Ruta Empleado por id")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @GetMapping("/{id}")
-    public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
-        return rutaEmpleadoServiceImpl.findById(id);
-    }
-
-    @Operation(summary = "Listar todos las Ruta Empleado")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @GetMapping("/all")
-    public ResponseEntity<ResponseDTO> getAll() {
-        return rutaEmpleadoServiceImpl.findAll();
-    }
-
-    @Operation(summary = "Eliminar Ruta Empleado por id")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-            @ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-    })
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
-        return rutaEmpleadoServiceImpl.deleteById(id);
-    }
-    
-    @Operation(summary = "actualizar Ruta Empleado")
+	@Operation(summary = "Buscar Ruta Empleado por id")
 	@ApiResponses(value = {
-	        @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	        @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
-	                @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
-	})
-    @PutMapping
-    public ResponseEntity<ResponseDTO> update(@RequestBody RutaEmpleadoDTO rutaEmpleadoDTO) {
-        return rutaEmpleadoServiceImpl.update(rutaEmpleadoDTO);
-    }
-    
-    @Operation(summary = "Sincronizar datos del lector")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-            @ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-    })
-    @GetMapping("/sync/{idPersona}")
-    public ResponseEntity<Map<String, Object>> sincronizarRuta(@PathVariable Integer idPersona, @RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
-        try {
-            Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncLectorData(idPersona, offset, limit);
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/{id}")
+	public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
+		return rutaEmpleadoServiceImpl.findById(id);
+	}
 
-            String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
-            HttpStatus httpStatus = switch (status) {
-                case "403" -> HttpStatus.FORBIDDEN;
-                case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-                default -> HttpStatus.OK;
-            };
+	@Operation(summary = "Listar todos las Ruta Empleado")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("/all")
+	public ResponseEntity<ResponseDTO> getAll() {
+		return rutaEmpleadoServiceImpl.findAll();
+	}
 
-            return ResponseEntity.status(httpStatus).body(resultFromService);
+	@Operation(summary = "Eliminar Ruta Empleado por id")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "Rol no encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Error interno del servidor", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@DeleteMapping("/{id}")
+	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
+		return rutaEmpleadoServiceImpl.deleteById(id);
+	}
 
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of(
-                            "message", "Error en la operación del controlador",
-                            "statusCode", "500",
-                            "error", e.getMessage()
-                    ));
-        }
-    }
-    
-    @Operation(summary = "Sincronizar datos configuración empresa")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-            @ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
-                    @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
-    })
-    @GetMapping("/config/{idPersona}")
-    public ResponseEntity<Map<String, Object>> sincronizarConfig(@PathVariable Integer idPersona, @RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
-        try {
-            Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncConfigEnterprise(idPersona, offset, limit);
+	@Operation(summary = "actualizar Ruta Empleado")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@PutMapping
+	public ResponseEntity<ResponseDTO> update(@RequestBody RutaEmpleadoDTO rutaEmpleadoDTO) {
+		return rutaEmpleadoServiceImpl.update(rutaEmpleadoDTO);
+	}
 
-            String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
-            HttpStatus httpStatus = switch (status) {
-                case "403" -> HttpStatus.FORBIDDEN;
-                case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-                default -> HttpStatus.OK;
-            };
+	@Operation(summary = "Sincronizar datos del lector")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+			@ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }), })
+	@GetMapping("/sync/{idPersona}")
+	public ResponseEntity<Map<String, Object>> sincronizarRuta(@PathVariable Integer idPersona,
+			@RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
+		try {
+			Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncLectorData(idPersona, offset, limit);
 
-            return ResponseEntity.status(httpStatus).body(resultFromService);
+			String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
+			HttpStatus httpStatus = switch (status) {
+			case "403" -> HttpStatus.FORBIDDEN;
+			case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+			default -> HttpStatus.OK;
+			};
 
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of(
-                            "message", "Error en la operación del controlador",
-                            "statusCode", "500",
-                            "error", e.getMessage()
-                    ));
-        }
-    }
+			return ResponseEntity.status(httpStatus).body(resultFromService);
+
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message",
+					"Error en la operación del controlador", "statusCode", "500", "error", e.getMessage()));
+		}
+	}
+
+	@Operation(summary = "Sincronizar datos configuración empresa")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+			@ApiResponse(responseCode = "403", description = "La persona no es un lector válido o no tiene permisos", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = Map.class)) }), })
+	@GetMapping("/config/{idPersona}")
+	public ResponseEntity<Map<String, Object>> sincronizarConfig(@PathVariable Integer idPersona,
+			@RequestParam(required = false) Integer offset, @RequestParam(required = false) Integer limit) {
+		try {
+			Map<String, Object> resultFromService = rutaEmpleadoServiceImpl.syncConfigEnterprise(idPersona, offset,
+					limit);
+
+			String status = String.valueOf(resultFromService.getOrDefault("statusCode", "200"));
+			HttpStatus httpStatus = switch (status) {
+			case "403" -> HttpStatus.FORBIDDEN;
+			case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+			default -> HttpStatus.OK;
+			};
+
+			return ResponseEntity.status(httpStatus).body(resultFromService);
+
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message",
+					"Error en la operación del controlador", "statusCode", "500", "error", e.getMessage()));
+		}
+	}
+
+	@Operation(summary = "Asignación masiva de clientes a un empleado")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Se han asignado los clientes satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
+	@PostMapping("/asignacion-masiva")
+	public ResponseEntity<ResponseDTO> asignarClientesMasivo(@RequestBody AsignacionMasivaRequestDTO request) {
+		return rutaEmpleadoServiceImpl.asignarClientesMasivo(request);
+	}
+	
 }

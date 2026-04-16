@@ -7,9 +7,12 @@ import java.util.Objects;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import com.aqua.plus.commons.entities.AbonoEntity;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
 
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 
 public class DeudaClienteSpecifications {
 
@@ -61,39 +64,35 @@ public class DeudaClienteSpecifications {
 	}
 
 	public static Specification<DeudaClienteEntity> clienteNombreLike(String clienteNombreLike) {
-	    if (clienteNombreLike == null || clienteNombreLike.isBlank()) return null;
+		if (clienteNombreLike == null || clienteNombreLike.isBlank())
+			return null;
 
-	    return (root, cq, cb) -> {
-	        var ecc = root.join("empresaClienteContador");
-	        var cli = ecc.join("cliente");
+		return (root, cq, cb) -> {
+			var ecc = root.join("empresaClienteContador");
+			var cli = ecc.join("cliente");
 
-	        var pNombre   = cb.coalesce(cli.get("nombre"), "");
-	        var sNombre   = cb.coalesce(cli.get("segundoNombre"), "");
-	        var pApellido = cb.coalesce(cli.get("apellido"), "");
-	        var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
+			var pNombre = cb.coalesce(cli.get("nombre"), "");
+			var sNombre = cb.coalesce(cli.get("segundoNombre"), "");
+			var pApellido = cb.coalesce(cli.get("apellido"), "");
+			var sApellido = cb.coalesce(cli.get("segundoApellido"), "");
 
-	        var part1 = cb.concat(pNombre, cb.literal(" "));
-	        var part2 = cb.concat(sNombre, cb.literal(" "));
-	        var part3 = cb.concat(pApellido, cb.literal(" "));
+			var part1 = cb.concat(pNombre, cb.literal(" "));
+			var part2 = cb.concat(sNombre, cb.literal(" "));
+			var part3 = cb.concat(pApellido, cb.literal(" "));
 
-	        var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
+			var fullNameRaw = cb.concat(cb.concat(cb.concat(part1, part2), part3), sApellido);
 
-	        var fullNameSpNorm = cb.function(
-	            "regexp_replace", String.class,
-	            fullNameRaw,
-	            cb.literal("\\s+"),
-	            cb.literal(" "),
-	            cb.literal("g")
-	        );
+			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameRaw, cb.literal("\\s+"),
+					cb.literal(" "), cb.literal("g"));
 
-	        var fullNameLower = cb.lower(fullNameSpNorm);
+			var fullNameLower = cb.lower(fullNameSpNorm);
 
-	        var fullNameNorm = fullNameLower;
+			var fullNameNorm = fullNameLower;
 
-	        String pattern = "%" + clienteNombreLike.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+			String pattern = "%" + clienteNombreLike.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
 
-	        return cb.like(fullNameNorm, pattern);
-	    };
+			return cb.like(fullNameNorm, pattern);
+		};
 	}
 
 	/** tipoDeuda.nombre ILIKE %nombre%. */
@@ -109,7 +108,7 @@ public class DeudaClienteSpecifications {
 
 	/** plazoPago igual a valor. */
 	public static Specification<DeudaClienteEntity> plazoPagoIgual(Integer plazoPago) {
-    return (root, cq, cb) -> plazoPago != null ? cb.equal(root.get("plazoPago"), plazoPago) : cb.conjunction();
+		return (root, cq, cb) -> plazoPago != null ? cb.equal(root.get("plazoPago"), plazoPago) : cb.conjunction();
 	}
 
 	/**
@@ -120,9 +119,19 @@ public class DeudaClienteSpecifications {
 		List<Specification<DeudaClienteEntity>> list = java.util.Arrays.stream(specs).filter(Objects::nonNull).toList();
 		return Specification.allOf(list);
 	}
-	
+
 	public static Specification<DeudaClienteEntity> activoTrue() {
-	    return (root, cq, cb) -> cb.isTrue(root.get("activo"));
+		return (root, cq, cb) -> cb.isTrue(root.get("activo"));
+	}
+
+	public static Specification<DeudaClienteEntity> conSaldoPendiente() {
+		return (root, cq, cb) -> {
+			Subquery<Double> subAbonos = cq.subquery(Double.class);
+			Root<AbonoEntity> abonoRoot = subAbonos.from(AbonoEntity.class);
+			subAbonos.select(cb.coalesce(cb.sum(abonoRoot.get("valor")), 0.0))
+					.where(cb.equal(abonoRoot.get("deudaCliente"), root), cb.equal(abonoRoot.get("activo"), true));
+			return cb.greaterThan(cb.coalesce(root.get("valor"), 0.0), subAbonos);
+		};
 	}
 
 }
