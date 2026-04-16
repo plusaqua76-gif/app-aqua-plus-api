@@ -25,6 +25,7 @@ import com.aqua.plus.commons.dtos.DeudaClienteDTO;
 import com.aqua.plus.commons.dtos.DeudaClienteResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
+import com.aqua.plus.commons.entities.ParametrosEmpresaEntity;
 import com.aqua.plus.commons.entities.TipoDeudaEntity;
 import com.aqua.plus.commons.maps.DeudaClienteMapper;
 import com.aqua.plus.commons.maps.DeudaClienteResponseMapper;
@@ -32,6 +33,7 @@ import com.aqua.plus.commons.repositories.AbonoRepository;
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.FacturaRepository;
+import com.aqua.plus.commons.repositories.ParametrosEmpresaRepository;
 import com.aqua.plus.commons.repositories.TipoDeudaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
@@ -51,6 +53,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	private final FacturaRepository facturaRepository;
 	private final TipoDeudaRepository tipoDeudaRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
+	private final ParametrosEmpresaRepository parametrosEmpresaRepository;
 
 	@Override
 	@Transactional
@@ -118,97 +121,89 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaClienteContadorId(Integer eccId) {
-		log.info("Listar TODAS las DeudaCliente activas por eccId: {}", eccId);
+	    log.info("Listar TODAS las DeudaCliente activas por eccId: {}", eccId);
 
-		try {
-			if (eccId == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
-			}
+	    try {
+	        if (eccId == null) {
+	            return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+	                    .message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
+	        }
 
-			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+	        List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdConFiltroEstado(eccId, "PAFA");
+	        
+	        if (deudas.isEmpty()) {
+	            return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+	                    .code(HttpStatus.OK.value()).totalCount(0L).response(new ArrayList<>()).build());
+	        }
 
-			if (deudas == null || deudas.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false)
-								.message("No se encontraron deudas activas para el ECC con id " + eccId)
-								.code(HttpStatus.NOT_FOUND.value()).build());
-			}
+	        Integer empresaId = deudas.get(0).getEmpresaClienteContador().getEmpresa().getId();
+	        double tasaInteres = 0.0;
+	        
+	        Optional<ParametrosEmpresaEntity> paramInteres = parametrosEmpresaRepository
+	                .findByEmpresaIdAndLlaveAndActivoTrue(empresaId, "INTERES_DEUDA");
+	        
+	        if (paramInteres.isPresent()) {
+	            try {
+	                tasaInteres = Double.parseDouble(paramInteres.get().getValorParametro());
+	            } catch (NumberFormatException e) {
+	                log.error("Error al parsear INTERES_DEUDA: {}", paramInteres.get().getValorParametro());
+	            }
+	        }
 
-			List<Integer> deudaIds = deudas.stream().map(DeudaClienteEntity::getId).collect(Collectors.toList());
+	        List<Integer> deudaIds = deudas.stream().map(DeudaClienteEntity::getId).toList();
 
-			Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
-					.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
-							Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
+	        Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
+	                .collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
+	                        Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
 
-			var items = new ArrayList<Map<String, Object>>(deudas.size());
+	        var items = new ArrayList<Map<String, Object>>();
 
-			for (DeudaClienteEntity d : deudas) {
-				var row = new LinkedHashMap<String, Object>(10);
+	        for (DeudaClienteEntity d : deudas) {
+	            Double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
+	            double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+	            double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
 
-				row.put("id", d.getId());
-				row.put("fechaDeuda", d.getFechaDeuda());
-				row.put("descripcion", d.getDescripcion());
+	            if (saldoPendiente <= 0) continue;
 
-				Double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
-				row.put("valorTotal", valorTotal);
+	            var row = new LinkedHashMap<String, Object>();
+	            row.put("id", d.getId());
+	            row.put("fechaDeuda", d.getFechaCreacion());
+	            row.put("descripcion", d.getDescripcion());
+	            row.put("tipoDeudaNombre", (d.getTipoDeuda() != null) ? d.getTipoDeuda().getNombre() : null);
+	            row.put("facturaCodigo", (d.getFactura() != null) ? d.getFactura().getCodigo() : null);
+	            
+	            row.put("valorTotal", valorTotal);
+	            row.put("totalAbonado", totalAbonado);
+	            row.put("saldoPendiente", saldoPendiente);
+	            row.put("tasaInteres", tasaInteres);
 
-				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
-				double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
+	            Integer meses = d.getPlazoPago() != null && d.getPlazoPago() > 0 ? d.getPlazoPago() : 1;
+	            row.put("meses", meses);
+	            row.put("plazoPagoNombre", meses + " meses");
 
-				if (saldoPendiente == 0.0)
-					continue;
+	            
+	            BigDecimal capitalCuota = BigDecimal.valueOf(saldoPendiente)
+	                .divide(BigDecimal.valueOf(meses), 2, RoundingMode.HALF_UP);
+	            
+	            BigDecimal interesCuota = BigDecimal.valueOf(saldoPendiente)
+	                .multiply(BigDecimal.valueOf(tasaInteres / 100.0))
+	                .setScale(2, RoundingMode.HALF_UP);
 
-				row.put("totalAbonado", totalAbonado);
-				row.put("saldoPendiente", saldoPendiente);
+	            BigDecimal valorCuotaTotal = capitalCuota.add(interesCuota);
 
-				String tipoDeudaNombre = (d.getTipoDeuda() != null) ? d.getTipoDeuda().getNombre() : null;
-				row.put("tipoDeudaNombre", tipoDeudaNombre);
+	            row.put("interesCuota", interesCuota.doubleValue());
+	            row.put("valorMes", valorCuotaTotal.doubleValue());
 
-				Integer meses = d.getPlazoPago();
-				String plazoPagoNombre = (meses != null ? (meses + " meses") : null);
+	            items.add(row);
+	        }
 
-				if (meses != null && meses >= 2) {
-					BigDecimal mensual = BigDecimal.valueOf(valorTotal).divide(BigDecimal.valueOf(meses), 2,
-							RoundingMode.HALF_UP);
+	        return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
 
-					row.put("meses", meses);
-					row.put("valorMes", mensual.doubleValue());
-					row.put("plazoPagoNombre", plazoPagoNombre);
-				} else {
-					row.put("meses", meses);
-					row.put("valorMes", null);
-					row.put("plazoPagoNombre", plazoPagoNombre);
-				}
-
-				String facturaCodigo = (d.getFactura() != null) ? d.getFactura().getCodigo() : null;
-				row.put("facturaCodigo", facturaCodigo);
-
-				items.add(row);
-			}
-
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).totalCount((long) items.size()).response(items).build());
-
-		} catch (Exception ex) {
-			log.error("Error al listar deudas por eccId: {}", eccId, ex);
-
-			Throwable root = ex;
-			while (root.getCause() != null && root.getCause() != root) {
-				root = root.getCause();
-			}
-
-			Map<String, Object> errorInfo = new LinkedHashMap<>();
-			errorInfo.put("exception", ex.getClass().getName());
-			errorInfo.put("message", ex.getMessage());
-			errorInfo.put("rootCause", root.getMessage());
-
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false)
-							.message("Error al consultar deudas: "
-									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
-		}
+	    } catch (Exception ex) {
+	        log.error("Error al listar deudas por eccId: {}", eccId, ex);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); 
+	    }
 	}
 
 	@Override
@@ -222,7 +217,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 						.message("eccId es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdFetch(eccId);
+			List<DeudaClienteEntity> deudas = deudaClienteRepository.findAllActiveByEccIdConFiltroEstado(eccId, "PAFA");
 
 			if (deudas == null || deudas.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -231,13 +226,26 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			List<Integer> deudaIds = deudas.stream().map(DeudaClienteEntity::getId).collect(Collectors.toList());
+			// NUEVO: Filtrar por estado - solo mostrar si está NULL o tiene código 'PAFA'
+			List<DeudaClienteEntity> deudasFiltradas = deudas.stream()
+					.filter(d -> d.getEstado() == null || "PAFA".equals(d.getEstado().getCodigo()))
+					.collect(Collectors.toList());
+
+			if (deudasFiltradas.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron deudas activas para el ECC con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).build());
+			}
+
+			List<Integer> deudaIds = deudasFiltradas.stream().map(DeudaClienteEntity::getId)
+					.collect(Collectors.toList());
 
 			Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
 					.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
 							Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
 
-			List<DeudaClienteEntity> deudasConSaldo = deudas.stream().filter(d -> {
+			List<DeudaClienteEntity> deudasConSaldo = deudasFiltradas.stream().filter(d -> {
 				double valorDeuda = d.getValor() == null ? 0.0 : d.getValor();
 				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
 				return (valorDeuda - totalAbonado) > 0;

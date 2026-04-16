@@ -1528,7 +1528,6 @@ public class FacturaServiceImpl implements IFacturaService {
 		deuda.setEmpresaClienteContador(factura.getEmpresaClienteContador());
 		deuda.setTipoDeuda(tipoDeuda);
 		deuda.setValor(diferencia);
-		deuda.setFechaDeuda(pago.getFechaVencimiento() != null ? pago.getFechaVencimiento() : LocalDate.now());
 		deuda.setDescripcion("Abono parcial. Pagó %.2f de %.2f. Saldo pendiente: %.2f".formatted(valorPagado,
 				precioFactura, diferencia));
 		deuda.setActivo(true);
