@@ -333,100 +333,112 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByIdEnterprise(Integer idEmpresa, String clienteNombreLike,
-			String facturaCodigoLike, String descripcionLike, LocalDate fechaDeuda, Double valor,
-			String tipoDeudaNombre, Integer plazoPago, Pageable pageable) {
-		log.info(
-				"Listar DeudaCliente por empresaId={} con filtros: clienteNombreLike={}, facturaCodigoLike={}, "
-						+ "descripcionLike={}, fechaDeuda={}, valor={}, tipoDeudaNombre={}, plazoPago={}",
-				idEmpresa, clienteNombreLike, facturaCodigoLike, descripcionLike, fechaDeuda, valor, tipoDeudaNombre,
-				plazoPago);
+	        String facturaCodigoLike, String descripcionLike, LocalDate fechaDeuda, Double valor,
+	        String tipoDeudaNombre, Integer plazoPago, Pageable pageable) {
+	    
+	    log.info("Listar DeudaCliente por empresaId={} con filtros activos", idEmpresa);
 
-		try {
-			if (idEmpresa == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
-			}
+	    try {
+	        if (idEmpresa == null) {
+	            return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+	                    .message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
+	        }
 
-			Specification<DeudaClienteEntity> specConSaldo = DeudaClienteSpecifications.allOfNonNull(
-					DeudaClienteSpecifications.activoTrue(), DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
-					DeudaClienteSpecifications.fechaDeudaIgual(fechaDeuda),
-					DeudaClienteSpecifications.valorIgual(valor),
-					DeudaClienteSpecifications.descripcionLike(descripcionLike),
-					DeudaClienteSpecifications.facturaCodigoLike(facturaCodigoLike),
-					DeudaClienteSpecifications.clienteNombreLike(clienteNombreLike),
-					DeudaClienteSpecifications.tipoDeudaNombreLike(tipoDeudaNombre),
-					DeudaClienteSpecifications.plazoPagoIgual(plazoPago),
-					DeudaClienteSpecifications.conSaldoPendiente());
+	        double tasaInteres = 0.0;
+	        var paramInteres = parametrosEmpresaRepository
+	                .findByEmpresaIdAndLlaveAndActivoTrue(idEmpresa, "INTERES_DEUDA");
+	        
+	        if (paramInteres.isPresent()) {
+	            try {
+	                tasaInteres = Double.parseDouble(paramInteres.get().getValorParametro());
+	            } catch (NumberFormatException e) {
+	                log.error("Error al parsear INTERES_DEUDA: {}", paramInteres.get().getValorParametro());
+	            }
+	        }
+	        final double tasaFinal = tasaInteres;
 
-			Pageable pageToUse = (pageable != null) ? pageable : Pageable.unpaged();
+	        Specification<DeudaClienteEntity> specConSaldo = DeudaClienteSpecifications.allOfNonNull(
+	                DeudaClienteSpecifications.activoTrue(), 
+	                DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
+	                DeudaClienteSpecifications.fechaDeudaIgual(fechaDeuda),
+	                DeudaClienteSpecifications.valorIgual(valor),
+	                DeudaClienteSpecifications.descripcionLike(descripcionLike),
+	                DeudaClienteSpecifications.facturaCodigoLike(facturaCodigoLike),
+	                DeudaClienteSpecifications.clienteNombreLike(clienteNombreLike),
+	                DeudaClienteSpecifications.tipoDeudaNombreLike(tipoDeudaNombre),
+	                DeudaClienteSpecifications.plazoPagoIgual(plazoPago),
+	                DeudaClienteSpecifications.conSaldoPendiente());
 
-			Page<DeudaClienteEntity> page = deudaClienteRepository.findAll((root, cq, cb) -> {
-				if (Long.class != cq.getResultType()) {
-					root.fetch("empresaClienteContador", JoinType.LEFT).fetch("cliente", JoinType.LEFT);
-				}
-				return specConSaldo.toPredicate(root, cq, cb);
-			}, pageToUse);
+	        Pageable pageToUse = (pageable != null) ? pageable : Pageable.unpaged();
 
-			List<DeudaClienteEntity> entities = page.getContent();
+	        Page<DeudaClienteEntity> page = deudaClienteRepository.findAll((root, cq, cb) -> {
+	            if (Long.class != cq.getResultType()) {
+	                root.fetch("empresaClienteContador", JoinType.LEFT).fetch("cliente", JoinType.LEFT);
+	            }
+	            return specConSaldo.toPredicate(root, cq, cb);
+	        }, pageToUse);
 
-			if (entities.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND)
-						.body(ResponseDTO.builder().success(false).message("No se encontraron deudas para la empresa")
-								.code(HttpStatus.NOT_FOUND.value()).response(List.of())
-								.totalCount(page.getTotalElements()).pageSize(page.getSize())
-								.currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
-			}
+	        List<DeudaClienteEntity> entities = page.getContent();
 
-			List<Integer> deudaIds = entities.stream().map(DeudaClienteEntity::getId).collect(Collectors.toList());
+	        if (entities.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                    .body(ResponseDTO.builder().success(false).message("No se encontraron deudas")
+	                            .code(HttpStatus.NOT_FOUND.value()).response(List.of())
+	                            .totalCount(page.getTotalElements()).build());
+	        }
 
-			Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
-					.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
-							Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
+	        List<Integer> deudaIds = entities.stream().map(DeudaClienteEntity::getId).toList();
+	        Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
+	                .collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
+	                        Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
 
-			List<Map<String, Object>> items = entities.stream().map(d -> {
-				double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
-				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
-				double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
+	        List<Map<String, Object>> items = entities.stream().map(d -> {
+	            double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
+	            double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
+	            double saldoPendiente = Math.max(valorTotal - totalAbonado, 0.0);
 
-				DeudaClienteResponseDTO dto = deudaClienteResponseMapper.toDto(d);
+	            DeudaClienteResponseDTO dto = deudaClienteResponseMapper.toDto(d);
 
-				var row = new LinkedHashMap<String, Object>();
-				row.put("id", dto.getId());
-				row.put("fechaDeuda", dto.getFechaDeuda());
-				row.put("descripcion", dto.getDescripcion());
-				row.put("valorTotal", valorTotal);
-				row.put("totalAbonado", totalAbonado);
-				row.put("saldoPendiente", saldoPendiente);
-				row.put("tipoDeudaNombre", d.getTipoDeuda() != null ? d.getTipoDeuda().getNombre() : null);
+	            Map<String, Object> row = new LinkedHashMap<>();
+	            row.put("id", dto.getId());
+	            row.put("fechaDeuda", dto.getFechaDeuda());
+	            row.put("descripcion", dto.getDescripcion());
+	            row.put("valorTotal", valorTotal);
+	            row.put("totalAbonado", totalAbonado);
+	            row.put("saldoPendiente", saldoPendiente);
+	            row.put("tipoDeudaNombre", d.getTipoDeuda() != null ? d.getTipoDeuda().getNombre() : null);
 
-				Integer meses = d.getPlazoPago();
-				row.put("meses", meses);
-				row.put("plazoPagoNombre", meses != null ? (meses + " meses") : null);
+	            Integer meses = d.getPlazoPago();
+	            row.put("meses", meses);
+	            row.put("plazoPagoNombre", meses != null ? (meses + " meses") : null);
 
-				if (meses != null && meses >= 2) {
-					BigDecimal mensual = BigDecimal.valueOf(valorTotal).divide(BigDecimal.valueOf(meses), 2,
-							RoundingMode.HALF_UP);
-					row.put("valorMes", mensual.doubleValue());
-				} else {
-					row.put("valorMes", null);
-				}
+	            if (meses != null && meses > 0) {
+	                BigDecimal saldoBD = BigDecimal.valueOf(saldoPendiente);
+	                BigDecimal capitalMensual = saldoBD.divide(BigDecimal.valueOf(meses), 2, RoundingMode.HALF_UP);
+	                BigDecimal interesCuota = saldoBD.multiply(BigDecimal.valueOf(tasaFinal / 100.0))
+	                        .setScale(2, RoundingMode.HALF_UP);
 
-				row.put("facturaCodigo", d.getFactura() != null ? d.getFactura().getCodigo() : null);
-				row.put("clienteNombre", dto.getClienteNombre());
+	                row.put("valorMes", capitalMensual.add(interesCuota).doubleValue());
+	            } else {
+	                row.put("valorMes", null);
+	            }
 
-				return row;
-			}).collect(Collectors.toList());
+	            row.put("facturaCodigo", d.getFactura() != null ? d.getFactura().getCodigo() : null);
+	            row.put("clienteNombre", dto.getClienteNombre());
 
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(items).totalCount(page.getTotalElements())
-					.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
+	            return row;
+	        }).toList();
 
-		} catch (Exception e) {
-			log.error("Error al buscar DeudaCliente por empresaId={}", idEmpresa, e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
-		}
+	        return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value()).response(items).totalCount(page.getTotalElements())
+	                .pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
+
+	    } catch (Exception e) {
+	        log.error("Error al buscar DeudaCliente por empresaId={}", idEmpresa, e);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+	    }
 	}
 
 	@Override
