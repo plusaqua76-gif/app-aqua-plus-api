@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,9 +28,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aqua.plus.api.configs.security.utils.JwtUtil;
 import com.aqua.plus.api.service.IEmpresaClienteContadorService;
+import com.aqua.plus.api.service.impl.specification.EccSpecification;
 import com.aqua.plus.api.service.impl.specification.PersonaSpecification;
 import com.aqua.plus.commons.dtos.AforoDTO;
+import com.aqua.plus.commons.dtos.ClienteDetalleDTO;
 import com.aqua.plus.commons.dtos.ContadorDTO;
+import com.aqua.plus.commons.dtos.ContadorFiltroDTO;
 import com.aqua.plus.commons.dtos.EccDetalleDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
@@ -160,21 +164,21 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 						});
 
 				Object statusCode = response.get("statusCode");
-				
+
 				String statusStr = String.valueOf(statusCode);
 
 				if (!"200".equals(statusStr)) {
-				    HttpStatus httpStatus = switch (statusStr) {
-				        case "409" -> HttpStatus.CONFLICT;
-				        case "404" -> HttpStatus.NOT_FOUND;
-				        case "400" -> HttpStatus.BAD_REQUEST;
-				        case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-				        default    -> HttpStatus.BAD_REQUEST;
-				    };
-				    response.put("_httpStatus", httpStatus.value());
-				    return response;
+					HttpStatus httpStatus = switch (statusStr) {
+					case "409" -> HttpStatus.CONFLICT;
+					case "404" -> HttpStatus.NOT_FOUND;
+					case "400" -> HttpStatus.BAD_REQUEST;
+					case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+					default -> HttpStatus.BAD_REQUEST;
+					};
+					response.put("_httpStatus", httpStatus.value());
+					return response;
 				}
-				
+
 				if ("200".equals(String.valueOf(statusCode))) {
 
 					String primerNombre = (String) jsonParams.get("primerNombre");
@@ -396,7 +400,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findClientesByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
 			String cedula, String codigo, String departamento, String ciudad, String corregimiento, String telefono,
-			String correo, String tipoDocumentoNombre, String direccion, Boolean estado,Integer nuid) {
+			String correo, String tipoDocumentoNombre, String direccion, Boolean estado, Integer nuid) {
 
 		log.info(
 				"Buscar clientes por empresa: {}, filtros: [nombreLike={}, cedula={}, codigo={}, dep={}, ciudad={}, corr={}, tel={}, correo={}, tipoDocNombre={}, direccion={}, estado={}, nuid={}]",
@@ -420,8 +424,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					PersonaSpecification.clienteTelefonoLike(telefono), PersonaSpecification.clienteCorreoLike(correo),
 					PersonaSpecification.clienteTipoDocumentoNombreLike(tipoDocumentoNombre),
 					PersonaSpecification.direccionDescripcionLike(direccion),
-					PersonaSpecification.clienteEstado(estado),
-					PersonaSpecification.contadorNuid(nuid));
+					PersonaSpecification.clienteEstado(estado), PersonaSpecification.contadorNuid(nuid));
 
 			Page<EmpresaClienteContadorEntity> pageECC = empresaClienteContadorRepository.findAll(spec, pageable);
 
@@ -585,18 +588,20 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 					.thenComparing(m -> ((String) m.getOrDefault("nombreCompleto", "")),
 							String.CASE_INSENSITIVE_ORDER));
 
+			long totalPersonasUnicas = uniques.size();
+			int totalPagesUnicos = (int) Math.ceil((double) totalPersonasUnicas / pageSize);
+
 			if (rows.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
-						.message("No se encontraron clientes para los filtros dados").code(HttpStatus.NOT_FOUND.value())
-						.response(rows).totalCount(pageECC.getTotalElements()) // ECC
-						.pageSize(pageECC.getSize()).currentPage(pageECC.getNumber())
-						.totalPages(pageECC.getTotalPages()).build());
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontraron clientes para los filtros dados")
+								.code(HttpStatus.NOT_FOUND.value()).response(rows).totalCount(totalPersonasUnicas)
+								.pageSize(pageSize).currentPage(pageNumber).totalPages(totalPagesUnicos).build());
 			}
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message("Consulta exitosa")
-					.code(HttpStatus.OK.value()).response(rows).totalCount(pageECC.getTotalElements()) // ECC
-					.pageSize(pageECC.getSize()).currentPage(pageECC.getNumber()).totalPages(pageECC.getTotalPages())
-					.build());
+					.code(HttpStatus.OK.value()).response(rows).totalCount(totalPersonasUnicas).pageSize(pageSize)
+					.currentPage(pageNumber).totalPages(totalPagesUnicos).build());
 
 		} catch (Exception e) {
 			log.error("Error al consultar clientes por id de empresa: {}", idEmpresa, e);
@@ -922,6 +927,161 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 			log.error("Error consultando EmpresaClienteContador por empresa/persona: {}, {}", idEmpresa, idPersona, e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message("Error consultando").code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findContadoresByEccId(Integer eccId, ContadorFiltroDTO filtro,
+			Pageable pageable) {
+
+		log.info("Buscar contadores para ECC id: {}, filtro: {}", eccId, filtro);
+
+		try {
+			empresaClienteContadorRepository.flush();
+			Optional<Integer> optPersonaId = empresaClienteContadorRepository.findPersonaIdByEccId(eccId);
+			if (optPersonaId.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró EmpresaClienteContador con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).response(null).build());
+			}
+
+			Integer personaId = optPersonaId.get();
+			Integer empresaId = empresaClienteContadorRepository.findEmpresaIdByEccId(eccId).orElse(null);
+
+			log.info("ECC {} → personaId resuelto: {}, empresaId: {}", eccId, personaId, empresaId);
+
+			if (personaId == null) {
+				return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+						.code(HttpStatus.OK.value()).response(Collections.emptyList()).build());
+			}
+
+			Specification<EmpresaClienteContadorEntity> spec = EccSpecification.build(personaId, filtro);
+
+			Page<EmpresaClienteContadorEntity> pageResult = empresaClienteContadorRepository.findAll(spec, pageable);
+
+			log.info("Total contadores encontrados para personaId {}: {}", personaId, pageResult.getTotalElements());
+
+			final Integer empId = empresaId;
+			List<ContadorDTO> contadoresDTO = pageResult.getContent().stream()
+					.map(eccRel -> mapToContadorDTO(eccRel, empId)).toList();
+
+			Map<String, Object> payload = new LinkedHashMap<>();
+			payload.put("contadores", contadoresDTO);
+			payload.put("totalElements", pageResult.getTotalElements());
+			payload.put("totalPages", pageResult.getTotalPages());
+			payload.put("pageNumber", pageResult.getNumber());
+			payload.put("pageSize", pageResult.getSize());
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(payload).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar contadores para ECC id: {}", eccId, e);
+			return buildErrorResponse(e);
+		}
+	}
+
+	private ContadorDTO mapToContadorDTO(EmpresaClienteContadorEntity eccRel, Integer empresaId) {
+
+		ContadorDTO dto = contadorMapper.entityToDto(eccRel.getContador());
+		dto.setIdEmpresaClienteContador(eccRel.getId());
+
+		TipoUsoEntity tipoUso = eccRel.getContador().getTipoUso();
+		if (tipoUso != null) {
+			dto.setTipoUso(TipoUsoDTO.builder().id(tipoUso.getId()).nombre(tipoUso.getNombre()).build());
+		}
+
+		List<AforoDTO> aforos = aforoContadorRepository.findByContadorConAforo(eccRel.getContador().getId()).stream()
+				.filter(ac -> ac.getAforo() != null)
+				.map(ac -> AforoDTO.builder().id(ac.getAforo().getId()).idAforoContador(ac.getId())
+						.nombre(ac.getAforo().getNombre()).tarifaBase(ac.getAforo().getTarifaBase()).build())
+				.toList();
+		dto.setAforoContador(aforos);
+
+		rutaEmpleadoRepository.findByEmpresaClienteContador_Id(eccRel.getId()).ifPresent(ruta -> {
+			EmpleadoEmpresaEntity emp = ruta.getEmpleadoEmpresa();
+			if (emp != null) {
+				dto.setEmpleadoEmpresaId(emp.getId());
+				dto.setEmpleadoNombre(resolveEmpleadoNombreSeguro(emp));
+			}
+		});
+
+		List<TarifaContadorEntity> tarifasContador = Collections.emptyList();
+		List<TarifaContadorDTO> tarifasContadorDTO = Collections.emptyList();
+		try {
+			tarifasContador = tarifaContadorRepository.findByEmpresaClienteContador_Id(eccRel.getId());
+			tarifasContadorDTO = tarifasContador.isEmpty() ? Collections.emptyList()
+					: tarifasContador.stream().map(tarifaContadorMapper::entityToDto).toList();
+		} catch (Exception ex) {
+			log.warn("No se pudieron cargar tarifas para eccId {}: {}", eccRel.getId(), ex.getMessage());
+		}
+		dto.setTarifasContadores(tarifasContadorDTO);
+
+		if (empresaId != null) {
+			final List<TarifaContadorEntity> tarifasRef = tarifasContador;
+			Set<Integer> tiposUsados = tarifasRef.stream()
+					.filter(t -> t.getTipoTarifa() != null && t.getTipoTarifa().getId() != null)
+					.map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
+
+			List<TipoTarifaDTO> tiposFaltantesDTO = tipoTarifaRepository.findByEmpresa_Id(empresaId).stream()
+					.filter(tt -> tt.getId() != null && !tiposUsados.contains(tt.getId()))
+					.map(tipoTarifaMapper::entityToDto).toList();
+
+			dto.setTiposTarifaFaltantes(tiposFaltantesDTO);
+		}
+
+		return dto;
+	}
+
+	private ResponseEntity<ResponseDTO> buildErrorResponse(Exception e) {
+		Map<String, Object> errorPayload = new HashMap<>();
+		errorPayload.put("exception", e.getClass().getSimpleName());
+		errorPayload.put("errorMessage", e.getMessage());
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+				.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
+						.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorPayload).build());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ResponseEntity<ResponseDTO> findClienteByEccId(Integer eccId) {
+		log.info("Buscar cliente por ECC id: {}", eccId);
+
+		try {
+			var opt = empresaClienteContadorRepository.findById(eccId);
+			if (opt.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No se encontró EmpresaClienteContador con id " + eccId)
+								.code(HttpStatus.NOT_FOUND.value()).response(null).build());
+			}
+
+			var ecc = opt.get();
+			var persona = ecc.getCliente();
+			Integer personaId = persona != null ? persona.getId() : null;
+
+			PersonaDTO personaDTO = persona != null ? personaMapper.entityToDto(persona) : null;
+
+			String correo = personaId != null
+					? correoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(CorreoGeneralEntity::getCorreo).orElse(null)
+					: null;
+
+			String telefono = personaId != null
+					? telefonoGeneralRepository.findTop1ByPersonaIdAndActivoTrueOrderByIdDesc(personaId)
+							.map(TelefonoGeneralEntity::getNumero).orElse(null)
+					: null;
+
+			var payload = ClienteDetalleDTO.builder().persona(personaDTO).correo(correo).telefono(telefono).build();
+
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(payload).build());
+
+		} catch (Exception e) {
+			log.error("Error al buscar cliente por ECC id: {}", eccId, e);
+			return buildErrorResponse(e);
 		}
 	}
 
