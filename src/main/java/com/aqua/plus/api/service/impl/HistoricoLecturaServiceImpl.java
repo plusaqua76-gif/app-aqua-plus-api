@@ -58,7 +58,7 @@ public class HistoricoLecturaServiceImpl implements IHistoricoLecturaService {
 			}
 
 			var primerContador = entities.getFirst().getContador();
-			var eccOpt = empresaClienteContadorRepository.findByContador_IdAndActivoTrue(primerContador.getId());
+			var eccOpt = empresaClienteContadorRepository.findByContadorIdActivoTrue(primerContador.getId());
 
 			PersonaDTO clienteDTO = eccOpt.map(ecc -> {
 				var cli = ecc.getCliente();
