@@ -148,34 +148,39 @@ public final class PersonaSpecification {
 			return cb.exists(sub);
 		};
 	}
-	
-	public static Specification<EmpresaClienteContadorEntity> clienteTipoDocumentoNombreLike(String tdNombre) {
-	    if (tdNombre == null || tdNombre.isBlank()) return null;
-	    return (root, q, cb) -> {
-	        var cli = root.join("cliente");
-	        var td  = cli.join("tipoDocumento", JoinType.LEFT);
-	        return cb.like(cb.lower(td.get("nombre")), "%" + tdNombre.toLowerCase().trim() + "%");
-	    };
-	}
-	
-	public static Specification<EmpresaClienteContadorEntity> contadorSerialLike(String serialLike) {
-        if (serialLike == null || serialLike.isBlank()) return null;
-        return (root, q, cb) -> {
-            var cont = root.join("contador", jakarta.persistence.criteria.JoinType.LEFT);
-            return cb.like(cb.lower(cont.get("serial")), "%" + serialLike.toLowerCase().trim() + "%");
-        };
-    }
 
-		/** Cliente estado */
+	public static Specification<EmpresaClienteContadorEntity> clienteTipoDocumentoNombreLike(String tdNombre) {
+		if (tdNombre == null || tdNombre.isBlank())
+			return null;
+		return (root, q, cb) -> {
+			var cli = root.join("cliente");
+			var td = cli.join("tipoDocumento", JoinType.LEFT);
+			return cb.like(cb.lower(td.get("nombre")), "%" + tdNombre.toLowerCase().trim() + "%");
+		};
+	}
+
+	public static Specification<EmpresaClienteContadorEntity> contadorSerialLike(String serialLike) {
+		if (serialLike == null || serialLike.isBlank())
+			return null;
+		return (root, q, cb) -> {
+			var cont = root.join("contador", jakarta.persistence.criteria.JoinType.LEFT);
+			return cb.like(cb.lower(cont.get("serial")), "%" + serialLike.toLowerCase().trim() + "%");
+		};
+	}
+
+	/** Cliente estado */
 	public static Specification<EmpresaClienteContadorEntity> clienteEstado(Boolean estado) {
-		return (root, q, cb) -> estado != null ? 
-		cb.equal(root.get("cliente").get("activo"), estado) : cb.conjunction();
+		return (root, q, cb) -> estado != null ? cb.equal(root.get("cliente").get("activo"), estado) : cb.conjunction();
 	}
 
 	/** Cliente NUID */
 	public static Specification<EmpresaClienteContadorEntity> contadorNuid(Integer nuid) {
-		return (root, q, cb) -> nuid != null ? 
-		cb.equal(root.get("contador").get("nuid"), nuid) : cb.conjunction();
+		if (nuid == null)
+			return null;
+		return (root, q, cb) -> {
+			var cont = root.join("contador", JoinType.LEFT);
+			return cb.equal(cont.get("nuid"), nuid);
+		};
 	}
 
 }

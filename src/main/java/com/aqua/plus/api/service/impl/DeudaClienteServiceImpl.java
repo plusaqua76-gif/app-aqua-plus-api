@@ -360,7 +360,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	        Specification<DeudaClienteEntity> specConSaldo = DeudaClienteSpecifications.allOfNonNull(
 	                DeudaClienteSpecifications.activoTrue(), 
 	                DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
-	                DeudaClienteSpecifications.fechaDeudaIgual(fechaDeuda),
+	                DeudaClienteSpecifications.fechaCreacionIgual(fechaDeuda),
 	                DeudaClienteSpecifications.valorIgual(valor),
 	                DeudaClienteSpecifications.descripcionLike(descripcionLike),
 	                DeudaClienteSpecifications.facturaCodigoLike(facturaCodigoLike),

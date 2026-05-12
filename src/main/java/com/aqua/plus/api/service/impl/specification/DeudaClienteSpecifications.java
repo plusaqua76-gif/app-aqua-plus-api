@@ -29,12 +29,13 @@ public class DeudaClienteSpecifications {
 		};
 	}
 
-	/** DATE(fechaDeuda) = :fecha (yyyy-MM-dd). */
-	public static Specification<DeudaClienteEntity> fechaDeudaIgual(LocalDate fecha) {
-		if (fecha == null)
-			return null;
-		return (root, cq, cb) -> cb.equal(cb.function("DATE", Date.class, root.get("fechaDeuda")),
-				java.sql.Date.valueOf(fecha));
+	/** DATE(fechaCreacion) = :fecha (yyyy-MM-dd). */
+	public static Specification<DeudaClienteEntity> fechaCreacionIgual(LocalDate fecha) {
+	    if (fecha == null)
+	        return null;
+	    return (root, cq, cb) -> cb.equal(
+	            cb.function("DATE", Date.class, root.get("fechaCreacion")),
+	            java.sql.Date.valueOf(fecha));
 	}
 
 	/** valor = :valor (exacto). */
