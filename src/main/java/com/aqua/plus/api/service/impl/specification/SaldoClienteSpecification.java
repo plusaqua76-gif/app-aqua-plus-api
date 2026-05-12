@@ -24,6 +24,15 @@ public final class SaldoClienteSpecification {
 	private static final String CIU = "ciudad";
 	private static final String CORR = "corregimiento";
 	private static final String CONT = "contador";
+	
+	/** SaldoCliente → ecc → id */
+	public static Specification<SaldoClienteEntity> empresaClienteContadorId(Integer eccId) {
+	    return (root, query, cb) -> {
+	        if (eccId == null)
+	            return null;
+	        return cb.equal(root.join(ECC, JoinType.INNER).get("id"), eccId);
+	    };
+	}
 
 	/** SaldoCliente → ecc → empresa → id */
 	public static Specification<SaldoClienteEntity> empresaId(Integer idEmpresa) {
