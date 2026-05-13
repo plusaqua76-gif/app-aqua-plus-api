@@ -25,6 +25,6 @@ public interface IContadorService {
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
 
-	ResponseEntity<ResponseDTO> findContadorPorSerial(String serial);
+	ResponseEntity<ResponseDTO> findContadorPorSerial(String serial, Integer empresaId);
 
 }
