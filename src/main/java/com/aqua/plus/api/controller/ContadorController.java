@@ -110,8 +110,9 @@ public class ContadorController {
 			@ApiResponse(responseCode = "409", description = "Contador en uso", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
 			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
 	@GetMapping("/serial")
-	public ResponseEntity<ResponseDTO> getContadorBySerial(@RequestParam("serial") String serial) {
-		return contadorServiceImpl.findContadorPorSerial(serial);
+	public ResponseEntity<ResponseDTO> getContadorBySerial(@RequestParam("serial") String serial,
+			@RequestParam("idEmpresa") Integer idEmpresa) {
+		return contadorServiceImpl.findContadorPorSerial(serial, idEmpresa);
 	}
 
 }
