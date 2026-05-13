@@ -24,9 +24,11 @@ import com.aqua.plus.api.service.impl.specification.LecturaSpecifications;
 import com.aqua.plus.commons.dtos.LecturaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
+import com.aqua.plus.commons.entities.FacturaEntity;
 import com.aqua.plus.commons.entities.LecturaEntity;
 import com.aqua.plus.commons.maps.LecturaMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
+import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.repositories.LecturaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -55,93 +57,109 @@ public class LecturaServiceImpl implements ILecturaService {
 	private final LecturaMapper lecturaMapper;
 	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 	private final ObjectMapper objectMapper;
+	private final FacturaRepository facturaRepository;
 
 	@Override
 	@Transactional
 	public ResponseEntity<ResponseDTO> save(LecturaDTO dto) {
-		log.info("Guardar/Actualizar lectura (por id de lectura)");
+	    log.info("Guardar/Actualizar lectura (por id de lectura)");
 
-		try {
-			if (dto == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("El DTO de lectura es obligatorio").response(null).build());
-			}
+	    try {
+	        if (dto == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("El DTO de lectura es obligatorio").response(null).build());
+	        }
 
-			final Integer lecturaId = dto.getId();
-			final boolean esUpdate = (lecturaId != null && lecturaRepository.existsById(lecturaId));
+	        final Integer lecturaId = dto.getId();
+	        final boolean esUpdate = (lecturaId != null && lecturaRepository.existsById(lecturaId));
 
-			if (esUpdate) {
-				LecturaEntity target = lecturaRepository.findById(lecturaId)
-						.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+	        if (esUpdate) {
+	            LecturaEntity target = lecturaRepository.findById(lecturaId)
+	                    .orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
 
-				ContadorEntity contadorActual = target.getContador();
+	            FacturaEntity factura = facturaRepository.findByLectura_Id(lecturaId).orElse(null);
+	            if (factura != null) {
+	                String estadoFactura = factura.getEstado().getNombre();
+	                if (estadoFactura.equalsIgnoreCase("VENCIDA") || 
+	                    estadoFactura.equalsIgnoreCase("PAGADA") || 
+	                    estadoFactura.equalsIgnoreCase("PAGO PARCIAL")) {
+	                    
+	                    return ResponseEntity.status(HttpStatus.CONFLICT)
+	                            .body(ResponseDTO.builder().success(false)
+	                                    .code(HttpStatus.CONFLICT.value())
+	                                    .message("No se puede actualizar la lectura. La factura asociada tiene estado: " + estadoFactura)
+	                                    .response(null).build());
+	                }
+	            }
 
-				Integer contadorIdDto = (dto.getContador() != null ? dto.getContador().getId() : null);
-				ContadorEntity contadorAUsar;
+	            ContadorEntity contadorActual = target.getContador();
 
-				if (contadorIdDto != null) {
-					contadorAUsar = contadorRepository.findById(contadorIdDto)
-							.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
-				} else {
-					if (contadorActual == null || contadorActual.getId() == null) {
-						return ResponseEntity.badRequest()
-								.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-										.message("La lectura existente no tiene contador asociado").response(null)
-										.build());
-					}
-					contadorAUsar = contadorActual;
-				}
+	            Integer contadorIdDto = (dto.getContador() != null ? dto.getContador().getId() : null);
+	            ContadorEntity contadorAUsar;
 
-				lecturaMapper.updateEntityFromDto(dto, target);
+	            if (contadorIdDto != null) {
+	                contadorAUsar = contadorRepository.findById(contadorIdDto)
+	                        .orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+	            } else {
+	                if (contadorActual == null || contadorActual.getId() == null) {
+	                    return ResponseEntity.badRequest()
+	                            .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                                    .message("La lectura existente no tiene contador asociado").response(null)
+	                                    .build());
+	                }
+	                contadorAUsar = contadorActual;
+	            }
 
-				target.setContador(contadorAUsar);
+	            lecturaMapper.updateEntityFromDto(dto, target);
 
-				Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : target.getFechaLectura();
+	            target.setContador(contadorAUsar);
 
-				if (fechaLectura == null) {
-					fechaLectura = new Date();
-				}
-				target.setFechaLectura(fechaLectura);
+	            Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : target.getFechaLectura();
 
-				target.setFechaModificacion(new Date());
-				target.setUsuarioModificacion(
-						dto.getUsuarioModificacion() != null ? dto.getUsuarioModificacion() : dto.getUsuarioCreacion());
+	            if (fechaLectura == null) {
+	                fechaLectura = new Date();
+	            }
+	            target.setFechaLectura(fechaLectura);
 
-				LecturaEntity saved = lecturaRepository.save(target);
-				return respond(true, saved);
-			}
+	            target.setFechaModificacion(new Date());
+	            target.setUsuarioModificacion(
+	                    dto.getUsuarioModificacion() != null ? dto.getUsuarioModificacion() : dto.getUsuarioCreacion());
 
-			final Integer contadorId = (dto.getContador() != null) ? dto.getContador().getId() : null;
-			if (contadorId == null) {
-				return ResponseEntity.badRequest()
-						.body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
-								.message("Debe indicar el contador").response(null).build());
-			}
+	            LecturaEntity saved = lecturaRepository.save(target);
+	            return respond(true, saved);
+	        }
 
-			ContadorEntity contador = contadorRepository.findById(contadorId)
-					.orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
+	        final Integer contadorId = (dto.getContador() != null) ? dto.getContador().getId() : null;
+	        if (contadorId == null) {
+	            return ResponseEntity.badRequest()
+	                    .body(ResponseDTO.builder().success(false).code(HttpStatus.BAD_REQUEST.value())
+	                            .message("Debe indicar el contador").response(null).build());
+	        }
 
-			LecturaEntity target = lecturaMapper.dtoToEntity(dto);
-			target.setContador(contador);
+	        ContadorEntity contador = contadorRepository.findById(contadorId)
+	                .orElseThrow(() -> new RuntimeException(Constantes.CON_NOT_FOUND));
 
-			Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : new Date();
-			target.setFechaLectura(fechaLectura);
+	        LecturaEntity target = lecturaMapper.dtoToEntity(dto);
+	        target.setContador(contador);
 
-			target.setFechaCreacion(new Date());
-			target.setUsuarioCreacion(dto.getUsuarioCreacion());
-			target.setActivo(true);
+	        Date fechaLectura = (dto.getFechaLectura() != null) ? dto.getFechaLectura() : new Date();
+	        target.setFechaLectura(fechaLectura);
 
-			LecturaEntity saved = lecturaRepository.save(target);
-			return respond(false, saved);
+	        target.setFechaCreacion(new Date());
+	        target.setUsuarioCreacion(dto.getUsuarioCreacion());
+	        target.setActivo(true);
 
-		} catch (Exception e) {
-			log.error("Error guardando lectura", e);
+	        LecturaEntity saved = lecturaRepository.save(target);
+	        return respond(false, saved);
 
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-					.body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
-							.code(HttpStatus.BAD_REQUEST.value()).response(e.getMessage()).build());
-		}
+	    } catch (Exception e) {
+	        log.error("Error guardando lectura", e);
+
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	                .body(ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
+	                        .code(HttpStatus.BAD_REQUEST.value()).response(e.getMessage()).build());
+	    }
 	}
 
 	private ResponseEntity<ResponseDTO> respond(boolean isUpdate, LecturaEntity saved) {
