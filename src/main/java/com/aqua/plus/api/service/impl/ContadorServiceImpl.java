@@ -57,7 +57,8 @@ public class ContadorServiceImpl implements IContadorService {
 		try {
 			boolean isUpdate = contadorDTO.getId() != null && contadorRepository.existsById(contadorDTO.getId());
 			ContadorEntity entity;
-			log.info("exite id contador:{} ", contadorDTO.getId());
+			log.info("existe id contador:{} ", contadorDTO.getId());
+
 			if (isUpdate) {
 				entity = contadorRepository.findById(contadorDTO.getId()).orElseThrow();
 				contadorMapper.updateEntityFromDto(contadorDTO, entity);
@@ -68,6 +69,49 @@ public class ContadorServiceImpl implements IContadorService {
 				entity.setFechaCreacion(new Date());
 				entity.setUsuarioCreacion(contadorDTO.getUsuarioCreacion());
 				entity.setActivo(true);
+			}
+
+			if (entity.getSerial() != null && !entity.getSerial().isBlank()) {
+				String serialTrim = entity.getSerial().trim();
+
+				String usuarioCreacion = isUpdate ? contadorDTO.getUsuarioModificacion()
+						: contadorDTO.getUsuarioCreacion();
+				var usuario = usuarioRepository.findByNombre(usuarioCreacion);
+
+				if (usuario.isEmpty()) {
+					throw new RuntimeException("Usuario no encontrado: " + usuarioCreacion);
+				}
+
+				UsuarioEntity user = usuario.get();
+				var empresaOpt = empresaRepository.findByUsuario_Id(user.getId());
+
+				if (empresaOpt.isEmpty()) {
+					throw new RuntimeException("El usuario no tiene empresa asociada");
+				}
+
+				Integer empresaId = empresaOpt.get().getId();
+
+				if (!isUpdate) {
+					boolean existeSerialEnEmpresa = empresaClienteContadorRepository
+							.existsByContador_SerialAndEmpresa_IdAndActivoTrue(serialTrim, empresaId);
+
+					if (existeSerialEnEmpresa) {
+						throw new RuntimeException("El serial '" + serialTrim + "' ya está registrado en tu empresa. "
+								+ "El serial + empresa deben ser únicos.");
+					}
+				} else {
+					Optional<ContadorEntity> existente = contadorRepository.findBySerial(serialTrim);
+
+					if (existente.isPresent() && !existente.get().getId().equals(entity.getId())) {
+						boolean existeSerialEnEmpresa = empresaClienteContadorRepository
+								.existsByContador_IdAndEmpresa_IdAndActivoTrue(existente.get().getId(), empresaId);
+
+						if (existeSerialEnEmpresa) {
+							throw new RuntimeException("El serial '" + serialTrim
+									+ "' ya está registrado en tu empresa. " + "El serial + empresa deben ser únicos.");
+						}
+					}
+				}
 			}
 
 			if (contadorDTO.getTipoContador() != null && contadorDTO.getTipoContador().getId() != null) {
@@ -93,11 +137,16 @@ public class ContadorServiceImpl implements IContadorService {
 
 			return ResponseEntity.status(statusCode).body(responseDTO);
 
+		} catch (RuntimeException e) {
+			log.error("Error de validación guardando contador: {}", e.getMessage());
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(e.getMessage())
+					.code(HttpStatus.BAD_REQUEST.value()).build();
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
 		} catch (Exception e) {
 			log.error("Error guardando contador", e);
 			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
 					.code(HttpStatus.BAD_REQUEST.value()).build();
-
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 		}
 	}
