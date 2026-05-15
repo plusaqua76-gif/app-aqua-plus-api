@@ -92,7 +92,7 @@ public class SaldoClienteController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
-	@GetMapping("/{idEmpresa}")
+	@GetMapping("cliente/{idEmpresaClienteContador}")
 	public ResponseEntity<ResponseDTO> findAllByEmpresaId(@PathVariable Integer idEmpresaClienteContador,
 			Pageable pageable, @RequestParam(required = false) String nombre,
 			@RequestParam(required = false) String cedula, @RequestParam(required = false) String codigo,
