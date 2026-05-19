@@ -3,6 +3,7 @@ package com.aqua.plus.api.service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
+import com.aqua.plus.commons.dtos.ContadorFiltroDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
@@ -27,4 +28,8 @@ public interface IEmpresaClienteContadorService {
 			String correo, String tipoDocumentoNombre, String direccion, Boolean estado, Integer nuid);
 
 	ResponseEntity<ResponseDTO> findByEmpresaAndPersona(Integer idEmpresa, Integer idPersona);
+
+	ResponseEntity<ResponseDTO> findContadoresByEccId(Integer eccId, ContadorFiltroDTO filtro, Pageable pageable);
+	
+	ResponseEntity<ResponseDTO> findClienteByEccId(Integer eccId);
 }

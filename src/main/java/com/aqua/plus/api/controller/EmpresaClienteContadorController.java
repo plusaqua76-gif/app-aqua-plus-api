@@ -2,7 +2,9 @@ package com.aqua.plus.api.controller;
 
 import java.util.Map;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aqua.plus.api.service.impl.EmpresaClienteContadorServiceImpl;
+import com.aqua.plus.commons.dtos.ContadorFiltroDTO;
 import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 
@@ -248,6 +251,42 @@ public class EmpresaClienteContadorController {
 	@GetMapping("/{id}")
 	public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
 		return empresaClienteContadorServiceImpl.findById(id);
+	}
+
+	@Operation(summary = "Listar contadores paginados y filtrados por id de EmpresaClienteContador")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros de paginación requeridos", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/{id}/contadores")
+	public ResponseEntity<ResponseDTO> getContadoresByEccId(@PathVariable Integer id,
+			@RequestParam(required = false) String numeroContador, @RequestParam(required = false) Integer tipoUsoId,
+			@RequestParam(required = false) String aforoNombre, @RequestParam(required = false) Integer nuid,
+			@RequestParam(required = false) Boolean activo, @RequestParam int page, @RequestParam int size,
+			@RequestParam(required = false) String sortBy, @RequestParam(required = false) String sortDir) {
+		ContadorFiltroDTO filtro = ContadorFiltroDTO.builder().numeroContador(numeroContador).tipoUsoId(tipoUsoId)
+				.aforoNombre(aforoNombre).nuid(nuid).activo(activo).build();
+
+		Sort sort = Sort.unsorted();
+		if (sortBy != null && !sortBy.isBlank()) {
+			sort = (sortDir != null && sortDir.equalsIgnoreCase("desc")) ? Sort.by(sortBy).descending()
+					: Sort.by(sortBy).ascending();
+		}
+
+		Pageable pageable = PageRequest.of(page, size, sort);
+
+		return empresaClienteContadorServiceImpl.findContadoresByEccId(id, filtro, pageable);
+	}
+
+	@Operation(summary = "Obtener información del cliente por id de EmpresaClienteContador")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "404", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
+			@ApiResponse(responseCode = "500", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
+	@GetMapping("/{id}/cliente")
+	public ResponseEntity<ResponseDTO> getClienteByEccId(@PathVariable Integer id) {
+		return empresaClienteContadorServiceImpl.findClienteByEccId(id);
 	}
 
 	@Operation(summary = "Listar todas las  Empresa Cliente Contador")

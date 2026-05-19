@@ -1,5 +1,6 @@
 package com.aqua.plus.api.controller;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,9 +13,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aqua.plus.api.service.impl.ContadorServiceImpl;
-import com.aqua.plus.commons.dtos.ContadorDTO;
+import com.aqua.plus.api.service.impl.SaldoClienteServiceImpl;
 import com.aqua.plus.commons.dtos.ResponseDTO;
+import com.aqua.plus.commons.dtos.SaldoClienteDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,25 +25,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
-/**
- * @author nicope
- * @version 1.0
- * 
- *          Controlador que expone los servicios para trabajar con objeto(s) de
- *          tipo (Contador).
- */
-
 @RestController
-@RequestMapping("/api/v1/contador")
-@Tag(name = "Contador - Controller", description = "Controller encargado de gestionar las operaciones de los contadores")
+@RequestMapping("/api/v1/saldo-cliente")
+@Tag(name = "SaldoCliente - Controller", description = "Controller encargado de gestionar las operaciones del saldo del Cliente")
 @CrossOrigin(origins = "*", methods = { RequestMethod.DELETE, RequestMethod.GET, RequestMethod.POST,
 		RequestMethod.PUT })
 @RequiredArgsConstructor
-public class ContadorController {
+public class SaldoClienteController {
 
-	private final ContadorServiceImpl contadorServiceImpl;
+	private final SaldoClienteServiceImpl saldoClienteServiceImpl;
 
-	@Operation(summary = "Guardar o actualizar contador")
+	@Operation(summary = "Guardar o actualizar estado")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -55,11 +48,11 @@ public class ContadorController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@PostMapping
-	public ResponseEntity<ResponseDTO> save(@RequestBody ContadorDTO contadorDTO) {
-		return contadorServiceImpl.save(contadorDTO);
+	public ResponseEntity<ResponseDTO> save(@RequestBody SaldoClienteDTO estadoDTO) {
+		return saldoClienteServiceImpl.save(estadoDTO);
 	}
 
-	@Operation(summary = "Buscar contador por id")
+	@Operation(summary = "Buscar estado por id")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -71,10 +64,10 @@ public class ContadorController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping("/{id}")
 	public ResponseEntity<ResponseDTO> getById(@PathVariable Integer id) {
-		return contadorServiceImpl.findById(id);
+		return saldoClienteServiceImpl.findById(id);
 	}
 
-	@Operation(summary = "Listar todos los contadores")
+	@Operation(summary = "Listar todos los estados")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -86,10 +79,32 @@ public class ContadorController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@GetMapping("/all")
 	public ResponseEntity<ResponseDTO> getAll() {
-		return contadorServiceImpl.findAll();
+		return saldoClienteServiceImpl.findAll();
 	}
 
-	@Operation(summary = "Eliminar contador por id")
+	@Operation(summary = "Listar saldos de clientes por id de Cliente(empresaClienteContador) con filtros")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Consulta realizada satisfactoriamente", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
+	@GetMapping("cliente/{idEmpresaClienteContador}")
+	public ResponseEntity<ResponseDTO> findAllByEmpresaId(@PathVariable Integer idEmpresaClienteContador,
+			Pageable pageable, @RequestParam(required = false) String nombre,
+			@RequestParam(required = false) String cedula, @RequestParam(required = false) String codigo,
+			@RequestParam(required = false) Boolean estado, @RequestParam(required = false) Integer nuid,
+			@RequestParam(required = false) Integer saldoTotal, @RequestParam(required = false) Integer saldoDisponible,
+			@RequestParam(required = false) Integer cuotas) {
+
+		return saldoClienteServiceImpl.findAllByEmpresaClienteContadorId(idEmpresaClienteContador, pageable, nombre,
+				cedula, codigo, estado, nuid, saldoTotal, saldoDisponible, cuotas);
+	}
+
+	@Operation(summary = "Eliminar estado por id")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Rol eliminado correctamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -99,20 +114,6 @@ public class ContadorController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
 	@DeleteMapping("/{id}")
 	public ResponseEntity<ResponseDTO> deleteById(@PathVariable Integer id) {
-		return contadorServiceImpl.deleteById(id);
+		return saldoClienteServiceImpl.deleteById(id);
 	}
-
-	@Operation(summary = "Buscar contador por serial (exacto) validando si está en uso")
-	@ApiResponses(value = {
-			@ApiResponse(responseCode = "200", description = "Disponible", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "400", description = "Petición inválida", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "404", description = "No existe el serial", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "409", description = "Contador en uso", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))),
-			@ApiResponse(responseCode = "500", description = "Error inesperado", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class))) })
-	@GetMapping("/serial")
-	public ResponseEntity<ResponseDTO> getContadorBySerial(@RequestParam("serial") String serial,
-			@RequestParam("idEmpresa") Integer idEmpresa) {
-		return contadorServiceImpl.findContadorPorSerial(serial, idEmpresa);
-	}
-
 }
