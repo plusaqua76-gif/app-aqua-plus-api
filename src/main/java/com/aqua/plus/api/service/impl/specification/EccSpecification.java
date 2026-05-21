@@ -12,24 +12,19 @@ public final class EccSpecification {
 	private EccSpecification() {
 	}
 
-	/**
-	 * Construye un Specification<EmpresaClienteContadorEntity> dinámico a partir
-	 * del personaId base + los filtros opcionales del usuario.
-	 */
 	public static Specification<EmpresaClienteContadorEntity> build(Integer personaId, ContadorFiltroDTO f) {
-
-		return porPersona(personaId).and(porActivo(f.getActivo())).and(porNumeroContador(f.getNumeroContador()))
+		return soloActivos().and(porPersona(personaId)).and(porNumeroContador(f.getNumeroContador()))
 				.and(porTipoUso(f.getTipoUsoId())).and(porAforo(f.getAforoNombre()))
 				.and(porEmpleado(f.getEmpleadoEmpresaId())).and(porNuid(f.getNuid()));
+	}
+
+	private static Specification<EmpresaClienteContadorEntity> soloActivos() {
+		return (root, q, cb) -> cb.isTrue(root.get("activo"));
 	}
 
 	private static Specification<EmpresaClienteContadorEntity> porPersona(Integer personaId) {
 		return (root, q, cb) -> personaId == null ? cb.conjunction()
 				: cb.equal(root.get("cliente").get("id"), personaId);
-	}
-
-	private static Specification<EmpresaClienteContadorEntity> porActivo(Boolean activo) {
-		return (root, q, cb) -> activo == null ? cb.conjunction() : cb.equal(root.get("activo"), activo);
 	}
 
 	private static Specification<EmpresaClienteContadorEntity> porNumeroContador(String numero) {
@@ -46,14 +41,14 @@ public final class EccSpecification {
 	}
 
 	private static Specification<EmpresaClienteContadorEntity> porAforo(String aforoNombre) {
-	    return (root, q, cb) -> {
-	        if (aforoNombre == null || aforoNombre.isBlank())
-	            return cb.conjunction();
-	        var joinContador = root.join("contador", JoinType.INNER);
-	        var joinAforoContador = joinContador.join("aforoContadores", JoinType.INNER);
-	        var joinAforo = joinAforoContador.join("aforo", JoinType.INNER);
-	        return cb.like(cb.lower(joinAforo.get("nombre")), "%" + aforoNombre.toLowerCase() + "%");
-	    };
+		return (root, q, cb) -> {
+			if (aforoNombre == null || aforoNombre.isBlank())
+				return cb.conjunction();
+			var joinContador = root.join("contador", JoinType.INNER);
+			var joinAforoContador = joinContador.join("aforoContadores", JoinType.INNER);
+			var joinAforo = joinAforoContador.join("aforo", JoinType.INNER);
+			return cb.like(cb.lower(joinAforo.get("nombre")), "%" + aforoNombre.toLowerCase() + "%");
+		};
 	}
 
 	private static Specification<EmpresaClienteContadorEntity> porEmpleado(Integer empleadoId) {
@@ -65,9 +60,8 @@ public final class EccSpecification {
 			return cb.equal(joinEmpleado.get("id"), empleadoId);
 		};
 	}
-	
+
 	private static Specification<EmpresaClienteContadorEntity> porNuid(Integer nuid) {
-	    return (root, q, cb) -> nuid == null ? cb.conjunction()
-	            : cb.equal(root.get("contador").get("nuid"), nuid);
+		return (root, q, cb) -> nuid == null ? cb.conjunction() : cb.equal(root.get("contador").get("nuid"), nuid);
 	}
 }

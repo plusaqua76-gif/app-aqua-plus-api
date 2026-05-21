@@ -2,6 +2,7 @@ package com.aqua.plus.api.service.impl;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -16,11 +17,14 @@ import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.DireccionEntity;
 import com.aqua.plus.commons.entities.TipoContadorEntity;
+import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.DireccionRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
+import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.TipoContadorRepository;
+import com.aqua.plus.commons.repositories.UsuarioRepository;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,8 @@ public class ContadorServiceImpl implements IContadorService {
 	private final TipoContadorRepository tipoContadorRepository;
 	private final DireccionRepository direccionRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
+	private final UsuarioRepository usuarioRepository;
+	private final EmpresaRepository empresaRepository;
 	private final ContadorMapper contadorMapper;
 
 	@Override
@@ -51,7 +57,8 @@ public class ContadorServiceImpl implements IContadorService {
 		try {
 			boolean isUpdate = contadorDTO.getId() != null && contadorRepository.existsById(contadorDTO.getId());
 			ContadorEntity entity;
-			log.info("exite id contador:{} ", contadorDTO.getId());
+			log.info("existe id contador:{} ", contadorDTO.getId());
+
 			if (isUpdate) {
 				entity = contadorRepository.findById(contadorDTO.getId()).orElseThrow();
 				contadorMapper.updateEntityFromDto(contadorDTO, entity);
@@ -62,6 +69,49 @@ public class ContadorServiceImpl implements IContadorService {
 				entity.setFechaCreacion(new Date());
 				entity.setUsuarioCreacion(contadorDTO.getUsuarioCreacion());
 				entity.setActivo(true);
+			}
+
+			if (entity.getSerial() != null && !entity.getSerial().isBlank()) {
+				String serialTrim = entity.getSerial().trim();
+
+				String usuarioCreacion = isUpdate ? contadorDTO.getUsuarioModificacion()
+						: contadorDTO.getUsuarioCreacion();
+				var usuario = usuarioRepository.findByNombre(usuarioCreacion);
+
+				if (usuario.isEmpty()) {
+					throw new RuntimeException("Usuario no encontrado: " + usuarioCreacion);
+				}
+
+				UsuarioEntity user = usuario.get();
+				var empresaOpt = empresaRepository.findByUsuario_Id(user.getId());
+
+				if (empresaOpt.isEmpty()) {
+					throw new RuntimeException("El usuario no tiene empresa asociada");
+				}
+
+				Integer empresaId = empresaOpt.get().getId();
+
+				if (!isUpdate) {
+					boolean existeSerialEnEmpresa = empresaClienteContadorRepository
+							.existsByContador_SerialAndEmpresa_IdAndActivoTrue(serialTrim, empresaId);
+
+					if (existeSerialEnEmpresa) {
+						throw new RuntimeException("El serial '" + serialTrim + "' ya está registrado en tu empresa. "
+								+ "El serial + empresa deben ser únicos.");
+					}
+				} else {
+					Optional<ContadorEntity> existente = contadorRepository.findBySerial(serialTrim);
+
+					if (existente.isPresent() && !existente.get().getId().equals(entity.getId())) {
+						boolean existeSerialEnEmpresa = empresaClienteContadorRepository
+								.existsByContador_IdAndEmpresa_IdAndActivoTrue(existente.get().getId(), empresaId);
+
+						if (existeSerialEnEmpresa) {
+							throw new RuntimeException("El serial '" + serialTrim
+									+ "' ya está registrado en tu empresa. " + "El serial + empresa deben ser únicos.");
+						}
+					}
+				}
 			}
 
 			if (contadorDTO.getTipoContador() != null && contadorDTO.getTipoContador().getId() != null) {
@@ -87,11 +137,16 @@ public class ContadorServiceImpl implements IContadorService {
 
 			return ResponseEntity.status(statusCode).body(responseDTO);
 
+		} catch (RuntimeException e) {
+			log.error("Error de validación guardando contador: {}", e.getMessage());
+			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(e.getMessage())
+					.code(HttpStatus.BAD_REQUEST.value()).build();
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+
 		} catch (Exception e) {
 			log.error("Error guardando contador", e);
 			ResponseDTO errorResponse = ResponseDTO.builder().success(false).message(Constantes.SAVE_ERROR)
 					.code(HttpStatus.BAD_REQUEST.value()).build();
-
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
 		}
 	}
@@ -162,8 +217,8 @@ public class ContadorServiceImpl implements IContadorService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findContadorPorSerial(String serial) {
-		log.info("Buscar contador por serial (exacto): '{}'", serial);
+	public ResponseEntity<ResponseDTO> findContadorPorSerial(String serial, Integer empresaId) {
+		log.info("Buscar contador por serial (exacto): '{}' para empresa: {}", serial, empresaId);
 
 		try {
 			if (serial == null || serial.isBlank()) {
@@ -173,15 +228,30 @@ public class ContadorServiceImpl implements IContadorService {
 
 			String serialTrim = serial.trim();
 
-			var opt = contadorRepository.findBySerial(serialTrim);
-			if (opt.isEmpty()) {
+			List<ContadorEntity> contadores = contadorRepository.findAllBySerial(serialTrim);
+
+			if (contadores.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
 								.message("No existe contador con el serial especificado")
 								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			ContadorEntity contador = opt.get();
+			ContadorEntity contador = contadores.stream().filter(c -> {
+				String usuarioCreacion = c.getUsuarioCreacion();
+				var usuario = usuarioRepository.findByNombre(usuarioCreacion);
+				if (usuario.isEmpty()) {
+					return false;
+				}
+				UsuarioEntity user = usuario.get();
+				var empresa = empresaRepository.findByUsuario_Id(user.getId());
+				return empresa.isPresent() && empresa.get().getId().equals(empresaId);
+			}).findFirst().orElse(null);
+
+			if (contador == null) {
+				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ResponseDTO.builder().success(false)
+						.message("El contador no pertenece a tu empresa").code(HttpStatus.FORBIDDEN.value()).build());
+			}
 
 			boolean enUso = empresaClienteContadorRepository.existsByContador_IdAndActivoTrue(contador.getId());
 			if (enUso) {

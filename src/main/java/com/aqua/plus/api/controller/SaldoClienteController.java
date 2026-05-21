@@ -82,7 +82,7 @@ public class SaldoClienteController {
 		return saldoClienteServiceImpl.findAll();
 	}
 
-	@Operation(summary = "Listar saldos de clientes por empresa con filtros")
+	@Operation(summary = "Listar saldos de clientes por id de Cliente(empresaClienteContador) con filtros")
 	@ApiResponses(value = {
 			@ApiResponse(responseCode = "200", description = "Consulta realizada satisfactoriamente", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -92,15 +92,16 @@ public class SaldoClienteController {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
-	@GetMapping("/{idEmpresa}")
-	public ResponseEntity<ResponseDTO> findAllByEmpresaId(@PathVariable Integer idEmpresa, Pageable pageable,
-			@RequestParam(required = false) String nombre, @RequestParam(required = false) String cedula,
-			@RequestParam(required = false) String codigo, @RequestParam(required = false) Boolean estado,
-			@RequestParam(required = false) Integer nuid, @RequestParam(required = false) Integer saldoTotal,
-			@RequestParam(required = false) Integer saldoDisponible, @RequestParam(required = false) Integer cuotas) {
+	@GetMapping("cliente/{idEmpresaClienteContador}")
+	public ResponseEntity<ResponseDTO> findAllByEmpresaId(@PathVariable Integer idEmpresaClienteContador,
+			Pageable pageable, @RequestParam(required = false) String nombre,
+			@RequestParam(required = false) String cedula, @RequestParam(required = false) String codigo,
+			@RequestParam(required = false) Boolean estado, @RequestParam(required = false) Integer nuid,
+			@RequestParam(required = false) Integer saldoTotal, @RequestParam(required = false) Integer saldoDisponible,
+			@RequestParam(required = false) Integer cuotas) {
 
-		return saldoClienteServiceImpl.findAllByEmpresaId(idEmpresa, pageable, nombre, cedula, codigo, estado, nuid,
-				saldoTotal, saldoDisponible, cuotas);
+		return saldoClienteServiceImpl.findAllByEmpresaClienteContadorId(idEmpresaClienteContador, pageable, nombre,
+				cedula, codigo, estado, nuid, saldoTotal, saldoDisponible, cuotas);
 	}
 
 	@Operation(summary = "Eliminar estado por id")

@@ -118,8 +118,6 @@ public class AbonoServiceImpl implements IAbonoService {
 								.message(Constantes.MAYOR_VALUE).code(HttpStatus.BAD_REQUEST.value()).build());
 					}
 
-					decrementarPlazoSiAplica(deuda, abono, totalAbonadoPrevio);
-
 					AbonoEntity abonoEntity = new AbonoEntity();
 					abonoEntity.setDeudaCliente(deuda);
 					abonoEntity.setValor(abono.doubleValue());
@@ -130,7 +128,6 @@ public class AbonoServiceImpl implements IAbonoService {
 					abonosAInsertar.add(abonoEntity);
 				}
 
-				deudaClienteRepository.saveAll(mapDeudas.values());
 				var guardados = abonoRepository.saveAll(abonosAInsertar);
 
 				var minimal = guardados.stream().map(a -> {
@@ -178,9 +175,6 @@ public class AbonoServiceImpl implements IAbonoService {
 						.message(Constantes.MAYOR_VALUE).code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
-			decrementarPlazoSiAplica(deuda, abono, totalAbonadoPrevio);
-			deudaClienteRepository.save(deuda);
-
 			AbonoEntity entity = new AbonoEntity();
 			entity.setDeudaCliente(deuda);
 			entity.setValor(abono.doubleValue());
@@ -203,42 +197,6 @@ public class AbonoServiceImpl implements IAbonoService {
 			log.error("Error creando el/los abono(s) ", e);
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ResponseDTO.builder().success(false)
 					.message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
-		}
-	}
-
-	private static boolean isPositive(BigDecimal v) {
-		return v != null && v.compareTo(BigDecimal.ZERO) > 0;
-	}
-
-	private void decrementarPlazoSiAplica(DeudaClienteEntity deuda, BigDecimal montoAplicado,
-			BigDecimal totalAbonadoPrevio) {
-		if (deuda == null || !isPositive(montoAplicado))
-			return;
-
-		Integer plazoActual = deuda.getPlazoPago();
-		if (plazoActual == null || plazoActual <= 0)
-			return;
-
-		BigDecimal valorOriginal = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor());
-		if (valorOriginal.compareTo(BigDecimal.ZERO) <= 0)
-			return;
-
-		BigDecimal valorCuota = valorOriginal.divide(BigDecimal.valueOf(plazoActual), 2, RoundingMode.HALF_UP);
-		if (valorCuota.compareTo(BigDecimal.ZERO) <= 0)
-			return;
-
-		BigDecimal totalAbonadoConActual = totalAbonadoPrevio.add(montoAplicado);
-
-		int cuotasCanceladas = totalAbonadoConActual.divide(valorCuota, 0, RoundingMode.FLOOR).intValue();
-		int nuevoPlazo = Math.max(plazoActual - cuotasCanceladas, 0);
-
-		if (nuevoPlazo <= 0) {
-			deuda.setPlazoPago(null);
-			log.debug("Plazo de deuda {} agotado", deuda.getId());
-		} else {
-			deuda.setPlazoPago(nuevoPlazo);
-			log.debug("Plazo de deuda {} actualizado de {} a {} ({} cuotas canceladas)", deuda.getId(), plazoActual,
-					nuevoPlazo, cuotasCanceladas);
 		}
 	}
 

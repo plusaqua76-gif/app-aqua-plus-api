@@ -25,6 +25,7 @@ public interface ISaldoClienteService {
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
 
-	ResponseEntity<ResponseDTO> findAllByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre, String cedula,
-			String codigo, Boolean estado, Integer nuid, Integer saldoTotal, Integer saldoDisponible, Integer cuotas);
+	ResponseEntity<ResponseDTO> findAllByEmpresaClienteContadorId(Integer idEmpresaClienteContador, Pageable pageable,
+			String nombre, String cedula, String codigo, Boolean estado, Integer nuid, Integer saldoTotal,
+			Integer saldoDisponible, Integer cuotas);
 }

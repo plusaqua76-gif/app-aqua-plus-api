@@ -147,24 +147,26 @@ public class SaldoClienteServiceImpl implements ISaldoClienteService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> findAllByEmpresaId(Integer idEmpresa, Pageable pageable, String nombre,
-			String cedula, String codigo, Boolean estado, Integer nuid, Integer saldoTotal, Integer saldoDisponible,
-			Integer cuotas) {
+	public ResponseEntity<ResponseDTO> findAllByEmpresaClienteContadorId(Integer idEmpresaClienteContador,
+			Pageable pageable, String nombre, String cedula, String codigo, Boolean estado, Integer nuid,
+			Integer saldoTotal, Integer saldoDisponible, Integer cuotas) {
 
 		log.info(
-				"Buscar saldoCliente por empresa: {}, filtros: [nombre={}, cedula={}, codigo={}, dep={}, ciudad={}, "
-						+ "corr={}, tel={}, correo={}, tipoDocNombre={}, direccion={}, estado={}, nuid={}, "
-						+ "saldoTotal={}, saldoDisponible={}, cuotas={}]",
-				idEmpresa, nombre, cedula, codigo, estado, nuid, saldoTotal, saldoDisponible, cuotas);
+				"Buscar saldoCliente por ECC: {}, filtros: [nombre={}, cedula={}, codigo={}, "
+						+ "estado={}, nuid={}, saldoTotal={}, saldoDisponible={}, cuotas={}]",
+				idEmpresaClienteContador, nombre, cedula, codigo, estado, nuid, saldoTotal, saldoDisponible, cuotas);
 
 		try {
-			if (idEmpresa == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("Parámetro requerido: idEmpresa").code(HttpStatus.BAD_REQUEST.value()).build());
+			if (idEmpresaClienteContador == null) {
+				return ResponseEntity.badRequest()
+						.body(ResponseDTO.builder().success(false)
+								.message("Parámetro requerido: idEmpresaClienteContador")
+								.code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 			Objects.requireNonNull(pageable, "El pageable no debe ser null");
 
-			Specification<SaldoClienteEntity> spec = Specification.allOf(SaldoClienteSpecification.empresaId(idEmpresa),
+			Specification<SaldoClienteEntity> spec = Specification.allOf(
+					SaldoClienteSpecification.empresaClienteContadorId(idEmpresaClienteContador),
 					SaldoClienteSpecification.clienteNombreLike(nombre),
 					SaldoClienteSpecification.clienteCedulaIgual(cedula),
 					SaldoClienteSpecification.clienteCodigoIgual(codigo),
@@ -242,10 +244,6 @@ public class SaldoClienteServiceImpl implements ISaldoClienteService {
 
 			log.info("Página {} - registros únicos en página: {}", pageNumber, pageUniques.size());
 
-			List<Integer> personaIds = pageUniques.stream().map(SaldoClienteEntity::getEmpresaClienteContador)
-					.filter(Objects::nonNull).map(EmpresaClienteContadorEntity::getCliente).filter(Objects::nonNull)
-					.map(PersonaEntity::getId).filter(Objects::nonNull).distinct().toList();
-
 			List<Map<String, Object>> rows = new ArrayList<>(pageUniques.size());
 
 			for (SaldoClienteEntity sc : pageUniques) {
@@ -319,7 +317,7 @@ public class SaldoClienteServiceImpl implements ISaldoClienteService {
 					.currentPage(pageNumber).totalPages(totalPagesUnicos).build());
 
 		} catch (Exception e) {
-			log.error("Error al consultar saldoCliente por idEmpresa: {}", idEmpresa, e);
+			log.error("Error al consultar saldoCliente por idEmpresaClienteContador: {}", idEmpresaClienteContador, e);
 			Throwable root = e;
 			while (root.getCause() != null && root.getCause() != root)
 				root = root.getCause();

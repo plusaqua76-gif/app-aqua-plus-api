@@ -2,6 +2,7 @@ package com.aqua.plus.api.jobs;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,8 @@ public class FacturaVencimientoScheduler {
 	@Value("${app.jobs.facturas.usuario-cron:AquaPlus}")
 	private String usuarioCron;
 
+	//@Scheduled(cron = "${app.jobs.facturas.cron:0 0 1 * * *}")
+	//@Scheduled(cron = "0 */2 * * * *")
 	@Transactional
 	public void marcarFacturasVencidas() {
 		var estadoVen = estadoRepository.findByCodigoIgnoreCaseAndActivoTrue("VEN")
