@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -454,8 +456,19 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
         Specification<EmpresaClienteContadorEntity> distinct =
                 (root, query, cb) -> {
                     assert query != null;
-                    query.distinct(true);
-                    return cb.isTrue(root.get("activo"));
+                    Subquery<Integer> sub = query.subquery(Integer.class);
+                    Root<EmpresaClienteContadorEntity> subRoot = sub.from(EmpresaClienteContadorEntity.class);
+
+                    sub.select(cb.min(subRoot.get("id")))
+                            .where(cb.and(
+                                    cb.equal(subRoot.get("cliente"), root.get("cliente")),
+                                    cb.isTrue(subRoot.get("activo"))   // ← esto faltaba
+                            ));
+
+                    return cb.and(
+                            cb.isTrue(root.get("activo")),
+                            cb.equal(root.get("id"), sub)
+                    );
                 };
 
         return Specification.allOf(
@@ -541,7 +554,6 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
         putDireccionEntries(row, p);
         row.put("correo", personaId != null ? correos.get(personaId) : null);
         row.put("telefono", personaId != null ? telefonos.get(personaId) : null);
-        row.put("nuid", ecc.getContador() != null ? ecc.getContador().getNuid() : null);
         return row;
     }
 
