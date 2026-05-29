@@ -80,7 +80,6 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final TipoDeudaRepository tipoDeudaRepository;
 	private final UsuarioRepository usuarioRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
-	private final PushNotificationServiceImpl pushNotificationServiceImpl;
 
 	private static final double TOLERANCIA_PAGO = 0.01;
 
@@ -177,8 +176,6 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			FacturaEntity saved = facturaRepository.save(entity);
 
-			enviarNotificacionNuevaFactura(saved);
-
 			FacturaDTO savedDTO = facturaMapper.entityToDto(saved);
 
 			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.SAVED_SUCCESSFULLY)
@@ -252,10 +249,6 @@ public class FacturaServiceImpl implements IFacturaService {
 			long duration = System.currentTimeMillis() - startTime;
 			log.warn("Finalizando proceso guardarFacturas. Procesadas: {}. Código: {}. Tiempo total: {}ms",
 					totalProcess, code, duration);
-
-			if (code >= 200 && code < 300) {
-				enviarNotificacionesRegistrar(payloadArray);
-			}
 
 			return ResponseEntity.status(status).body(bodyOut);
 
@@ -1551,77 +1544,5 @@ public class FacturaServiceImpl implements IFacturaService {
 				.estadoNuevo(toEstadoDTO(estado)).mensaje(mensaje).valorPago(pago.getValorPago()).build();
 	}
 
-	/**
-	 * Dispara notificaciones push para cada factura procesada por el SP registrar_facturas.
-	 * Extrae idEmpresaClienteContador del payload original, navega hasta el usuario y dispara
-	 * la notificación de forma asíncrona (fire-and-forget).
-	 */
-	private void enviarNotificacionesRegistrar(ArrayNode payloadArray) {
-		for (JsonNode item : payloadArray) {
-			try {
-				JsonNode idNode = item.get("idEmpresaClienteContador");
-				if (idNode == null || idNode.isNull()) {
-					log.warn("[PUSH] Item sin idEmpresaClienteContador, omitiendo.");
-					continue;
-				}
-				Integer idEcc = idNode.asInt();
-				String codigo = item.has("codigo") ? item.get("codigo").asText() : "sin código";
-				log.info("[PUSH] Procesando notificación para idEmpresaClienteContador={}, codigo={}", idEcc, codigo);
-
-				var eccOpt = empresaClienteContadorRepository.findById(idEcc);
-				if (eccOpt.isEmpty()) {
-					log.warn("[PUSH] No se encontró EmpresaClienteContador con id={}", idEcc);
-					continue;
-				}
-				var ecc = eccOpt.get();
-				if (ecc.getCliente() == null) {
-					log.warn("[PUSH] EmpresaClienteContador id={} no tiene cliente asociado", idEcc);
-					continue;
-				}
-				Integer personaId = ecc.getCliente().getId();
-				log.info("[PUSH] Cliente encontrado, personaId={}", personaId);
-
-				var usuarioOpt = usuarioRepository.findByPersonaId(personaId);
-				if (usuarioOpt.isEmpty()) {
-					log.warn("[PUSH] No se encontró Usuario para personaId={}", personaId);
-					continue;
-				}
-				log.info("[PUSH] Usuario encontrado id={}, disparando notificación push", usuarioOpt.get().getId());
-				pushNotificationServiceImpl.enviarNotificacionFactura(
-						usuarioOpt.get().getId(),
-						"Nueva factura generada",
-						"Se ha generado la factura " + codigo
-				);
-			} catch (Exception e) {
-				log.warn("[PUSH] Error procesando notificación para item del payload: {}", e.getMessage(), e);
-			}
-		}
-	}
-
-	/**
-	 * Dispara una notificación push asíncrona al cliente propietario de la factura.
-	 * La cadena de relaciones es: FacturaEntity -> EmpresaClienteContador -> Persona (cliente)
-	 * -> Usuario -> FcmTokens activos -> FCM.
-	 * El envío es fire-and-forget: si falla, la factura ya está guardada y la transacción
-	 * no se ve afectada.
-	 */
-	private void enviarNotificacionNuevaFactura(FacturaEntity factura) {
-		try {
-			if (factura.getEmpresaClienteContador() == null
-					|| factura.getEmpresaClienteContador().getCliente() == null) {
-				return;
-			}
-			Integer personaId = factura.getEmpresaClienteContador().getCliente().getId();
-			usuarioRepository.findByPersonaId(personaId).ifPresent(usuario ->
-				pushNotificationServiceImpl.enviarNotificacionFactura(
-						usuario.getId(),
-						"Nueva factura generada",
-						"Se ha generado la factura " + factura.getCodigo()
-				)
-			);
-		} catch (Exception e) {
-			log.warn("No se pudo enviar notificación push para factura id={}: {}", factura.getId(), e.getMessage());
-		}
-	}
 
 }

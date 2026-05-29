@@ -15,7 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.util.TimeZone;
 
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
-@EnableAutoConfiguration(exclude = { JpaRepositoriesAutoConfiguration.class })
+@EnableAutoConfiguration(exclude = { JpaRepositoriesAutoConfiguration.class })	
 @EntityScan(basePackages = { "com.aqua.plus.commons.entities" })
 @EnableJpaRepositories(basePackages = { "com.aqua.plus.commons.repositories" })
 @EnableJpaAuditing

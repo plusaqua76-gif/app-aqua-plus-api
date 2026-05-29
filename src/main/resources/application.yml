@@ -39,6 +39,10 @@ mail:
          required: true  
 seguridad:
   llave: keyacuaplus
+secure:
+  hmac-secret: "dev-hmac-secret-minimum-32-characters-long!"
+  aes-key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  path-pattern: /api/v1/secure/**
 link:
   recover: https://www.aquaplus.dev/auth/recover-password?
 app:
@@ -101,16 +105,37 @@ dian:
     pendiente:  PEND
   iva: 0
   usuario: codemakerssasaut
-firebase:
-  enabled: true
-  project-id: notifications-aqua-plus
-  credentials: classpath:firebase-service-account.json
 logging:
   level:
     root: INFO
     org.springframework: WARN
     org.hibernate.SQL: ERROR
     org.hibernate.type.descriptor.sql: ERROR
+wompi:
+  url-base: https://sandbox.wompi.co/v1
+  clave-publica: 
+  clave-privada: 
+  secreto-integridad: 
+  secreto-eventos: 
+  public-key: "
+      MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApYUD1oprTmyArYRzwy7J
+      s3Q2ExO7VDcEbOnzEZAO0mfP9af79ONlJsCRsZIun8nendzttPyDXMPjM3Y0138m
+      e2oq+oNTcZdcZKhaFa0bV7S8/SiiiKels1gLngAK3mltnbJLaJ0l+8P6Lw9lvWmV
+      CSAQI9XRMigmvLKkbIOYRcKNvJHzBLBCq78u/MJd+1ebullyg3vVfngTAeBQqQdk
+      whlPcfxggmyiJm7fj4WqAFO7PjS+MGtD6Q6IAEFXko3KCt9XqZBgDDxdDq/Mj6IX
+      hq5Gz0RXSkJU+Xq1bKhF91+3LvUL+fepKdwh7zrqOkb7wfp85GqZ8vDUSfN2TxLu
+      eqeVnI9bcOplQylM9qrF8L0ey6qGn00DPoCBDcb/SI6qwnXmv3hQoMYiNGJSz0/l
+      HRltPjIXZe1FS5epnwfqULh/vHHfZYkT5Zk5sPoP6URO2kdkcVjZ1cTPtoE3jzcy
+      OJZt9x3TYW+msa0agv9rQsOk9dDQS51ZQVm/38Rew//RsLwaY8EUwXMMGiAsfYoL
+      8BcGR5mpteREpa0e2odcraXytj7Rwpe6OXTLNP7UcuDCp8pT3m6831XYqQy4/7aH
+      xY2Z5CgrINOM3yD4VGMC8JUW7/pjNr6lrc7+XFWk88rbPs1hnqXdfNG5Gb8x7Xpc
+      0DajpktCvTESrALkY8rsiS0CAwEAAQ==
+      -----END PUBLIC KEY-----"
+  end-point:
+    merchants: /merchants
+    transactions: /transactions
+    pse-institutions: /pse/financial_institutions
+    tokens-cards: /tokens/cards
 ---
 server:
   port: 80
@@ -204,6 +229,18 @@ alegra:
       payment-methods: /dian/payment-methods
       departments: /dian/departments
       municipalities: /dian/municipalities
+wompi:
+  url-base: ${WOMPI_URL_BASE}
+  clave-publica: ${WOMPI_CLAVE_PUBLICA}
+  clave-privada: ${WOMPI_CLAVE_PRIVADA}
+  secreto-integridad: ${WOMPI_SECRETO_INTEGRIDAD}
+  secreto-eventos: ${WOMPI_SECRETO_EVENTOS}
+  public-key: ${WOMPI_PUBLIC_KEY}
+  end-point:
+    merchants: /merchants
+    transactions: /transactions
+    pse-institutions: /pse/financial_institutions
+    tokens-cards: /tokens/cards
 dian:
   formas-pago:
     contado: ${DIAN_FORMA_PAGO_CONTADO}
@@ -218,10 +255,6 @@ dian:
     pendiente:  ${ESTADO_PEND}
   iva: ${DIAN_IVA}
   usuario:  ${USUARIO_CODE_AUT}
-firebase:
-  enabled: true
-  project-id: notifications-aqua-plus
-  credentials: classpath:firebase-service-account.json  
 logging:
   level:
     root:  ${LOGGING_LEVEL_ROOT}

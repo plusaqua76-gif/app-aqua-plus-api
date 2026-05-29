@@ -8,6 +8,7 @@ import org.springframework.web.client.HttpClientErrorException.BadRequest;
 
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.exceptions.ProcessGenericException;
+import com.aqua.plus.commons.exceptions.SecureRequestException;
 import com.aqua.plus.commons.utils.Constantes;
 
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,28 @@ public class GlobalExceptionHandler {
                 .code(HttpStatus.UNAUTHORIZED.value())
                 .build();
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ResponseDTO> handleSecurity(SecurityException ex) {
+        log.error(ex.getLocalizedMessage());
+        ResponseDTO response = ResponseDTO.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .code(HttpStatus.FORBIDDEN.value())
+                .build();
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(SecureRequestException.class)
+    public ResponseEntity<ResponseDTO> handleSecureRequest(SecureRequestException ex) {
+        log.warn("[SecureRequest] {}", ex.getMessage());
+        ResponseDTO response = ResponseDTO.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .code(ex.getStatus().value())
+                .build();
+        return ResponseEntity.status(ex.getStatus()).body(response);
     }
 
     @ExceptionHandler(Exception.class)
