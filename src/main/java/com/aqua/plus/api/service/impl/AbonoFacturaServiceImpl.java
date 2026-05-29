@@ -71,7 +71,7 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 				throw new RuntimeException("El valor del abono debe ser mayor a cero");
 
 			TipoDeudaEntity tipoDeudaFactura = tipoDeudaRepository.findByCodigoAndActivoTrue("FACT")
-					.orElseThrow(() -> new RuntimeException("TipoDeuda con código 'FACT' no encontrado o inactivo"));
+					.orElseThrow(() -> new RuntimeException("TipoDeuda 'FACT' no encontrado o inactivo"));
 
 			boolean isUpdate = abonoFacturaDTO.getId() != null
 					&& abonoFacturaRepository.existsById(abonoFacturaDTO.getId());
@@ -88,12 +88,10 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 					: abonoFacturaDTO.getUsuarioCreacion();
 
 			FacturaDTO facturaDTO = abonoFacturaDTO.getFactura();
-
 			FacturaEntity facturaEntity = facturaRepository.findById(facturaDTO.getId())
 					.orElseThrow(() -> new RuntimeException("Factura no encontrada con id=" + facturaDTO.getId()));
 
 			AbonoFacturaEntity entity;
-
 			if (isUpdate) {
 				entity = abonoFacturaRepository.findById(abonoFacturaDTO.getId()).orElseThrow(
 						() -> new RuntimeException("Abono no encontrado con id=" + abonoFacturaDTO.getId()));
@@ -112,10 +110,13 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 
 			Map<String, Object> resumenDeudas = new LinkedHashMap<>();
 
+			BigDecimal montoAbono = BigDecimal.valueOf(abonoFacturaDTO.getValor()).setScale(2, RoundingMode.HALF_UP);
+
 			Optional<DeudaClienteEntity> optDeuda = deudaClienteRepository
 					.findByFacturaIdAndActivoTrue(facturaEntity.getId());
 
 			if (optDeuda.isPresent()) {
+
 				DeudaClienteEntity deuda = optDeuda.get();
 
 				BigDecimal valorDeuda = BigDecimal.valueOf(deuda.getValor() == null ? 0.0 : deuda.getValor())
@@ -127,18 +128,16 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 
 				BigDecimal saldoDeuda = valorDeuda.subtract(totalAbonadoPrevio).setScale(2, RoundingMode.HALF_UP);
 
-				BigDecimal valorAbono = BigDecimal.valueOf(abonoFacturaDTO.getValor()).setScale(2,
-						RoundingMode.HALF_UP);
+				BigDecimal montoAplicado = montoAbono.min(saldoDeuda).setScale(2, RoundingMode.HALF_UP);
 
-				BigDecimal montoAplicado = valorAbono.min(saldoDeuda).setScale(2, RoundingMode.HALF_UP);
+				BigDecimal saldoRestante = saldoDeuda.subtract(montoAplicado).setScale(2, RoundingMode.HALF_UP);
 
-				BigDecimal sobranteAbono = valorAbono.subtract(montoAplicado).setScale(2, RoundingMode.HALF_UP);
-
-				BigDecimal saldoPendiente = saldoDeuda.subtract(montoAplicado).setScale(2, RoundingMode.HALF_UP);
+				BigDecimal sobrante = montoAbono.subtract(montoAplicado).setScale(2, RoundingMode.HALF_UP);
 
 				log.info(
-						"Deuda id={} | saldo={} | abonoIntentado={} | montoAplicado={} | sobranteAbono={} | saldoPendiente={}",
-						deuda.getId(), saldoDeuda, valorAbono, montoAplicado, sobranteAbono, saldoPendiente);
+						"Deuda id={} | valorDeuda={} | abonadoPrevio={} | saldoDeuda={} | montoAbono={} | aplicado={} | saldoRestante={}",
+						deuda.getId(), valorDeuda, totalAbonadoPrevio, saldoDeuda, montoAbono, montoAplicado,
+						saldoRestante);
 
 				AbonoEntity abonoDeuda = new AbonoEntity();
 				abonoDeuda.setDeudaCliente(deuda);
@@ -147,82 +146,34 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 				abonoDeuda.setFechaCreacion(new Date());
 				abonoDeuda.setUsuarioCreacion(usuarioResponsable);
 				AbonoEntity savedAbonoDeuda = abonoRepository.save(abonoDeuda);
-				log.info("Abono a deuda registrado con id={}", savedAbonoDeuda.getId());
+
+				log.info("Abono registrado sobre deuda id={} | abonoId={}", deuda.getId(), savedAbonoDeuda.getId());
 
 				resumenDeudas.put("deudaId", deuda.getId());
-				resumenDeudas.put("saldoPrevio", saldoDeuda);
+				resumenDeudas.put("valorDeuda", valorDeuda);
+				resumenDeudas.put("abonadoPrevio", totalAbonadoPrevio);
 				resumenDeudas.put("montoAplicado", montoAplicado);
+				resumenDeudas.put("saldoRestante", saldoRestante);
 
-				if (saldoPendiente.compareTo(BigDecimal.ZERO) > 0) {
-					log.info("Saldo pendiente de {} → generando nueva deuda para factura id={}", saldoPendiente,
-							facturaEntity.getId());
-
-					DeudaClienteEntity nuevaDeuda = new DeudaClienteEntity();
-					nuevaDeuda.setFactura(facturaEntity);
-					nuevaDeuda.setEmpresaClienteContador(deuda.getEmpresaClienteContador());
-					nuevaDeuda.setTipoDeuda(deuda.getTipoDeuda());
-					nuevaDeuda.setEstado(deuda.getEstado());
-					nuevaDeuda.setValor(saldoPendiente.doubleValue());
-					nuevaDeuda.setDescripcion(
-							"Saldo pendiente tras abono parcial de factura id=" + facturaEntity.getId());
-					nuevaDeuda.setActivo(true);
-					nuevaDeuda.setFechaCreacion(new Date());
-					nuevaDeuda.setUsuarioCreacion(usuarioResponsable);
-
-					DeudaClienteEntity savedNuevaDeuda = deudaClienteRepository.save(nuevaDeuda);
-					log.info("Nueva deuda por saldo pendiente creada con id={} valor={}", savedNuevaDeuda.getId(),
-							saldoPendiente);
-
-					resumenDeudas.put("saldoPendiente", saldoPendiente);
-					resumenDeudas.put("nuevaDeudaId", savedNuevaDeuda.getId());
-
-					// ── Caso 2: El abono superó la deuda → registrar el excedente
-				} else if (sobranteAbono.compareTo(BigDecimal.ZERO) > 0) {
-					log.info("Sobrante de abono {} → generando nueva deuda a favor para factura id={}", sobranteAbono,
-							facturaEntity.getId());
-
-					DeudaClienteEntity deudaFavor = new DeudaClienteEntity();
-					deudaFavor.setFactura(facturaEntity);
-					deudaFavor.setEmpresaClienteContador(deuda.getEmpresaClienteContador());
-					deudaFavor.setTipoDeuda(deuda.getTipoDeuda());
-					deudaFavor.setEstado(deuda.getEstado());
-					deudaFavor.setValor(sobranteAbono.doubleValue());
-					deudaFavor.setDescripcion(
-							"Saldo a favor por excedente de abono en factura id=" + facturaEntity.getId());
-					deudaFavor.setActivo(true);
-					deudaFavor.setFechaCreacion(new Date());
-					deudaFavor.setUsuarioCreacion(usuarioResponsable);
-
-					DeudaClienteEntity savedDeudaFavor = deudaClienteRepository.save(deudaFavor);
-					log.info("Nueva deuda a favor creada con id={} valor={}", savedDeudaFavor.getId(), sobranteAbono);
-
-					resumenDeudas.put("sobranteAbono", sobranteAbono);
-					resumenDeudas.put("nuevaDeudaId", savedDeudaFavor.getId());
-
-				} else {
-					// Abono exacto — deuda saldada completamente
-					log.info("Deuda id={} saldada exactamente", deuda.getId());
-					resumenDeudas.put("saldoPendiente", BigDecimal.ZERO);
-					resumenDeudas.put("sobranteAbono", BigDecimal.ZERO);
+				if (sobrante.compareTo(BigDecimal.ZERO) > 0) {
+					log.info("Abono excedió la deuda, saldo a favor={}", sobrante);
+					resumenDeudas.put("saldoAFavor", sobrante);
 				}
 
 			} else {
-				log.info("Factura id={} sin deuda activa, calculando saldo pendiente desde precio de factura",
-						facturaEntity.getId());
 
+				// ── CASO B: sin deuda previa → primer abono ───────────────────────
 				BigDecimal precioFactura = BigDecimal
 						.valueOf(facturaEntity.getPrecio() == null ? 0.0 : facturaEntity.getPrecio())
 						.setScale(2, RoundingMode.HALF_UP);
 
-				BigDecimal valorAbono = BigDecimal.valueOf(abonoFacturaDTO.getValor()).setScale(2,
-						RoundingMode.HALF_UP);
+				BigDecimal saldoPendiente = precioFactura.subtract(montoAbono).setScale(2, RoundingMode.HALF_UP);
 
-				BigDecimal saldoPendiente = precioFactura.subtract(valorAbono).setScale(2, RoundingMode.HALF_UP);
-
-				log.info("Factura id={} | precio={} | abono={} | saldoPendiente={}", facturaEntity.getId(),
-						precioFactura, valorAbono, saldoPendiente);
+				log.info("Primer abono | factura id={} | precio={} | abono={} | saldoPendiente={}",
+						facturaEntity.getId(), precioFactura, montoAbono, saldoPendiente);
 
 				if (saldoPendiente.compareTo(BigDecimal.ZERO) > 0) {
+					// Abono parcial → crear la única deuda por el saldo pendiente
 					DeudaClienteEntity nuevaDeuda = new DeudaClienteEntity();
 					nuevaDeuda.setFactura(facturaEntity);
 					nuevaDeuda.setEmpresaClienteContador(facturaEntity.getEmpresaClienteContador());
@@ -235,23 +186,23 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 					nuevaDeuda.setUsuarioCreacion(usuarioResponsable);
 
 					DeudaClienteEntity savedNuevaDeuda = deudaClienteRepository.save(nuevaDeuda);
-					log.info("Deuda por saldo pendiente creada con id={} valor={}", savedNuevaDeuda.getId(),
-							saldoPendiente);
+					log.info("Deuda creada con id={} valor={}", savedNuevaDeuda.getId(), saldoPendiente);
 
 					resumenDeudas.put("saldoPendiente", saldoPendiente);
 					resumenDeudas.put("nuevaDeudaId", savedNuevaDeuda.getId());
 
 				} else if (saldoPendiente.compareTo(BigDecimal.ZERO) < 0) {
-					BigDecimal saldoFavor = valorAbono.subtract(precioFactura).setScale(2, RoundingMode.HALF_UP);
+					BigDecimal saldoFavor = montoAbono.subtract(precioFactura).setScale(2, RoundingMode.HALF_UP);
 					log.info("Pago excedió el precio de la factura, saldo a favor={}", saldoFavor);
 					resumenDeudas.put("saldoAFavor", saldoFavor);
 
 				} else {
-					log.info("Factura id={} pagada exactamente, sin deuda generada", facturaEntity.getId());
+					log.info("Factura id={} pagada exactamente en el primer abono", facturaEntity.getId());
 					resumenDeudas.put("mensaje", "Factura pagada en su totalidad");
 				}
 			}
 
+			// ── Actualizar factura (estado / tipo pago) ───────────────────────────
 			facturaMapper.updateEntityFromDto(facturaDTO, facturaEntity);
 
 			if (facturaDTO.getEstado() != null)
@@ -264,8 +215,7 @@ public class AbonoFacturaServiceImpl implements IAbonoFacturaService {
 			facturaEntity.setUsuarioModificacion(usuarioResponsable);
 
 			FacturaEntity savedFactura = facturaRepository.save(facturaEntity);
-			log.info("Factura id={} actualizada a estado={}", savedFactura.getId(),
-					facturaDTO.getEstado() != null ? facturaDTO.getEstado() : "sin cambio");
+			log.info("Factura id={} actualizada", savedFactura.getId());
 
 			AbonoFacturaDTO savedAbonoDTO = abonoFacturaMapper.entityToDto(savedAbono);
 			FacturaDTO savedFacturaDTO = facturaMapper.entityToDto(savedFactura);

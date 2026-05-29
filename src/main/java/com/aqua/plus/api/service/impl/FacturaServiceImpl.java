@@ -27,6 +27,7 @@ import com.aqua.plus.commons.dtos.FacturaDTO;
 import com.aqua.plus.commons.dtos.FacturaResumenDTO;
 import com.aqua.plus.commons.dtos.MetricasFinancierasDTO;
 import com.aqua.plus.commons.dtos.PagoFacturaRequestDTO;
+import com.aqua.plus.commons.dtos.PagoItemDTO;
 import com.aqua.plus.commons.dtos.ProcesoPagoResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.ValidacionPagoResponseDTO;
@@ -1253,17 +1254,26 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public ResponseEntity<ResponseDTO> validarPagos(List<PagoFacturaRequestDTO> pagos) {
-		log.info("Iniciando validación de pagos - total registros: {}", pagos.size());
+	public ResponseEntity<ResponseDTO> validarPagos(PagoFacturaRequestDTO request) {
+		log.info("Iniciando validación de pagos - empresa id={}, total registros: {}", request.getIdEmpresa(),
+				request.getPagos().size());
 		try {
+			if (request.getIdEmpresa() == null) {
+				return buildErrorResponse("idEmpresa es obligatorio", HttpStatus.BAD_REQUEST);
+			}
+			if (request.getPagos() == null || request.getPagos().isEmpty()) {
+				return buildErrorResponse("Debe enviar al menos un pago para validar", HttpStatus.BAD_REQUEST);
+			}
+
 			EstadoEntity estadoPagoParcial = cargarEstado(Constantes.ESTADO_PAGO_PARCIAL);
 			EstadoEntity estadoPendiente = cargarEstado(Constantes.ESTADO_PENDIENTE);
 
 			List<DetalleValidacionDTO> detalle = new ArrayList<>();
 			int completos = 0, parciales = 0, errores = 0;
 
-			for (PagoFacturaRequestDTO pago : pagos) {
-				DetalleValidacionDTO resultado = validarUnPago(pago, estadoPagoParcial, estadoPendiente);
+			for (PagoItemDTO item : request.getPagos()) {
+				DetalleValidacionDTO resultado = validarUnPago(item, request.getIdEmpresa(), estadoPagoParcial,
+						estadoPendiente);
 
 				String codigoEstado = resultado.getEstado() != null ? resultado.getEstado().getCodigo() : "";
 
@@ -1281,7 +1291,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			}
 
 			ValidacionPagoResponseDTO validacionResponse = ValidacionPagoResponseDTO.builder()
-					.totalRegistros(pagos.size()).pagosCompletos(completos).pagosParcialesAbono(parciales)
+					.totalRegistros(request.getPagos().size()).pagosCompletos(completos).pagosParcialesAbono(parciales)
 					.registrosConError(errores).detalle(detalle).build();
 
 			log.info("Validación finalizada - completos: {}, parciales: {}, errores: {}", completos, parciales,
@@ -1296,72 +1306,78 @@ public class FacturaServiceImpl implements IFacturaService {
 
 		} catch (IllegalStateException e) {
 			log.error("Error de configuración en validación de pagos: {}", e.getMessage());
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(e.getMessage())
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			return buildErrorResponse(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 
 		} catch (Exception e) {
 			log.error("Error inesperado en validación de pagos", e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			return buildErrorResponse(Constantes.CONSULTING_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
-	private DetalleValidacionDTO validarUnPago(PagoFacturaRequestDTO pago, EstadoEntity estadoPagoParcial,
+	private DetalleValidacionDTO validarUnPago(PagoItemDTO item, Integer idEmpresa, EstadoEntity estadoPagoParcial,
 			EstadoEntity estadoPendiente) {
 
-		if (pago.getIdFactura() == null || pago.getIdEmpresa() == null) {
-			return buildError(pago, estadoPendiente, "idFactura e idEmpresa son obligatorios");
+		if (item.getIdFactura() == null) {
+			return buildError(item, idEmpresa, estadoPendiente, "idFactura es obligatorio");
 		}
 
-		if (pago.getValorPago() == null) {
-			return buildError(pago, estadoPendiente, "valorPago es obligatorio y está vacío");
+		if (item.getValorPago() == null) {
+			return buildError(item, idEmpresa, estadoPendiente, "valorPago es obligatorio");
+		}
+		if (item.getValorPago() <= 0) {
+			return buildError(item, idEmpresa, estadoPendiente, "valorPago debe ser mayor a 0");
 		}
 
-		if (pago.getValorPago() <= 0) {
-			return buildError(pago, estadoPendiente, "valorPago debe ser mayor a 0");
-		}
-
-		Optional<FacturaEntity> opt = facturaRepository.findByIdAndEmpresaId(pago.getIdFactura(), pago.getIdEmpresa());
+		Optional<FacturaEntity> opt = facturaRepository.findByIdAndEmpresaId(item.getIdFactura(), idEmpresa);
 
 		if (opt.isEmpty()) {
-			log.warn("Factura id={} no encontrada para empresa id={}", pago.getIdFactura(), pago.getIdEmpresa());
-			return buildError(pago, estadoPendiente, "No existe factura activa con id=%d para empresa id=%d"
-					.formatted(pago.getIdFactura(), pago.getIdEmpresa()));
+			log.warn("Factura id={} no encontrada para empresa id={}", item.getIdFactura(), idEmpresa);
+			return buildError(item, idEmpresa, estadoPendiente,
+					"No existe factura activa con id=%d para empresa id=%d".formatted(item.getIdFactura(), idEmpresa));
 		}
 
 		FacturaEntity factura = opt.get();
 
 		if (factura.getPrecio() == null) {
-			return buildError(pago, estadoPendiente,
-					"La factura id=%d no tiene precio registrado en el sistema".formatted(pago.getIdFactura()));
+			return buildError(item, idEmpresa, estadoPendiente,
+					"La factura id=%d no tiene precio registrado en el sistema".formatted(item.getIdFactura()));
 		}
 
 		double precioFactura = factura.getPrecio();
-		double valorPagado = pago.getValorPago();
+		double valorPagado = item.getValorPago();
 		double diferencia = precioFactura - valorPagado;
 
 		if (valorPagado > precioFactura + TOLERANCIA_PAGO) {
-			log.warn("Factura id={} - valorPago {} supera el precio de la factura {}", factura.getId(), valorPagado,
-					precioFactura);
-			return buildError(pago, estadoPendiente,
-					"El valorPago %.2f supera el valor de la factura %.2f. Diferencia en exceso: %.2f"
-							.formatted(valorPagado, precioFactura, valorPagado - precioFactura));
+			log.warn("Factura id={} - valorPago {} supera el precio {}", factura.getId(), valorPagado, precioFactura);
+			return buildError(item, idEmpresa, estadoPendiente,
+					"El valorPago %.2f supera el valor de la factura %.2f. Exceso: %.2f".formatted(valorPagado,
+							precioFactura, valorPagado - precioFactura));
 		}
 
 		if (diferencia <= TOLERANCIA_PAGO) {
-			log.info("Factura id={} - pago completo, se omite del detalle", factura.getId());
-			return DetalleValidacionDTO.builder().idFactura(factura.getId()).idEmpresa(pago.getIdEmpresa()).estado(null)
+			log.info("Factura id={} - pago completo", factura.getId());
+			return DetalleValidacionDTO.builder().idFactura(factura.getId()).idEmpresa(idEmpresa).estado(null)
 					.valorFactura(precioFactura).valorPago(valorPagado).valorPendiente(0.0).build();
 		}
 
 		log.info("Factura id={} - pago parcial, pendiente: {}", factura.getId(), diferencia);
-		return DetalleValidacionDTO.builder().idFactura(factura.getId()).idEmpresa(pago.getIdEmpresa())
+		return DetalleValidacionDTO.builder().idFactura(factura.getId()).idEmpresa(idEmpresa)
 				.estado(toEstadoDTO(estadoPagoParcial))
-				.mensaje("Pago parcial: quedaría un saldo pendiente de %.2f. ".formatted(diferencia)
-						+ "Al confirmar se generaría una deuda por el saldo restante")
+				.mensaje(
+						"Pago parcial: quedaría un saldo pendiente de %.2f. Al confirmar se generaría una deuda por el saldo restante"
+								.formatted(diferencia))
 				.valorFactura(precioFactura).valorPago(valorPagado).valorPendiente(diferencia).build();
+	}
+
+	private DetalleValidacionDTO buildError(PagoItemDTO item, Integer idEmpresa, EstadoEntity estado, String mensaje) {
+		log.warn("Error validación - factura id={}, empresa id={}: {}", item.getIdFactura(), idEmpresa, mensaje);
+		return DetalleValidacionDTO.builder().idFactura(item.getIdFactura()).idEmpresa(idEmpresa)
+				.estado(toEstadoDTO(estado)).mensaje(mensaje).valorPago(item.getValorPago()).build();
+	}
+
+	private ResponseEntity<ResponseDTO> buildErrorResponse(String mensaje, HttpStatus status) {
+		return ResponseEntity.status(status)
+				.body(ResponseDTO.builder().success(false).message(mensaje).code(status.value()).build());
 	}
 
 	private EstadoEntity cargarEstado(String codigo) {
@@ -1374,18 +1390,19 @@ public class FacturaServiceImpl implements IFacturaService {
 				.descripcion(estado.getDescripcion()).build();
 	}
 
-	private DetalleValidacionDTO buildError(PagoFacturaRequestDTO pago, EstadoEntity estado, String mensaje) {
-		log.warn("Error validación - factura id={}, empresa id={}: {}", pago.getIdFactura(), pago.getIdEmpresa(),
-				mensaje);
-		return DetalleValidacionDTO.builder().idFactura(pago.getIdFactura()).idEmpresa(pago.getIdEmpresa())
-				.estado(toEstadoDTO(estado)).mensaje(mensaje).valorPago(pago.getValorPago()).build();
-	}
-
 	@Override
 	@Transactional
-	public ResponseEntity<ResponseDTO> procesarPagos(List<PagoFacturaRequestDTO> pagos) {
-		log.info("Iniciando procesamiento de pagos - total registros: {}", pagos.size());
+	public ResponseEntity<ResponseDTO> procesarPagos(PagoFacturaRequestDTO request) {
+		log.info("Iniciando procesamiento de pagos - empresa id={}, total registros: {}", request.getIdEmpresa(),
+				request.getPagos().size());
 		try {
+			if (request.getIdEmpresa() == null) {
+				return buildErrorResponse("idEmpresa es obligatorio", HttpStatus.BAD_REQUEST);
+			}
+			if (request.getPagos() == null || request.getPagos().isEmpty()) {
+				return buildErrorResponse("Debe enviar al menos un pago para procesar", HttpStatus.BAD_REQUEST);
+			}
+
 			EstadoEntity estadoPagada = cargarEstado(Constantes.ESTADO_PAGADA);
 			EstadoEntity estadoPagoParcial = cargarEstado(Constantes.ESTADO_PAGO_PARCIAL);
 			EstadoEntity estadoPendiente = cargarEstado(Constantes.ESTADO_PENDIENTE);
@@ -1397,17 +1414,15 @@ public class FacturaServiceImpl implements IFacturaService {
 			List<DetallePagoDTO> detalle = new ArrayList<>();
 			int completos = 0, parciales = 0, errores = 0;
 
-			for (PagoFacturaRequestDTO pago : pagos) {
-				DetallePagoDTO resultado = procesarUnPago(pago, estadoPagada, estadoPagoParcial, estadoPendiente,
-						tipoDeuda);
+			for (PagoItemDTO item : request.getPagos()) {
+				DetallePagoDTO resultado = procesarUnPago(item, request.getIdEmpresa(), request.getUsuarioCreacion(),
+						estadoPagada, estadoPagoParcial, estadoPendiente, tipoDeuda);
 
 				String codigoEstadoNuevo = resultado.getEstadoNuevo() != null ? resultado.getEstadoNuevo().getCodigo()
 						: "";
 
 				switch (codigoEstadoNuevo) {
-				case Constantes.ESTADO_PAGADA -> {
-					completos++;
-				}
+				case Constantes.ESTADO_PAGADA -> completos++;
 				case Constantes.ESTADO_PAGO_PARCIAL -> {
 					parciales++;
 					detalle.add(resultado);
@@ -1419,9 +1434,9 @@ public class FacturaServiceImpl implements IFacturaService {
 				}
 			}
 
-			ProcesoPagoResponseDTO procesoPagoResponse = ProcesoPagoResponseDTO.builder().totalRegistros(pagos.size())
-					.pagosCompletos(completos).pagosParcialesAbono(parciales).registrosConError(errores)
-					.detalle(detalle).build();
+			ProcesoPagoResponseDTO procesoPagoResponse = ProcesoPagoResponseDTO.builder()
+					.totalRegistros(request.getPagos().size()).pagosCompletos(completos).pagosParcialesAbono(parciales)
+					.registrosConError(errores).detalle(detalle).build();
 
 			log.info("Procesamiento finalizado - completos: {}, parciales: {}, errores: {}", completos, parciales,
 					errores);
@@ -1437,64 +1452,59 @@ public class FacturaServiceImpl implements IFacturaService {
 
 		} catch (IllegalStateException e) {
 			log.error("Error de configuración en procesamiento de pagos: {}", e.getMessage());
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(e.getMessage())
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			return buildErrorResponse(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 
 		} catch (Exception e) {
 			log.error("Error inesperado en procesamiento de pagos", e);
-			ResponseDTO responseDTO = ResponseDTO.builder().success(false).message(Constantes.CONSULTING_ERROR)
-					.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseDTO);
+			return buildErrorResponse(Constantes.CONSULTING_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
-	private DetallePagoDTO procesarUnPago(PagoFacturaRequestDTO pago, EstadoEntity estadoPagada,
-			EstadoEntity estadoPagoParcial, EstadoEntity estadoPendiente, TipoDeudaEntity tipoDeuda) {
+	private DetallePagoDTO procesarUnPago(PagoItemDTO item, Integer idEmpresa, String usuarioCreacion,
+			EstadoEntity estadoPagada, EstadoEntity estadoPagoParcial, EstadoEntity estadoPendiente,
+			TipoDeudaEntity tipoDeuda) {
 
-		if (pago.getIdFactura() == null || pago.getIdEmpresa() == null) {
-			return buildErrorProceso(pago, estadoPendiente, "idFactura e idEmpresa son obligatorios");
+		if (item.getIdFactura() == null) {
+			return buildErrorProceso(item, idEmpresa, estadoPendiente, "idFactura es obligatorio");
 		}
 
-		if (pago.getValorPago() == null || pago.getValorPago() <= 0) {
-			return buildErrorProceso(pago, estadoPendiente, "valorPago es obligatorio y debe ser mayor a 0");
+		if (item.getValorPago() == null || item.getValorPago() <= 0) {
+			return buildErrorProceso(item, idEmpresa, estadoPendiente, "valorPago es obligatorio y debe ser mayor a 0");
 		}
 
-		Optional<FacturaEntity> opt = facturaRepository.findByIdAndEmpresaId(pago.getIdFactura(), pago.getIdEmpresa());
+		Optional<FacturaEntity> opt = facturaRepository.findByIdAndEmpresaId(item.getIdFactura(), idEmpresa);
 
 		if (opt.isEmpty()) {
-			log.warn("Factura id={} no encontrada para empresa id={}", pago.getIdFactura(), pago.getIdEmpresa());
-			return buildErrorProceso(pago, estadoPendiente, "No existe factura activa con id=%d para empresa id=%d"
-					.formatted(pago.getIdFactura(), pago.getIdEmpresa()));
+			log.warn("Factura id={} no encontrada para empresa id={}", item.getIdFactura(), idEmpresa);
+			return buildErrorProceso(item, idEmpresa, estadoPendiente,
+					"No existe factura activa con id=%d para empresa id=%d".formatted(item.getIdFactura(), idEmpresa));
 		}
 
 		FacturaEntity factura = opt.get();
 
 		if (factura.getEstado() != null) {
 			String codigoEstadoActual = factura.getEstado().getCodigo();
-
 			if (Constantes.ESTADO_PAGADA.equals(codigoEstadoActual)
 					|| Constantes.ESTADO_PAGO_PARCIAL.equals(codigoEstadoActual)) {
 				log.warn("Factura id={} ya fue procesada con estado {}, se omite", factura.getId(), codigoEstadoActual);
-				return buildErrorProceso(pago, factura.getEstado(),
+				return buildErrorProceso(item, idEmpresa, factura.getEstado(),
 						"La factura id=%d ya fue procesada anteriormente con estado '%s'. No se permiten cambios duplicados"
 								.formatted(factura.getId(), factura.getEstado().getNombre()));
 			}
 		}
-		
+
 		if (factura.getPrecio() == null) {
-		    return buildErrorProceso(pago, estadoPendiente,
-		            "La factura id=%d no tiene precio registrado en el sistema"
-		                    .formatted(factura.getId()));
+			return buildErrorProceso(item, idEmpresa, estadoPendiente,
+					"La factura id=%d no tiene precio registrado en el sistema".formatted(factura.getId()));
 		}
 
 		double precioFactura = factura.getPrecio();
-		double valorPagado = pago.getValorPago();
+		double valorPagado = item.getValorPago();
 		double diferencia = precioFactura - valorPagado;
 
 		if (valorPagado > precioFactura + TOLERANCIA_PAGO) {
 			log.warn("Factura id={} - valorPago {} supera el precio {}", factura.getId(), valorPagado, precioFactura);
-			return buildErrorProceso(pago, estadoPendiente,
+			return buildErrorProceso(item, idEmpresa, estadoPendiente,
 					"El valorPago %.2f supera el valor de la factura %.2f. Diferencia en exceso: %.2f"
 							.formatted(valorPagado, precioFactura, valorPagado - precioFactura));
 		}
@@ -1506,7 +1516,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			facturaRepository.save(factura);
 			log.info("Factura id={} actualizada a estado PAGADA", factura.getId());
 
-			return DetallePagoDTO.builder().idFactura(factura.getId()).idEmpresa(pago.getIdEmpresa())
+			return DetallePagoDTO.builder().idFactura(factura.getId()).idEmpresa(idEmpresa)
 					.estadoAnterior(estadoAnteriorDTO).estadoNuevo(toEstadoDTO(estadoPagada))
 					.mensaje("Pago completo procesado. Factura marcada como PAGADA").valorFactura(precioFactura)
 					.valorPago(valorPagado).valorPendiente(0.0).build();
@@ -1524,24 +1534,23 @@ public class FacturaServiceImpl implements IFacturaService {
 		deuda.setDescripcion("Abono parcial. Pagó %.2f de %.2f. Saldo pendiente: %.2f".formatted(valorPagado,
 				precioFactura, diferencia));
 		deuda.setActivo(true);
-		deuda.setUsuarioCreacion(pago.getUsuarioCreacion());
+		deuda.setUsuarioCreacion(usuarioCreacion);
 
 		DeudaClienteEntity deudaGuardada = deudaClienteRepository.save(deuda);
 		log.info("Deuda id={} creada por saldo pendiente={} de factura id={}", deudaGuardada.getId(), diferencia,
 				factura.getId());
 
-		return DetallePagoDTO.builder().idFactura(factura.getId()).idEmpresa(pago.getIdEmpresa())
+		return DetallePagoDTO.builder().idFactura(factura.getId()).idEmpresa(idEmpresa)
 				.estadoAnterior(estadoAnteriorDTO).estadoNuevo(toEstadoDTO(estadoPagoParcial))
 				.mensaje("Abono parcial procesado. Deuda creada por saldo pendiente de %.2f".formatted(diferencia))
 				.valorFactura(precioFactura).valorPago(valorPagado).valorPendiente(diferencia)
 				.idDeudaCreada(deudaGuardada.getId()).build();
 	}
 
-	private DetallePagoDTO buildErrorProceso(PagoFacturaRequestDTO pago, EstadoEntity estado, String mensaje) {
-		log.warn("Error procesamiento - factura id={}, empresa id={}: {}", pago.getIdFactura(), pago.getIdEmpresa(),
-				mensaje);
-		return DetallePagoDTO.builder().idFactura(pago.getIdFactura()).idEmpresa(pago.getIdEmpresa())
-				.estadoNuevo(toEstadoDTO(estado)).mensaje(mensaje).valorPago(pago.getValorPago()).build();
+	private DetallePagoDTO buildErrorProceso(PagoItemDTO item, Integer idEmpresa, EstadoEntity estado, String mensaje) {
+		log.warn("Error procesamiento - factura id={}, empresa id={}: {}", item.getIdFactura(), idEmpresa, mensaje);
+		return DetallePagoDTO.builder().idFactura(item.getIdFactura()).idEmpresa(idEmpresa)
+				.estadoNuevo(toEstadoDTO(estado)).mensaje(mensaje).valorPago(item.getValorPago()).build();
 	}
 
 

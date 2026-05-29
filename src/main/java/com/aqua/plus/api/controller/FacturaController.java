@@ -1,6 +1,5 @@
 package com.aqua.plus.api.controller;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.Pageable;
@@ -326,8 +325,8 @@ public class FacturaController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@PostMapping("/validar-pagos")
-	public ResponseEntity<ResponseDTO> validarPagos(@RequestBody List<PagoFacturaRequestDTO> pagos) {
-		return facturaServiceImpl.validarPagos(pagos);
+	public ResponseEntity<ResponseDTO> validarPagos(@RequestBody PagoFacturaRequestDTO request) {
+		return facturaServiceImpl.validarPagos(request);
 	}
 
 	@Operation(summary = "Procesar pagos de facturas")
@@ -341,8 +340,8 @@ public class FacturaController {
 			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
 					@Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }) })
 	@PostMapping("/procesar-pagos")
-	public ResponseEntity<ResponseDTO> procesarPagos(@RequestBody List<PagoFacturaRequestDTO> pagos) {
-		return facturaServiceImpl.procesarPagos(pagos);
+	public ResponseEntity<ResponseDTO> procesarPagos(@RequestBody PagoFacturaRequestDTO request) {
+		return facturaServiceImpl.procesarPagos(request);
 	}
 
 }
