@@ -228,10 +228,6 @@ alegra:
       municipalities: /dian/municipalities
 wompi:
   url-base: ${WOMPI_URL_BASE}
-  clave-publica: ${WOMPI_CLAVE_PUBLICA}
-  clave-privada: ${WOMPI_CLAVE_PRIVADA}
-  secreto-integridad: ${WOMPI_SECRETO_INTEGRIDAD}
-  secreto-eventos: ${WOMPI_SECRETO_EVENTOS}
   public-key: ${WOMPI_PUBLIC_KEY}
   end-point:
     merchants: /merchants
