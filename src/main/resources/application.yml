@@ -39,6 +39,10 @@ mail:
          required: true  
 seguridad:
   llave: keyacuaplus
+secure:
+  hmac-secret: ${SECURE_HMAC_SECRET:dev-hmac-secret-minimum-32-characters-long!}
+  aes-key: ${SECURE_AES_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+  path-pattern: ${SECURE_PATH_PATTERN:/api/v1/secure/**}
 link:
   recover: https://www.aquaplus.dev/auth/recover-password?
 app:
@@ -71,6 +75,16 @@ app:
 rest-template:
   connect: 5
   read: 60
+wompi:
+  url-base: ${WOMPI_URL_BASE:https://sandbox.wompi.co/v1}
+  redirect-vigencia-minutos: ${WOMPI_REDIRECT_VIGENCIA_MINUTOS:15}
+  pse:
+    rsa-public-key: ${WOMPI_PSE_RSA_PUBLIC_KEY:}
+  end-point:
+    merchants: /merchants
+    transactions: /transactions
+    pse-institutions: /pse/financial_institutions
+    tokens-cards: /tokens/cards
 alegra:
   url: https://sandbox-api.alegra.com/e-provider/col/v1
   token: zynNJhQOfIC8SUObliKl6ivZ3VzRfiW1LH1HKWFW
@@ -152,6 +166,10 @@ mail:
           required: ${STARTTLS_REQUIRED}
 seguridad:
   llave: ${SEGURIDAD_LLAVE}
+secure:
+  hmac-secret: ${SECURE_HMAC_SECRET}
+  aes-key: ${SECURE_AES_KEY}
+  path-pattern: ${SECURE_PATH_PATTERN:/api/v1/secure/**}
 link:
   recover: ${LINK_RECOVER_PASSWORD}
 app:
@@ -184,6 +202,16 @@ app:
 rest-template:
   connect: ${REST_TEMPLATE_CONNECT}
   read: ${REST_TEMPLATE_READ}
+wompi:
+  url-base: ${WOMPI_URL_BASE}
+  redirect-vigencia-minutos: ${WOMPI_REDIRECT_VIGENCIA_MINUTOS:15}
+  pse:
+    rsa-public-key: ${WOMPI_PSE_RSA_PUBLIC_KEY:}
+  end-point:
+    merchants: /merchants
+    transactions: /transactions
+    pse-institutions: /pse/financial_institutions
+    tokens-cards: /tokens/cards
 alegra:
   url: ${ALEGRA_URL}
   token:  ${ALEGRA_TOKEN}

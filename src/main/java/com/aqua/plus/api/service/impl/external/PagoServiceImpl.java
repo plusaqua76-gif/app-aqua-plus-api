@@ -207,12 +207,15 @@ public class PagoServiceImpl implements IPagoService {
 
         String idWompi    = (String) txData.get("id");
         String estado     = (String) txData.get(KEY_STATUS);
-        Long   monto      = Long.parseLong(txData.get("amount_in_cents").toString());
         String referencia = (String) txData.get("reference");
         String metodoPago = (String) txData.get(KEY_PAYMENT_METHOD_TYPE);
 
-        if (firmaRecibida == null
-                || !integrityUtil.validarFirmaWebhook(idWompi, estado, monto, evento.getTimestamp(), firmaRecibida)) {
+        PagoEntity pago = pagoRepo.findByReferencia(referencia)
+            .orElseThrow(() -> new ProcessGenericException(
+                "Pago no encontrado para referencia: " + referencia));
+        WompiCredenciales creds = obtenerCredencialesPorEmpresa(pago.getIdEmpresa());
+
+        if (!integrityUtil.validarFirmaWebhook(evento, firmaRecibida, creds.secretoEventos())) {
             log.warn("Webhook rechazado — firma inválida para transacción: {}", idWompi);
             throw new SecurityException("Firma de webhook inválida");
         }

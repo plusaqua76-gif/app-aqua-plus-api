@@ -8,6 +8,7 @@ import org.jose4j.jwe.KeyManagementAlgorithmIdentifiers;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
@@ -18,17 +19,17 @@ import java.util.Base64;
 @Component
 public class JwePseService {
 
-    @Value("${wompi.public-key}")
+    @Value("${wompi.pse.rsa-public-key:}")
     private String publicKeyPem;
 
     private PublicKey publicKey;
 
-    private static final String PLACEHOLDER = "REPLACE_WITH_WOMPI_RSA_PUBLIC_KEY_PEM";
+    private static final String PLACEHOLDER = "REPLACE_WITH_WOMPI_PSE_RSA_PUBLIC_KEY_PEM";
 
     @PostConstruct
     void init() {
         if (publicKeyPem == null || publicKeyPem.isBlank() || publicKeyPem.equals(PLACEHOLDER)) {
-            log.warn("[JwePseService] wompi.public-key no configurada — " +
+            log.warn("[JwePseService] wompi.pse.rsa-public-key no configurada — " +
                      "los campos de referencia PSE se enviarán en PLANO (solo desarrollo).");
             return;
         }
@@ -61,7 +62,16 @@ public class JwePseService {
     }
 
     private PublicKey parsePem(String pem) throws Exception {
-        String stripped = pem
+        String normalized = pem.replace("\\n", "\n").trim();
+
+        if (!normalized.contains("-----BEGIN PUBLIC KEY-----")) {
+            String decoded = new String(Base64.getDecoder().decode(normalized), StandardCharsets.UTF_8);
+            if (decoded.contains("-----BEGIN PUBLIC KEY-----")) {
+                normalized = decoded;
+            }
+        }
+
+        String stripped = normalized
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
             .replaceAll("\\s+", "");

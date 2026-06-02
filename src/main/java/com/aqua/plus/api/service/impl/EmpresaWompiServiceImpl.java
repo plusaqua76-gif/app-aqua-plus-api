@@ -54,6 +54,7 @@ public class EmpresaWompiServiceImpl implements IEmpresaWompiService {
             entity.setWompiClavePublica(dto.getWompiClavePublica());
             entity.setWompiClavePrivada(dto.getWompiClavePrivada());
             entity.setWompiSecretoIntegridad(dto.getWompiSecretoIntegridad());
+            entity.setWompiSecretoEventos(dto.getWompiSecretoEventos());
 
             if (isUpdate) {
                 entity.setFechaModificacion(new Date());
@@ -102,6 +103,7 @@ public class EmpresaWompiServiceImpl implements IEmpresaWompiService {
             response.setWompiClavePublica(e.getWompiClavePublica());
             response.setWompiClavePrivada("***");
             response.setWompiSecretoIntegridad("***");
+            response.setWompiSecretoEventos("***");
             response.setActivo(e.getActivo());
 
             return ResponseEntity.ok(ResponseDTO.builder().success(true)

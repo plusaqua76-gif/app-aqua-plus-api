@@ -12,38 +12,11 @@ public class UtilsWompi {
     @Value("${wompi.url-base}")
     private String urlBase;
 
-    @Value("${wompi.clave-publica:}")
-    private String clavePublica;
-
-    @Value("${wompi.clave-privada:}")
-    private String clavePrivada;
-
-    @Value("${wompi.secreto-integridad:}")
-    private String secretoIntegridad;
-
-    @Value("${wompi.secreto-eventos:}")
-    private String secretoEventos;
-
     public HttpHeaders getHeaderPublico() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         return headers;
     }
-
-    public HttpHeaders getHeaderMerchant() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + clavePublica);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return headers;
-    }
-
-    public HttpHeaders getHeaderPrivado() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Bearer " + clavePrivada);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return headers;
-    }
-
 
     public HttpHeaders getHeaderMerchantPara(String clavePublicaParam) {
         HttpHeaders headers = new HttpHeaders();
@@ -74,7 +47,8 @@ public class UtilsWompi {
         return new WompiCredenciales(
                 config.getWompiClavePublica(),
                 config.getWompiClavePrivada(),
-                config.getWompiSecretoIntegridad());
+                config.getWompiSecretoIntegridad(),
+                config.getWompiSecretoEventos());
     }
 
     private boolean tieneValor(String s) {
@@ -83,17 +57,5 @@ public class UtilsWompi {
 
     public String getUrlBase() {
         return urlBase;
-    }
-
-    public String getClavePublica() {
-        return clavePublica;
-    }
-
-    public String getSecretoIntegridad() {
-        return secretoIntegridad;
-    }
-
-    public String getSecretoEventos() {
-        return secretoEventos;
     }
 }
