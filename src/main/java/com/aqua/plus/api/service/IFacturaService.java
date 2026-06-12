@@ -16,20 +16,19 @@ public interface IFacturaService {
 	ResponseEntity<ResponseDTO> findById(Integer id);
 
 	ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo, String clienteNombreCompleto,
-			String fechaEmision, String fechaFin, String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin,
-			Double precioMax, String tipoPagoNombre, String corregimientoNombre,Integer nuid, Pageable pageable);
+			String fechaEmision, String fechaFin, String estadoNombre, Boolean consumoAnormal, Integer consumo,
+			Double precioMin, Double precioMax, String tipoPagoNombre, String corregimientoNombre, Integer nuid,
+			String periodo, Pageable pageable);
 
 	ResponseEntity<ResponseDTO> findAll();
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
-	
+
 	ResponseEntity<ResponseDTO> obtenerFacturaDetalle(Integer idFactura, Integer idEmpresa);
 
-    // Interface
-    ResponseEntity<ResponseDTO> findFacturasByPersona(
-            Integer idPersona, String codigo, String fechaEmision, String fechaFin, String estadoNombre,
-            Boolean consumoAnormal, Double precio, Pageable pageable
-    );
+	// Interface
+	ResponseEntity<ResponseDTO> findFacturasByPersona(Integer idPersona, String codigo, String fechaEmision,
+			String fechaFin, String estadoNombre, Boolean consumoAnormal, Double precio, Pageable pageable);
 
 	/**
 	 * Obtiene las métricas de cartera agrupadas por antigüedad de deudas.
@@ -39,13 +38,12 @@ public interface IFacturaService {
 	 */
 	ResponseEntity<ResponseDTO> obtenerMetricasCarteraPorAntiguedad(Integer empresaId);
 
-
 	ResponseEntity<ResponseDTO> obtenerMetricasFinancieras(Integer empresaId, Integer mes, Integer anio);
-	
+
 	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorAndCodigo(Integer idEmpresaClienteContador, String codigo);
-	
+
 	ResponseEntity<ResponseDTO> validarPagos(PagoFacturaRequestDTO request);
-	
+
 	ResponseEntity<ResponseDTO> procesarPagos(PagoFacturaRequestDTO request);
 
 }

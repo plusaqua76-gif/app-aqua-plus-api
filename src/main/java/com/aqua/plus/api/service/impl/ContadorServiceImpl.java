@@ -16,6 +16,7 @@ import com.aqua.plus.commons.dtos.ContadorDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.entities.ContadorEntity;
 import com.aqua.plus.commons.entities.DireccionEntity;
+import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.TipoContadorEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.maps.ContadorMapper;
@@ -229,7 +230,6 @@ public class ContadorServiceImpl implements IContadorService {
 			String serialTrim = serial.trim();
 
 			List<ContadorEntity> contadores = contadorRepository.findAllBySerial(serialTrim);
-
 			if (contadores.isEmpty()) {
 				return ResponseEntity.status(HttpStatus.NOT_FOUND)
 						.body(ResponseDTO.builder().success(false)
@@ -237,20 +237,33 @@ public class ContadorServiceImpl implements IContadorService {
 								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
-			ContadorEntity contador = contadores.stream().filter(c -> {
-				String usuarioCreacion = c.getUsuarioCreacion();
-				var usuario = usuarioRepository.findByNombre(usuarioCreacion);
-				if (usuario.isEmpty()) {
-					return false;
-				}
-				UsuarioEntity user = usuario.get();
-				var empresa = empresaRepository.findByUsuario_Id(user.getId());
-				return empresa.isPresent() && empresa.get().getId().equals(empresaId);
-			}).findFirst().orElse(null);
+			ContadorEntity contador = contadores.get(0);
 
-			if (contador == null) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ResponseDTO.builder().success(false)
-						.message("El contador no pertenece a tu empresa").code(HttpStatus.FORBIDDEN.value()).build());
+			boolean perteneceAEmpresa = false;
+
+			Optional<UsuarioEntity> usuarioCreador = usuarioRepository.findByNombre(contador.getUsuarioCreacion());
+
+			if (usuarioCreador.isPresent()) {
+				Optional<EmpresaEntity> empresaDelUsuario = empresaRepository
+						.findByUsuarioId(usuarioCreador.get().getId());
+
+				if (empresaDelUsuario.isPresent() && empresaDelUsuario.get().getId().equals(empresaId)) {
+					perteneceAEmpresa = true;
+					log.info("Contador pertenece a la empresa del usuario creador");
+				}
+			}
+
+			if (!perteneceAEmpresa) {
+				perteneceAEmpresa = empresaClienteContadorRepository.existsByEmpresaIdAndContadorId(empresaId,
+						contador.getId());
+				log.info("Validando relación en empresaClienteContador: {}", perteneceAEmpresa);
+			}
+
+			if (!perteneceAEmpresa) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No existe contador con el serial especificado")
+								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
 			boolean enUso = empresaClienteContadorRepository.existsByContador_IdAndActivoTrue(contador.getId());
