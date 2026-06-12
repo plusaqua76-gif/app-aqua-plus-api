@@ -336,12 +336,12 @@ public class FacturaServiceImpl implements IFacturaService {
 	public ResponseEntity<ResponseDTO> findByEnterpriseId(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, String fechaEmision, String fechaFin, String estadoNombre,
 			Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax, String tipoPagoNombre,
-			String corregimientoNombre, Integer nuid, Pageable pageable) {
+			String corregimientoNombre, Integer nuid, String periodo, Pageable pageable) {
 
 		log.info(
-				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}, corregimiento={},nuid={}",
+				"Buscar facturas por empresaId={}, filtros: codigo={}, cliente={}, fechaEmision={}, fechaFin={}, estado={}, anormal={}, consumo={}, precioMin={}, precioMax={}, corregimiento={}, nuid={}, periodo={}",
 				idEmpresa, codigo, clienteNombreCompleto, fechaEmision, fechaFin, estadoNombre, consumoAnormal, consumo,
-				precioMin, precioMax, corregimientoNombre, nuid);
+				precioMin, precioMax, corregimientoNombre, nuid, periodo);
 
 		try {
 			LocalDate emision = parseSingleDateOrNull(fechaEmision);
@@ -349,7 +349,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
 					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre,
-					corregimientoNombre, nuid).and(FacturaSpecifications.activoTrue());
+					corregimientoNombre, nuid, periodo).and(FacturaSpecifications.activoTrue());
 
 			Page<FacturaEntity> page = facturaRepository.findAll(spec, pageable);
 
@@ -419,7 +419,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private Specification<FacturaEntity> buildFacturaSpec(Integer idEmpresa, String codigo,
 			String clienteNombreCompleto, LocalDate emDesde, LocalDate emHasta, LocalDate finDesde, LocalDate finHasta,
 			String estadoNombre, Boolean consumoAnormal, Integer consumo, Double precioMin, Double precioMax,
-			String tipoPagoNombre, String corregimientoNombre, Integer nuid) {
+			String tipoPagoNombre, String corregimientoNombre, Integer nuid, String periodo) {
 
 		if (precioMin != null && precioMax != null && precioMin > precioMax) {
 			double tmp = precioMin;
@@ -437,7 +437,8 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.consumoEquals(consumo), FacturaSpecifications.precioBetween(precioMin, precioMax),
 				FacturaSpecifications.tipoPagoLike(tipoPagoNombre),
 				FacturaSpecifications.corregimientoNombreLike(corregimientoNombre),
-				FacturaSpecifications.contadorNuid(nuid));
+				FacturaSpecifications.contadorNuid(nuid),
+				FacturaSpecifications.periodoEquals(periodo));
 	}
 
 	@Override
