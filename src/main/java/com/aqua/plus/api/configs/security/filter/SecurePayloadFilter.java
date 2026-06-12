@@ -66,14 +66,14 @@ public class SecurePayloadFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         try {
-            // 1 — Leer el sobre cifrado
+            //  Leer el sobre cifrado
             SecureRequestDTO envelope = objectMapper.readValue(
                 request.getInputStream(), SecureRequestDTO.class);
 
-            // 2 — Validar y descifrar (lanza SecureRequestException si algo falla)
+            //  Validar y descifrar (lanza SecureRequestException si algo falla)
             String decryptedJson = validator.validate(envelope);
 
-            // 3 — Reemplazar el body con el JSON plano descifrado
+            //  Reemplazar el body con el JSON plano descifrado
             CachedBodyRequestWrapper wrappedRequest =
                 new CachedBodyRequestWrapper(request, decryptedJson);
 

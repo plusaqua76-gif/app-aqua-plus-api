@@ -33,6 +33,10 @@ public class UtilsWompi {
         return headers;
     }
 
+    /**
+     * Valida que la configuración Wompi sea usable (activa y con campos obligatorios presentes).
+     * Las credenciales sensibles llegan ya descifradas desde la capa de servicio.
+     */
     public WompiCredenciales resolverCredenciales(EmpresaWompiEntity config) {
 
         if (config == null

@@ -1,9 +1,9 @@
 package com.aqua.plus.api.service.impl.external;
 
-import com.aqua.plus.api.helpers.PagoHelper;
 import com.aqua.plus.api.service.IFacturaService;
 import com.aqua.plus.api.service.external.IPagoService;
 import com.aqua.plus.api.service.external.IWompiService;
+import com.aqua.plus.api.utils.EncriptarDesencriptar;
 import com.aqua.plus.api.utils.JwePseService;
 import com.aqua.plus.api.utils.WompiCredenciales;
 import com.aqua.plus.api.utils.WompiIntegrityUtil;
@@ -19,6 +19,7 @@ import com.aqua.plus.commons.entities.EmpresaWompiEntity;
 import com.aqua.plus.commons.entities.PagoEntity;
 import com.aqua.plus.commons.entities.UsuarioEntity;
 import com.aqua.plus.commons.exceptions.ProcessGenericException;
+import com.aqua.plus.commons.exceptions.SecureRequestException;
 import com.aqua.plus.commons.maps.PagoMapper;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
@@ -28,7 +29,9 @@ import com.aqua.plus.commons.repositories.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,23 +60,25 @@ public class PagoServiceImpl implements IPagoService {
     private static final List<String> MEDIOS_REDIRECT =
         List.of(MEDIO_PSE, MEDIO_BANCOLOMBIA);
 
-    private final PagoRepository     pagoRepo;
-    private final EmpresaWompiRepository empresaWompiRepo;
-    private final EmpresaRepository empresaRepo;
-    private final EmpresaClienteContadorRepository empresaClienteContadorRepo;
-    private final UsuarioRepository  usuarioRepo;
-    private final IWompiService      wompiService;
-    private final WompiIntegrityUtil  integrityUtil;
-    private final UtilsWompi         utilsWompi;
-    private final JwePseService      jwePseService;
-    private final PagoMapper         pagoMapper;
-    private final PagoHelper         pagoHelper;
-    private final IFacturaService    facturaService;
+    private final PagoRepository                    pagoRepo;
+    private final EmpresaWompiRepository            empresaWompiRepo;
+    private final EmpresaRepository                 empresaRepo;
+    private final EmpresaClienteContadorRepository  empresaClienteContadorRepo;
+    private final UsuarioRepository                 usuarioRepo;
+    private final IWompiService                     wompiService;
+    private final WompiIntegrityUtil                integrityUtil;
+    private final UtilsWompi                        utilsWompi;
+    private final JwePseService                     jwePseService;
+    private final PagoMapper                        pagoMapper;
+    private final PagoAsyncService                  pagoAsyncService;
+    private final IFacturaService                   facturaService;
+    private final EncriptarDesencriptar             encriptarDesencriptar;
 
 
     @Override
     @Transactional
-    public IniciarPagoResponse iniciarPago(IniciarPagoRequest req, String usuarioActual, String ipAddress) {
+    public ResponseEntity<ResponseDTO> iniciarPago(IniciarPagoRequest req, String ipAddress) {
+        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
 
         String referencia = "AQP-" + UUID.randomUUID()
             .toString().replace("-", "").substring(0, 16).toUpperCase();
@@ -86,8 +91,8 @@ public class PagoServiceImpl implements IPagoService {
             .montoCentavos(req.getMontoCentavos())
             .moneda("COP")
             .estado("PENDING")
-            .emailCliente(req.getEmailCliente())
-            .ipAddress(ipAddress)
+            .emailCliente(cifrar(req.getEmailCliente()))
+            .ipAddress(cifrar(ipAddress))
             .usuarioCreacion(usuarioActual)
             .build();
         pagoRepo.save(pago);
@@ -100,10 +105,10 @@ public class PagoServiceImpl implements IPagoService {
         String firma = integrityUtil.generarFirmaTransaccion(
             referencia, req.getMontoCentavos(), "COP", creds.secretoIntegridad());
 
-        log.info("Pago iniciado - referencia: {} idUsuario: {} idFactura: {} idEmpresa: {}", 
+        log.info("Pago iniciado - referencia: {} idUsuario: {} idFactura: {} idEmpresa: {}",
             referencia, req.getIdUsuario(), req.getIdFactura(), req.getIdEmpresa());
 
-        return IniciarPagoResponse.builder()
+        IniciarPagoResponse response = IniciarPagoResponse.builder()
             .referencia(referencia)
             .montoCentavos(req.getMontoCentavos())
             .moneda("COP")
@@ -111,33 +116,50 @@ public class PagoServiceImpl implements IPagoService {
             .clavePublica(creds.clavePublica())
             .firma(firma)
             .build();
+
+        return ResponseEntity.ok(ResponseDTO.builder()
+            .success(true)
+            .code(HttpStatus.OK.value())
+            .response(response)
+            .build());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, Object> obtenerMerchant(Integer idEmpresa, String usuarioActual) {
+    public ResponseEntity<ResponseDTO> obtenerMerchant(Integer idEmpresa) {
+        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
         WompiCredenciales creds = obtenerCredenciales(idEmpresa, usuarioActual);
-        return wompiService.getMerchantInfo(creds.clavePublica());
+        return ResponseEntity.ok(ResponseDTO.builder()
+            .success(true)
+            .code(HttpStatus.OK.value())
+            .response(wompiService.getMerchantInfo(creds.clavePublica()))
+            .build());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> obtenerBancosPse(Integer idEmpresa, String usuarioActual) {
+    public ResponseEntity<ResponseDTO> obtenerBancosPse(Integer idEmpresa) {
+        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
         WompiCredenciales creds = obtenerCredenciales(idEmpresa, usuarioActual);
-        return wompiService.getInstitucionesFinancieras(creds.clavePublica());
+        return ResponseEntity.ok(ResponseDTO.builder()
+            .success(true)
+            .code(HttpStatus.OK.value())
+            .response(wompiService.getInstitucionesFinancieras(creds.clavePublica()))
+            .build());
     }
 
     @Override
     @Transactional
-    public TransaccionResponse crearTransaccion(CrearTransaccionRequest req, String usuarioActual) {
+    public ResponseEntity<ResponseDTO> crearTransaccion(CrearTransaccionRequest req) {
+        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
 
         PagoEntity pago = pagoRepo.findByReferencia(req.getReferencia())
             .orElseThrow(() -> new ProcessGenericException(
                 "Pago no encontrado: " + req.getReferencia()));
 
         if (!"PENDING".equals(pago.getEstado())) {
-            throw new ProcessGenericException(
-                "El pago ya fue procesado con estado: " + pago.getEstado());
+            throw new SecureRequestException(
+                "El pago ya fue procesado con estado: " + pago.getEstado(), HttpStatus.CONFLICT);
         }
         UsuarioEntity usuario = usuarioRepo.findByNombre(usuarioActual)
             .orElseThrow(() -> new SecurityException("Usuario no encontrado: " + usuarioActual));
@@ -159,7 +181,7 @@ public class PagoServiceImpl implements IPagoService {
             .acceptanceToken(req.getAcceptanceToken())
             .amountInCents(pago.getMontoCentavos())
             .currency(pago.getMoneda())
-            .customerEmail(pago.getEmailCliente())
+            .customerEmail(descifrar(pago.getEmailCliente()))
             .reference(pago.getReferencia())
             .signature(firma)
             .paymentMethod(paymentMethod)
@@ -173,11 +195,12 @@ public class PagoServiceImpl implements IPagoService {
 
         pagoRepo.actualizarIdWompiYDispositivo(
             pago.getReferencia(), idWompi, req.getTipoMedio(),
-            req.getDeviceId(), req.getSessionId());
-        List<String> terminales = ESTADOS_TERMINALES;
+            cifrar(req.getDeviceId()),
+            cifrar(req.getSessionId()));
+
         if (MEDIO_CARD.equals(req.getTipoMedio())) {
             String estadoInmediato = (String) wompiResp.get(KEY_STATUS);
-            if (terminales.contains(estadoInmediato)) {
+            if (ESTADOS_TERMINALES.contains(estadoInmediato)) {
                 pagoRepo.actualizarEstado(
                     pago.getReferencia(), estadoInmediato, idWompi, "CARD", "INMEDIATO");
                 log.info("CARD resuelta de forma inmediata — referencia: {} estado: {}",
@@ -190,15 +213,21 @@ public class PagoServiceImpl implements IPagoService {
 
         String redirectPath = null;
         if (MEDIOS_REDIRECT.contains(req.getTipoMedio())) {
-            pagoHelper.obtenerYGuardarRedirectUrl(idWompi, pago.getReferencia(), creds.clavePrivada());
+            pagoAsyncService.obtenerYGuardarRedirectUrl(idWompi, pago.getReferencia(), creds.clavePrivada());
             redirectPath = "/api/v1/pagos/redirigir/" + pago.getReferencia();
         }
 
-        return construirRespuestaPorMedio(wompiResp, req.getTipoMedio(), redirectPath);
+        TransaccionResponse transaccionResponse = construirRespuestaPorMedio(wompiResp, req.getTipoMedio(), redirectPath);
+        return ResponseEntity.ok(ResponseDTO.builder()
+            .success(true)
+            .code(HttpStatus.OK.value())
+            .response(transaccionResponse)
+            .build());
     }
 
 
     @Override
+    @Transactional
     @SuppressWarnings("unchecked")
     public void procesarWebhook(WebhookEventDTO evento, String firmaRecibida) {
 
@@ -220,8 +249,7 @@ public class PagoServiceImpl implements IPagoService {
             throw new SecurityException("Firma de webhook inválida");
         }
 
-        List<String> estadosTerminales = ESTADOS_TERMINALES;
-        if (!estadosTerminales.contains(estado)) {
+        if (!ESTADOS_TERMINALES.contains(estado)) {
             log.info("Webhook ignorado — estado no terminal: {} para transacción: {}",
                 estado, idWompi);
             return;
@@ -238,9 +266,9 @@ public class PagoServiceImpl implements IPagoService {
 
 
     @Override
-    public String obtenerUrlRedireccion(String referencia,
-                                        String usuarioActual,
-                                        String deviceId, String sessionId, String ipCliente) {
+    @Transactional
+    public ResponseEntity<ResponseDTO> obtenerUrlRedireccion(String referencia,
+                                                              String deviceId, String sessionId, String ipCliente) {
 
         PagoEntity pago = pagoRepo.findByReferencia(referencia)
             .orElseThrow(() -> new ProcessGenericException(
@@ -262,21 +290,26 @@ public class PagoServiceImpl implements IPagoService {
                 referencia, pago.getRedirectExpiraEn());
             throw new SecurityException("El link de redirección ha expirado. Inicia un nuevo pago.");
         }
-        if (pago.getIpAddress() != null && ipCliente != null
-                && !pago.getIpAddress().equals(ipCliente)) {
+
+        String ipGuardada      = descifrar(pago.getIpAddress());
+        String deviceGuardado  = descifrar(pago.getDeviceId());
+        String sessionGuardado = descifrar(pago.getSessionId());
+        String redirectUrl     = descifrar(pago.getRedirectUrlWompi());
+
+        if (ipGuardada != null && ipCliente != null && !ipGuardada.equals(ipCliente)) {
             log.warn("IP no coincide en redirect — referencia: {} registrada: {} actual: {}",
-                referencia, pago.getIpAddress(), ipCliente);
+                referencia, ipGuardada, ipCliente);
             throw new SecurityException("La petición no proviene del mismo origen del pago");
         }
 
-        if (pago.getDeviceId() != null && !pago.getDeviceId().isBlank()
-                && !pago.getDeviceId().equals(deviceId)) {
+        if (deviceGuardado != null && !deviceGuardado.isBlank()
+                && !deviceGuardado.equals(deviceId)) {
             log.warn("Device ID no coincide — referencia: {}", referencia);
             throw new SecurityException("Dispositivo no autorizado para este pago");
         }
 
-        if (pago.getSessionId() != null && !pago.getSessionId().isBlank()
-                && !pago.getSessionId().equals(sessionId)) {
+        if (sessionGuardado != null && !sessionGuardado.isBlank()
+                && !sessionGuardado.equals(sessionId)) {
             log.warn("Session ID no coincide — referencia: {}", referencia);
             throw new SecurityException("Sesión no autorizada para este pago");
         }
@@ -288,11 +321,14 @@ public class PagoServiceImpl implements IPagoService {
 
         log.info("Redirect autorizado y consumido — referencia: {} ip: {}",
             referencia, ipCliente);
-        return pago.getRedirectUrlWompi();
+        return toOk(Map.of("url", redirectUrl));
     }
+
     @Override
     @Transactional
-    public PagoDTO consultarYSincronizar(String referencia, String usuarioActual) {
+    public ResponseEntity<ResponseDTO> consultarYSincronizar(String referencia) {
+        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
+
         PagoEntity pago = pagoRepo.findByReferencia(referencia)
             .orElseThrow(() -> new ProcessGenericException(
                 "Pago no encontrado para referencia: " + referencia));
@@ -304,9 +340,8 @@ public class PagoServiceImpl implements IPagoService {
             throw new SecurityException("No tienes permiso para consultar este pago");
         }
 
-        List<String> terminales = ESTADOS_TERMINALES;
-        if (terminales.contains(pago.getEstado())) {
-            return pagoMapper.entityToDto(pago);
+        if (ESTADOS_TERMINALES.contains(pago.getEstado())) {
+            return toOk(pagoMapper.entityToDto(pago));
         }
         boolean esMedioRedireccion = pago.getMetodoPago() != null
                 && MEDIOS_REDIRECT.contains(pago.getMetodoPago());
@@ -321,7 +356,7 @@ public class PagoServiceImpl implements IPagoService {
             String estadoWompi = (String) tx.get(KEY_STATUS);
             String metodoPago  = (String) tx.get(KEY_PAYMENT_METHOD_TYPE);
 
-            if (terminales.contains(estadoWompi)) {
+            if (ESTADOS_TERMINALES.contains(estadoWompi)) {
                 pagoRepo.actualizarEstado(
                     referencia, estadoWompi,
                     pago.getIdTransaccionWompi(),
@@ -333,18 +368,18 @@ public class PagoServiceImpl implements IPagoService {
                     actualizarFacturaAlAprobado(referencia);
                 }
 
-                return pagoMapper.entityToDto(pago);
+                return toOk(pagoMapper.entityToDto(pago));
             }
             log.info("Estado aún PENDING al volver del banco — referencia: {} estado Wompi: {}",
                 referencia, estadoWompi);
         }
 
-        return pagoMapper.entityToDto(pago);
+        return toOk(pagoMapper.entityToDto(pago));
     }
 
     @Override
     @Transactional
-    public PagoDTO sincronizarEstado(String referencia) {
+    public ResponseEntity<ResponseDTO> sincronizarEstado(String referencia) {
         PagoEntity pago = pagoRepo.findByReferencia(referencia)
             .orElseThrow(() -> new ProcessGenericException(
                 "Pago no encontrado para referencia: " + referencia));
@@ -354,9 +389,8 @@ public class PagoServiceImpl implements IPagoService {
                 "El pago aún no tiene transacción Wompi: " + referencia);
         }
 
-        List<String> terminales = ESTADOS_TERMINALES;
-        if (terminales.contains(pago.getEstado())) {
-            return pagoMapper.entityToDto(pago);
+        if (ESTADOS_TERMINALES.contains(pago.getEstado())) {
+            return toOk(pagoMapper.entityToDto(pago));
         }
 
         WompiCredenciales creds = obtenerCredencialesPorUsuario(pago.getIdUsuario());
@@ -367,7 +401,7 @@ public class PagoServiceImpl implements IPagoService {
 
         log.info("Sincronizando - referencia: {} estado Wompi: {}", referencia, estadoWompi);
 
-        if (terminales.contains(estadoWompi) && !estadoWompi.equals(pago.getEstado())) {
+        if (ESTADOS_TERMINALES.contains(estadoWompi) && !estadoWompi.equals(pago.getEstado())) {
             pagoRepo.actualizarEstado(referencia, estadoWompi,
                 pago.getIdTransaccionWompi(), metodoPago, "MANUAL_SYNC");
             pago.setEstado(estadoWompi);
@@ -378,36 +412,52 @@ public class PagoServiceImpl implements IPagoService {
             }
         }
 
-        return pagoMapper.entityToDto(pago);
+        return toOk(pagoMapper.entityToDto(pago));
     }
 
 
+    // ─── Helpers de cifrado ──────────────────────────────────────────────────
+
+    private String cifrar(String valor) {
+        if (valor == null || valor.isBlank()) return valor;
+        return encriptarDesencriptar.encriptar(valor);
+    }
+
+    /**
+     * Descifra un valor. Si el dato fue almacenado en texto plano (migración),
+     * desencriptar() retorna vacío; en ese caso se retorna el valor original
+     * para garantizar compatibilidad con registros existentes.
+     */
+    private String descifrar(String valor) {
+        if (valor == null || valor.isBlank()) return valor;
+        String resultado = encriptarDesencriptar.desencriptar(valor);
+        return (resultado == null || resultado.isEmpty()) ? valor : resultado;
+    }
+
+
+    // ─── Credenciales Wompi ──────────────────────────────────────────────────
+
     private WompiCredenciales obtenerCredenciales(Integer idEmpresa, String usuarioActual) {
-        Integer empresaId = idEmpresa;
-        if (empresaId == null) {
-            UsuarioEntity usuario = usuarioRepo.findByNombre(usuarioActual)
-                .orElseThrow(() -> new SecurityException("Usuario no encontrado: " + usuarioActual));
-            empresaId = resolverEmpresaIdPorUsuario(usuario);
+        if (idEmpresa != null) {
+            return obtenerCredencialesPorEmpresa(idEmpresa);
         }
-        return obtenerCredencialesPorEmpresa(empresaId);
+        UsuarioEntity usuario = usuarioRepo.findByNombre(usuarioActual)
+            .orElseThrow(() -> new SecurityException("Usuario no encontrado: " + usuarioActual));
+        return obtenerCredencialesPorEmpresa(resolverEmpresaIdPorUsuario(usuario));
     }
 
     private WompiCredenciales obtenerCredencialesPorUsuario(Integer idUsuario) {
         UsuarioEntity usuario = usuarioRepo.findById(idUsuario)
             .orElseThrow(() -> new SecurityException("Usuario no encontrado con id: " + idUsuario));
-        Integer idEmpresa = resolverEmpresaIdPorUsuario(usuario);
-        return obtenerCredencialesPorEmpresa(idEmpresa);
+        return obtenerCredencialesPorEmpresa(resolverEmpresaIdPorUsuario(usuario));
     }
 
     private Integer resolverEmpresaIdPorUsuario(UsuarioEntity usuario) {
         Integer personaId = usuario.getPersona() != null ? usuario.getPersona().getId() : null;
         if (personaId != null) {
             Integer empresaId = empresaClienteContadorRepo.findFirstEmpresaIdByClienteId(personaId).orElse(null);
-            if (empresaId != null) {
-                return empresaId;
-            }
+            if (empresaId != null) return empresaId;
         }
-
         return empresaRepo.findByUsuario_Id(usuario.getId())
             .map(EmpresaEntity::getId)
             .orElseThrow(() -> new ProcessGenericException(
@@ -418,13 +468,21 @@ public class PagoServiceImpl implements IPagoService {
         if (idEmpresa == null) {
             throw new ProcessGenericException("No se pudo resolver la empresa para credenciales Wompi");
         }
-
-        EmpresaWompiEntity wompiConfig = empresaWompiRepo
-                .findByEmpresa_Id(idEmpresa)
-                .orElse(null);
-        return utilsWompi.resolverCredenciales(wompiConfig);
+        EmpresaWompiEntity config = empresaWompiRepo.findByEmpresa_Id(idEmpresa).orElse(null);
+        if (config == null || !Boolean.TRUE.equals(config.getActivo())) {
+            throw new RuntimeException("La empresa no tiene configuradas las credenciales de Wompi");
+        }
+        // Descifrar credenciales sensibles almacenadas con EncriptarDesencriptar
+        return new WompiCredenciales(
+            config.getWompiClavePublica(),
+            descifrar(config.getWompiClavePrivada()),
+            descifrar(config.getWompiSecretoIntegridad()),
+            descifrar(config.getWompiSecretoEventos())
+        );
     }
 
+
+    // ─── Construcción de objetos ─────────────────────────────────────────────
 
     private String construirDeviceSessionId(String deviceId, String sessionId) {
         if (deviceId != null && !deviceId.isBlank() && sessionId != null && !sessionId.isBlank()) {
@@ -462,9 +520,9 @@ public class PagoServiceImpl implements IPagoService {
                 pse.setFinancialInstitutionCode(req.getCodigoBanco());
                 pse.setPaymentDescription("Pago " + req.getReferencia());
                 // Cifrado JWE (RSA-OAEP + A256GCM) — Wompi lo descifra automáticamente
-                String ipOrigen   = req.getIpCliente() != null ? req.getIpCliente() : "";
-                String fechaHoy   = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-                String documento  = req.getDocumento() != null ? req.getDocumento() : "";
+                String ipOrigen  = req.getIpCliente() != null ? req.getIpCliente() : "";
+                String fechaHoy  = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+                String documento = req.getDocumento() != null ? req.getDocumento() : "";
                 pse.setReferenceOne(jwePseService.cifrar(ipOrigen));
                 pse.setReferenceTwo(jwePseService.cifrar(fechaHoy));
                 pse.setReferenceThree(jwePseService.cifrar(documento));
@@ -474,7 +532,7 @@ public class PagoServiceImpl implements IPagoService {
             case MEDIO_BANCOLOMBIA -> {
                 BancolombiaPaymentMethodDTO bancolombia = new BancolombiaPaymentMethodDTO();
                 bancolombia.setType(MEDIO_BANCOLOMBIA);
-                bancolombia.setUserType("PERSON");          // único valor soportado por Wompi
+                bancolombia.setUserType("PERSON");
                 bancolombia.setPaymentDescription("Pago " + req.getReferencia());
                 yield bancolombia;
             }
@@ -534,15 +592,22 @@ public class PagoServiceImpl implements IPagoService {
         }
 
         String mensaje = switch (tipoMedio) {
-            case MEDIO_NEQUI                -> "Confirma el pago en tu app Nequi.";
-            case MEDIO_PSE                  -> "Serás redirigido a tu banco para completar el pago.";
+            case MEDIO_NEQUI      -> "Confirma el pago en tu app Nequi.";
+            case MEDIO_PSE        -> "Serás redirigido a tu banco para completar el pago.";
             case MEDIO_BANCOLOMBIA -> "Serás redirigido a Bancolombia para completar el pago.";
-            default                     -> "Procesando pago...";
+            default               -> "Procesando pago...";
         };
 
         return builder.mensaje(mensaje).build();
     }
 
+    private ResponseEntity<ResponseDTO> toOk(Object data) {
+        return ResponseEntity.ok(ResponseDTO.builder()
+            .success(true)
+            .code(HttpStatus.OK.value())
+            .response(data)
+            .build());
+    }
 
     private void actualizarFacturaAlAprobado(String referencia) {
         try {
@@ -569,9 +634,9 @@ public class PagoServiceImpl implements IPagoService {
             if (body != null && Boolean.TRUE.equals(body.getSuccess())) {
                 log.info("Factura id={} marcada como PAGADA — referencia: {}", pago.getIdFactura(), referencia);
             } else {
-                String mensaje = body != null ? body.getMessage() : "sin respuesta";
+                String msg = body != null ? body.getMessage() : "sin respuesta";
                 log.error("Error al marcar factura como PAGADA — referencia: {} factura id={} motivo: {}",
-                    referencia, pago.getIdFactura(), mensaje);
+                    referencia, pago.getIdFactura(), msg);
             }
 
         } catch (Exception e) {
@@ -579,9 +644,4 @@ public class PagoServiceImpl implements IPagoService {
                 referencia, e.getMessage(), e);
         }
     }
-
 }
-
-
-
-

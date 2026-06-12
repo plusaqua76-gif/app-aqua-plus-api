@@ -26,11 +26,7 @@ public class WebhookServiceImpl implements IWebhookService {
             return;
         }
 
-        try {
-            pagoService.procesarWebhook(evento, obtenerFirmaEfectiva(evento, firma));
-        } catch (Exception e) {
-            log.error("Error procesando webhook de Wompi: {}", e.getMessage());
-        }
+        pagoService.procesarWebhook(evento, obtenerFirmaEfectiva(evento, firma));
     }
 
     private String obtenerFirmaEfectiva(WebhookEventDTO evento, String firma) {

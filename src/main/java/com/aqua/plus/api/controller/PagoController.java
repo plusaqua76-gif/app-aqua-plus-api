@@ -1,21 +1,21 @@
 package com.aqua.plus.api.controller;
 
 import com.aqua.plus.api.helpers.PagoHelper;
-import com.aqua.plus.api.service.impl.external.PagoServiceImpl;
+import com.aqua.plus.api.service.external.IPagoService;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.CrearTransaccionRequest;
 import com.aqua.plus.commons.dtos.external.IniciarPagoRequest;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/pagos")
@@ -24,31 +24,39 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PagoController {
 
-    private final PagoServiceImpl   pagoService;
-    private final PagoHelper        pagoHelper;
+    private final IPagoService pagoServiceImpl;
+    private final PagoHelper      pagoHelper;
 
     @Operation(summary = "Obtener instituciones financieras PSE")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Se ha consultado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @GetMapping("/pse/bancos")
     public ResponseEntity<ResponseDTO> obtenerBancosPse(
             @RequestParam(value = "idEmpresa", required = false) Integer idEmpresa) {
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.obtenerBancosPse(idEmpresa, usuarioActual))
-            .build());
+        return this.pagoServiceImpl.obtenerBancosPse(idEmpresa);
     }
 
     @Operation(summary = "Obtener información del merchant Wompi")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Se ha consultado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @GetMapping("/merchant")
     public ResponseEntity<ResponseDTO> obtenerMerchant(
             @RequestParam(value = "idEmpresa", required = false) Integer idEmpresa) {
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.obtenerMerchant(idEmpresa, usuarioActual))
-            .build());
+        return this.pagoServiceImpl.obtenerMerchant(idEmpresa);
     }
 
     /**
@@ -57,18 +65,22 @@ public class PagoController {
      * La IP del cliente se registra para auditoría antifraude.
      */
     @Operation(summary = "Iniciar pago (PASO 1) — genera referencia y datos del widget Wompi")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @PostMapping("/iniciar")
     public ResponseEntity<ResponseDTO> iniciar(
             @Valid @RequestBody IniciarPagoRequest req,
             HttpServletRequest httpRequest) {
-
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
-        String ipAddress = pagoHelper.resolverIpCliente(httpRequest);
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.iniciarPago(req, usuarioActual, ipAddress))
-            .build());
+        return this.pagoServiceImpl.iniciarPago(req, pagoHelper.resolverIpCliente(httpRequest));
     }
 
     /**
@@ -78,22 +90,27 @@ public class PagoController {
      * deviceId y sessionId se reciben en headers X-Device-Id / X-Session-Id.
      */
     @Operation(summary = "Crear transacción en Wompi (PASO 2)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Se ha guardado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "200", description = "Se ha actualizado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @PostMapping("/transaccion")
     public ResponseEntity<ResponseDTO> crearTransaccion(
             @Valid @RequestBody CrearTransaccionRequest req,
             @RequestHeader(value = "X-Device-Id",  required = false) String deviceId,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
             HttpServletRequest httpRequest) {
-
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
         req.setIpCliente(pagoHelper.resolverIpCliente(httpRequest));
         req.setDeviceId(deviceId);
         req.setSessionId(sessionId);
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.crearTransaccion(req, usuarioActual))
-            .build());
+        return this.pagoServiceImpl.crearTransaccion(req);
     }
 
     /**
@@ -102,24 +119,33 @@ public class PagoController {
      * Si el pago sigue PENDING y ya tiene id Wompi, sincroniza el estado real.
      */
     @Operation(summary = "Consultar estado de un pago (polling frontend)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Se ha consultado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @GetMapping("/{referencia}")
     public ResponseEntity<ResponseDTO> consultar(@PathVariable String referencia) {
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.consultarYSincronizar(referencia, usuarioActual))
-            .build());
+        return this.pagoServiceImpl.consultarYSincronizar(referencia);
     }
 
     @Operation(summary = "Sincronizar estado de un pago con Wompi")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Se ha sincronizado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @PostMapping("/sincronizar/{referencia}")
     public ResponseEntity<ResponseDTO> sincronizar(@PathVariable String referencia) {
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(pagoService.sincronizarEstado(referencia))
-            .build());
+        return this.pagoServiceImpl.sincronizarEstado(referencia);
     }
 
     /**
@@ -128,20 +154,22 @@ public class PagoController {
      * (one-time use) y solo al usuario y dispositivo que crearon la transacción.
      */
     @Operation(summary = "Obtener URL de redirección segura PSE/Bancolombia (one-time)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Se ha consultado satisfactoriamente", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "400", description = "La petición no puede ser entendida por el servidor debido a errores de sintaxis", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "404", description = "El recurso solicitado no puede ser encontrado", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
+            @ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada que impidió completar la petición", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @PostMapping("/redirigir/{referencia}")
     public ResponseEntity<ResponseDTO> redirigir(
             @PathVariable String referencia,
             @RequestHeader(value = "X-Device-Id",  required = false) String deviceId,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
             HttpServletRequest httpRequest) {
-
-        String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
-        String ipCliente = pagoHelper.resolverIpCliente(httpRequest);
-        String url = pagoService.obtenerUrlRedireccion(referencia, usuarioActual, deviceId, sessionId, ipCliente);
-        return ResponseEntity.ok(ResponseDTO.builder()
-            .success(true)
-            .code(HttpStatus.OK.value())
-            .response(Map.of("url", url))
-            .build());
+        return this.pagoServiceImpl.obtenerUrlRedireccion(
+            referencia, deviceId, sessionId, pagoHelper.resolverIpCliente(httpRequest));
     }
 }

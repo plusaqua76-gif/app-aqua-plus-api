@@ -1,35 +1,30 @@
 package com.aqua.plus.api.service.external;
 
-import com.aqua.plus.commons.dtos.PagoDTO;
+import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.CrearTransaccionRequest;
 import com.aqua.plus.commons.dtos.external.IniciarPagoRequest;
-import com.aqua.plus.commons.dtos.external.IniciarPagoResponse;
-import com.aqua.plus.commons.dtos.external.TransaccionResponse;
 import com.aqua.plus.commons.dtos.external.WebhookEventDTO;
-
-import java.util.List;
-import java.util.Map;
+import org.springframework.http.ResponseEntity;
 
 
 public interface IPagoService {
 
-    IniciarPagoResponse iniciarPago(IniciarPagoRequest req, String usuarioActual, String ipAddress);
+    ResponseEntity<ResponseDTO> iniciarPago(IniciarPagoRequest req, String ipAddress);
 
-    Map<String, Object> obtenerMerchant(Integer idEmpresa, String usuarioActual);
+    ResponseEntity<ResponseDTO> obtenerMerchant(Integer idEmpresa);
 
-    List<Map<String, Object>> obtenerBancosPse(Integer idEmpresa, String usuarioActual);
+    ResponseEntity<ResponseDTO> obtenerBancosPse(Integer idEmpresa);
 
-    TransaccionResponse crearTransaccion(CrearTransaccionRequest req, String usuarioActual);
+    ResponseEntity<ResponseDTO> crearTransaccion(CrearTransaccionRequest req);
 
     void procesarWebhook(WebhookEventDTO evento, String firmaRecibida);
 
-    PagoDTO consultarYSincronizar(String referencia, String usuarioActual);
+    ResponseEntity<ResponseDTO> consultarYSincronizar(String referencia);
 
-    PagoDTO sincronizarEstado(String referencia);
+    ResponseEntity<ResponseDTO> sincronizarEstado(String referencia);
 
-    String obtenerUrlRedireccion(String referencia,
-                                 String usuarioActual,
-                                 String deviceId, 
-                                 String sessionId, 
-                                 String ipCliente);
+    ResponseEntity<ResponseDTO> obtenerUrlRedireccion(String referencia,
+                                                       String deviceId,
+                                                       String sessionId,
+                                                       String ipCliente);
 }
