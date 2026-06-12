@@ -45,10 +45,12 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
+import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
 import com.aqua.plus.commons.repositories.EstadoRepository;
 import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.repositories.TipoDeudaRepository;
+import com.aqua.plus.commons.repositories.UsuarioRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -77,6 +79,8 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final EstadoRepository estadoRepository;
 	private final DeudaClienteRepository deudaClienteRepository;
 	private final TipoDeudaRepository tipoDeudaRepository;
+	private final UsuarioRepository usuarioRepository;
+	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 
 	private static final double TOLERANCIA_PAGO = 0.01;
 
@@ -172,6 +176,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			entity.setActivo(true);
 
 			FacturaEntity saved = facturaRepository.save(entity);
+
 			FacturaDTO savedDTO = facturaMapper.entityToDto(saved);
 
 			ResponseDTO responseDTO = ResponseDTO.builder().success(true).message(Constantes.SAVED_SUCCESSFULLY)
@@ -1548,5 +1553,6 @@ public class FacturaServiceImpl implements IFacturaService {
 		return DetallePagoDTO.builder().idFactura(item.getIdFactura()).idEmpresa(idEmpresa)
 				.estadoNuevo(toEstadoDTO(estado)).mensaje(mensaje).valorPago(item.getValorPago()).build();
 	}
+
 
 }
