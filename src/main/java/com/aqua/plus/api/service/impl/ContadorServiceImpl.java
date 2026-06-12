@@ -241,18 +241,29 @@ public class ContadorServiceImpl implements IContadorService {
 
 			boolean perteneceAEmpresa = false;
 
-			Optional<EmpresaEntity> empresaPorNombre = empresaRepository.findByNombre(contador.getUsuarioCreacion());
+			Optional<UsuarioEntity> usuarioCreador = usuarioRepository.findByNombre(contador.getUsuarioCreacion());
 
-			if (empresaPorNombre.isPresent() && empresaPorNombre.get().getId().equals(empresaId)) {
-				perteneceAEmpresa = true;
-			} else {
-				perteneceAEmpresa = empresaClienteContadorRepository.existsByEmpresaIdAndContadorId(empresaId,
-						contador.getId());
+			if (usuarioCreador.isPresent()) {
+				Optional<EmpresaEntity> empresaDelUsuario = empresaRepository
+						.findByUsuarioId(usuarioCreador.get().getId());
+
+				if (empresaDelUsuario.isPresent() && empresaDelUsuario.get().getId().equals(empresaId)) {
+					perteneceAEmpresa = true;
+					log.info("Contador pertenece a la empresa del usuario creador");
+				}
 			}
 
 			if (!perteneceAEmpresa) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ResponseDTO.builder().success(false)
-						.message("El contador no pertenece a tu empresa").code(HttpStatus.FORBIDDEN.value()).build());
+				perteneceAEmpresa = empresaClienteContadorRepository.existsByEmpresaIdAndContadorId(empresaId,
+						contador.getId());
+				log.info("Validando relación en empresaClienteContador: {}", perteneceAEmpresa);
+			}
+
+			if (!perteneceAEmpresa) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND)
+						.body(ResponseDTO.builder().success(false)
+								.message("No existe contador con el serial especificado")
+								.code(HttpStatus.NOT_FOUND.value()).build());
 			}
 
 			boolean enUso = empresaClienteContadorRepository.existsByContador_IdAndActivoTrue(contador.getId());
