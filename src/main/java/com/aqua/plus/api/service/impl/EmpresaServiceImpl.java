@@ -447,6 +447,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 			var empresa = empresaOpt.get();
 			var responseMap = new LinkedHashMap<String, Object>();
 			responseMap.put("nombre", empresa.getNombre());
+			responseMap.put("nit", empresa.getNit());
 
 			List<?> documentos = List.of();
 			Long totalDocs = 0L;
