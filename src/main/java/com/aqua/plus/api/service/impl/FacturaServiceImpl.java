@@ -1,6 +1,7 @@
 package com.aqua.plus.api.service.impl;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -31,7 +32,9 @@ import com.aqua.plus.commons.dtos.PagoItemDTO;
 import com.aqua.plus.commons.dtos.ProcesoPagoResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.ValidacionPagoResponseDTO;
+import com.aqua.plus.commons.entities.AbonoEntity;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
+import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
 import com.aqua.plus.commons.entities.EmpresaEntity;
 import com.aqua.plus.commons.entities.EstadoEntity;
 import com.aqua.plus.commons.entities.FacturaEntity;
@@ -44,6 +47,7 @@ import com.aqua.plus.commons.maps.TipoPagoMapper;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 
+import com.aqua.plus.commons.repositories.AbonoRepository;
 import com.aqua.plus.commons.repositories.DeudaClienteRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.EmpresaRepository;
@@ -81,6 +85,7 @@ public class FacturaServiceImpl implements IFacturaService {
 	private final TipoDeudaRepository tipoDeudaRepository;
 	private final UsuarioRepository usuarioRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
+	private final AbonoRepository abonoRepository;
 
 	private static final double TOLERANCIA_PAGO = 0.01;
 
@@ -442,8 +447,7 @@ public class FacturaServiceImpl implements IFacturaService {
 				FacturaSpecifications.consumoEquals(consumo), FacturaSpecifications.precioBetween(precioMin, precioMax),
 				FacturaSpecifications.tipoPagoLike(tipoPagoNombre),
 				FacturaSpecifications.corregimientoNombreLike(corregimientoNombre),
-				FacturaSpecifications.contadorNuid(nuid),
-				FacturaSpecifications.periodoEquals(periodo));
+				FacturaSpecifications.contadorNuid(nuid), FacturaSpecifications.periodoEquals(periodo));
 	}
 
 	@Override
@@ -1517,6 +1521,8 @@ public class FacturaServiceImpl implements IFacturaService {
 			facturaRepository.save(factura);
 			log.info("Factura id={} actualizada a estado PAGADA", factura.getId());
 
+			procesarAbonos(factura.getEmpresaClienteContador(), usuarioCreacion);
+
 			return DetallePagoDTO.builder().idFactura(factura.getId()).idEmpresa(idEmpresa)
 					.estadoAnterior(estadoAnteriorDTO).estadoNuevo(toEstadoDTO(estadoPagada))
 					.mensaje("Pago completo procesado. Factura marcada como PAGADA").valorFactura(precioFactura)
@@ -1527,10 +1533,13 @@ public class FacturaServiceImpl implements IFacturaService {
 		facturaRepository.save(factura);
 		log.info("Factura id={} actualizada a estado PAGO PARCIAL", factura.getId());
 
+		procesarAbonos(factura.getEmpresaClienteContador(), usuarioCreacion);
+
 		DeudaClienteEntity deuda = new DeudaClienteEntity();
 		deuda.setFactura(factura);
 		deuda.setEmpresaClienteContador(factura.getEmpresaClienteContador());
 		deuda.setTipoDeuda(tipoDeuda);
+		deuda.setPlazoPago(1);
 		deuda.setValor(diferencia);
 		deuda.setDescripcion("Abono parcial. Pagó %.2f de %.2f. Saldo pendiente: %.2f".formatted(valorPagado,
 				precioFactura, diferencia));
@@ -1548,11 +1557,45 @@ public class FacturaServiceImpl implements IFacturaService {
 				.idDeudaCreada(deudaGuardada.getId()).build();
 	}
 
+	private void procesarAbonos(EmpresaClienteContadorEntity ecc, String usuarioCreacion) {
+		if (ecc == null || ecc.getId() == null) {
+			log.warn("No hay ECC asociado; se omiten abonos automáticos");
+			return;
+		}
+
+		List<DeudaClienteEntity> deudasActivasEcc = deudaClienteRepository
+				.findByEmpresaClienteContadorIdAndActivoTrue(ecc.getId());
+
+		for (DeudaClienteEntity deudaActiva : deudasActivasEcc) {
+
+			if (deudaActiva.getValor() == null || deudaActiva.getPlazoPago() == null
+					|| deudaActiva.getPlazoPago() <= 0) {
+				log.warn(
+						"Deuda id={} omitida del abono automático: valor o plazoPago inválido (valor={}, plazoPago={})",
+						deudaActiva.getId(), deudaActiva.getValor(), deudaActiva.getPlazoPago());
+				continue;
+			}
+
+			BigDecimal valorCuota = BigDecimal.valueOf(deudaActiva.getValor())
+					.divide(BigDecimal.valueOf(deudaActiva.getPlazoPago()), 2, RoundingMode.HALF_UP);
+
+			AbonoEntity abonoDeuda = new AbonoEntity();
+			abonoDeuda.setDeudaCliente(deudaActiva);
+			abonoDeuda.setValor(valorCuota.doubleValue());
+			abonoDeuda.setActivo(true);
+			abonoDeuda.setUsuarioCreacion(usuarioCreacion);
+
+			AbonoEntity abonoGuardado = abonoRepository.save(abonoDeuda);
+
+			log.info("Abono automático creado: deudaId={} | valorCuota={} | plazoPago={} | abonoId={}",
+					deudaActiva.getId(), valorCuota, deudaActiva.getPlazoPago(), abonoGuardado.getId());
+		}
+	}
+
 	private DetallePagoDTO buildErrorProceso(PagoItemDTO item, Integer idEmpresa, EstadoEntity estado, String mensaje) {
 		log.warn("Error procesamiento - factura id={}, empresa id={}: {}", item.getIdFactura(), idEmpresa, mensaje);
 		return DetallePagoDTO.builder().idFactura(item.getIdFactura()).idEmpresa(idEmpresa)
 				.estadoNuevo(toEstadoDTO(estado)).mensaje(mensaje).valorPago(item.getValorPago()).build();
 	}
-
 
 }
