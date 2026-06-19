@@ -2,6 +2,7 @@ package com.aqua.plus.api.configs.security.authorization;
 
 import java.util.Arrays;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.aqua.plus.api.config.AquaPlusServerProperties;
 import com.aqua.plus.api.configs.security.filter.JwtAuthenticationFilter;
+import com.aqua.plus.api.configs.security.filter.SecurePayloadFilter;
 import com.aqua.plus.api.configs.security.handler.AuthenticationEntryPointCustom;
 import com.aqua.plus.commons.entities.ParametrosSistemaEntity;
 import com.aqua.plus.commons.exceptions.ProcessGenericException;
@@ -40,6 +42,7 @@ public class WebSecurityConfig {
 
 	private final AuthenticationEntryPointCustom authenticationEntryPoint;
 	private final JwtAuthenticationFilter jwtRequestFilter;
+	private final SecurePayloadFilter securePayloadFilter;
 	private final ParametrosSistemaRepository parametrosSistemaRepository;
 	private final AquaPlusServerProperties properties;
 	
@@ -91,20 +94,42 @@ public class WebSecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                 )
 	            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+	            .addFilterBefore(securePayloadFilter, UsernamePasswordAuthenticationFilter.class)
 	            .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
 	            .build();
 	}
 	
+	/**
+	 * Desactiva el registro automático de JwtAuthenticationFilter como filtro de servlet.
+	 * Solo debe correr dentro de la cadena de Spring Security (addFilterBefore).
+	 */
+	@Bean
+	FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration() {
+		FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(jwtRequestFilter);
+		registration.setEnabled(false);
+		return registration;
+	}
+
+	/**
+	 * Desactiva el registro automático de SecurePayloadFilter como filtro de servlet.
+	 * Solo debe correr dentro de la cadena de Spring Security (addFilterBefore).
+	 */
+	@Bean
+	FilterRegistrationBean<SecurePayloadFilter> securePayloadFilterRegistration() {
+		FilterRegistrationBean<SecurePayloadFilter> registration = new FilterRegistrationBean<>(securePayloadFilter);
+		registration.setEnabled(false);
+		return registration;
+	}
+
 	@Bean
 	AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
 		return authenticationConfiguration.getAuthenticationManager();
 	}
 	
 	private String[] getOperationAllow() {
-		String[] operations = new String[1];
-		
-		operations[0] ="validar usuario";
-		return operations;
+		return new String[] {
+			"/webhook/wompi"
+		};
 	}
 	
 	@Bean
