@@ -42,8 +42,10 @@ import com.aqua.plus.commons.dtos.EmpresaClienteContadorDTO;
 import com.aqua.plus.commons.dtos.PersonaDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.TarifaContadorDTO;
+import com.aqua.plus.commons.dtos.TipoConceptoDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.dtos.TipoUsoDTO;
+import com.aqua.plus.commons.dtos.TiposFaltantesDTO;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
@@ -55,6 +57,7 @@ import com.aqua.plus.commons.maps.ContadorMapper;
 import com.aqua.plus.commons.maps.EmpresaClienteContadorMapper;
 import com.aqua.plus.commons.maps.PersonaMapper;
 import com.aqua.plus.commons.maps.TarifaContadorMapper;
+import com.aqua.plus.commons.maps.TipoConceptoMapper;
 import com.aqua.plus.commons.maps.TipoTarifaMapper;
 import com.aqua.plus.commons.repositories.AforoContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
@@ -62,6 +65,7 @@ import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
+import com.aqua.plus.commons.repositories.TipoConceptoRepository;
 import com.aqua.plus.commons.repositories.TipoTarifaRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -95,6 +99,8 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
     private final TipoTarifaRepository tipoTarifaRepository;
     private final TipoTarifaMapper tipoTarifaMapper;
     private final AforoContadorRepository aforoContadorRepository;
+    private final TipoConceptoRepository tipoConceptoRepository;
+    private final TipoConceptoMapper tipoConceptoMapper;
 
     @Override
     @Transactional
@@ -729,7 +735,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
                                         .filter(tt -> tt.getId() != null && !tiposUsados.contains(tt.getId()))
                                         .map(tipoTarifaMapper::entityToDto).toList();
                             }
-                            dto.setTiposTarifaFaltantes(tiposFaltantesDTO);
+                            //dto.setTiposTarifaFaltantes(tiposFaltantesDTO);
 
                             return dto;
                         }).toList();
@@ -1009,15 +1015,31 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
 
         if (empresaId != null) {
             final List<TarifaContadorEntity> tarifasRef = tarifasContador;
-            Set<Integer> tiposUsados = tarifasRef.stream()
+
+            Set<Integer> tiposTarifaUsados = tarifasRef.stream()
                     .filter(t -> t.getTipoTarifa() != null && t.getTipoTarifa().getId() != null)
-                    .map(t -> t.getTipoTarifa().getId()).collect(Collectors.toSet());
+                    .map(t -> t.getTipoTarifa().getId())
+                    .collect(Collectors.toSet());
 
-            List<TipoTarifaDTO> tiposFaltantesDTO = tipoTarifaRepository.findByEmpresa_Id(empresaId).stream()
-                    .filter(tt -> tt.getId() != null && !tiposUsados.contains(tt.getId()))
-                    .map(tipoTarifaMapper::entityToDto).toList();
+            Set<Integer> tiposConceptoUsados = tarifasRef.stream()
+                    .filter(t -> t.getTipoConcepto() != null && t.getTipoConcepto().getId() != null)
+                    .map(t -> t.getTipoConcepto().getId())
+                    .collect(Collectors.toSet());
 
-            dto.setTiposTarifaFaltantes(tiposFaltantesDTO);
+            List<TipoTarifaDTO> tiposTarifaFaltantesDTO = tipoTarifaRepository.findByEmpresa_Id(empresaId).stream()
+                    .filter(tt -> tt.getId() != null && !tiposTarifaUsados.contains(tt.getId()))
+                    .map(tipoTarifaMapper::entityToDto)
+                    .toList();
+
+            List<TipoConceptoDTO> tiposConceptoFaltantesDTO = tipoConceptoRepository.findByEmpresa_Id(empresaId).stream()
+                    .filter(tc -> tc.getId() != null && !tiposConceptoUsados.contains(tc.getId()))
+                    .map(tipoConceptoMapper::entityToDto)
+                    .toList();
+
+            dto.setTiposTarifaFaltantes(TiposFaltantesDTO.builder()
+                    .tiposTarifa(tiposTarifaFaltantesDTO)
+                    .tiposConcepto(tiposConceptoFaltantesDTO)
+                    .build());
         }
 
         return dto;
