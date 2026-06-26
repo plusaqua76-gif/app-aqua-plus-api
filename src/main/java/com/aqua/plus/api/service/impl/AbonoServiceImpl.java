@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -347,6 +348,18 @@ public class AbonoServiceImpl implements IAbonoService {
 		}
 	}
 
+	private static final Map<String, String> ABONO_SORT_ALIAS = Map.of("cliente",
+			"deudaCliente.empresaClienteContador.cliente.nombre", "codigoFactura", "deudaCliente.factura.codigo",
+			"fechaAbono", "fechaCreacion", "valorAbono", "valor");
+
+	private Pageable resolveAbonoSort(Pageable pageable) {
+		List<Sort.Order> resolved = pageable.getSort().stream().map(order -> {
+			String path = ABONO_SORT_ALIAS.getOrDefault(order.getProperty(), order.getProperty());
+			return order.isAscending() ? Sort.Order.asc(path) : Sort.Order.desc(path);
+		}).toList();
+		return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(resolved));
+	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> listarAbonosPorIdEmpresa(Integer idEmpresa, String clienteLike,
@@ -368,23 +381,12 @@ public class AbonoServiceImpl implements IAbonoService {
 
 			Pageable effectivePageable = pageable.getSort().isUnsorted()
 					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
-					: pageable;
+					: resolveAbonoSort(pageable);
 
-			Specification<AbonoEntity> distinctSpec = (root, cq, cb) -> {
-				cq.distinct(true);
-				return cb.conjunction();
-			};
-
-			List<Specification<AbonoEntity>> specs = new ArrayList<>();
-			specs.add(distinctSpec);
-			specs.add(AbonoSpecifications.porIdEmpresa(idEmpresa));
-			specs.add(AbonoSpecifications.activoIgual(Boolean.TRUE));
-			specs.add(AbonoSpecifications.fechaIgual(fecha));
-			specs.add(AbonoSpecifications.valorIgual(valor));
-			specs.add(AbonoSpecifications.clienteLike(clienteLike));
-			specs.add(AbonoSpecifications.codigoFactura(codigoFactura));
-
-			Specification<AbonoEntity> spec = Specification.allOf(specs.stream().filter(Objects::nonNull).toList());
+			Specification<AbonoEntity> spec = Specification.allOf(Stream.of(AbonoSpecifications.porIdEmpresa(idEmpresa),
+					AbonoSpecifications.activoIgual(Boolean.TRUE), AbonoSpecifications.fechaIgual(fecha),
+					AbonoSpecifications.valorIgual(valor), AbonoSpecifications.clienteLike(clienteLike),
+					AbonoSpecifications.codigoFactura(codigoFactura)).filter(Objects::nonNull).toList());
 
 			Page<AbonoEntity> pageResult = abonoRepository.findAll(spec, effectivePageable);
 
@@ -430,22 +432,18 @@ public class AbonoServiceImpl implements IAbonoService {
 			log.error("Error listando abonos (resumen) por empresa {}", idEmpresa, e);
 
 			Throwable root = e;
-			while (root.getCause() != null && root.getCause() != root) {
+			while (root.getCause() != null && root.getCause() != root)
 				root = root.getCause();
-			}
-
-			String errorMessage = e.getMessage();
-			String rootCauseMessage = root.getMessage();
 
 			Map<String, Object> errorInfo = new LinkedHashMap<>();
 			errorInfo.put("exception", e.getClass().getName());
-			errorInfo.put("message", errorMessage);
-			errorInfo.put("rootCause", rootCauseMessage);
+			errorInfo.put("message", e.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
 
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false)
 							.message("Error listando abonos: "
-									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
 		}
 	}

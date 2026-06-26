@@ -468,7 +468,7 @@ public class FacturaServiceImpl implements IFacturaService {
 
 	private static final Map<String, String> SORT_ALIAS = Map.of("nuid", "empresaClienteContador.contador.nuid",
 			"corregimientoNombre", "empresaClienteContador.cliente.direccion.corregimiento.nombre",
-			"clienteNombreCompleto", "empresaClienteContador.cliente.nombreCompleto", "estadoNombre", "estado.nombre",
+			"clienteNombreCompleto", "empresaClienteContador.cliente.nombre", "estadoNombre", "estado.nombre",
 			"tipoPagoNombre", "tipoPago.nombre", "lectura", "lectura.id");
 
 	private Pageable resolveSort(Pageable pageable) {
