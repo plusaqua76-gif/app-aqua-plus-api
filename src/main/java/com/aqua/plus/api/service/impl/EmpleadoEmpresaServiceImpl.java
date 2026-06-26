@@ -1,5 +1,6 @@
 package com.aqua.plus.api.service.impl;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -266,112 +267,166 @@ public class EmpleadoEmpresaServiceImpl implements IEmpleadoEmpresaService {
 		}
 	}
 
+	// ── Sort vacío ─────────────────────────────────────────────────────────────
+	private static final Sort SORT_VACIO_EMP = Sort.by(new ArrayList<>());
+
+	// ── Alias map ──────────────────────────────────────────────────────────────
+	private static final Map<String, String> SORT_ALIAS_EMP = new HashMap<>() {
+	    {
+	        put("nombreCompleto", null); // especial: expande a nombre + apellido
+	        put("numeroCedula",   "persona.numeroCedula");
+	        put("cedula",         "persona.numeroCedula");
+	        put("codigo",         "persona.codigo");
+	        put("activo",         "persona.activo");
+	        put("fechaCreacion",  "fechaCreacion");
+	        put("id",             "id");
+	    }
+	};
+
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByEmpresaId(Integer empresaId, Pageable pageable, String nombreCompleto,
-			String cedula, String codigo, String telefono, String correo, Boolean estado) {
+	        String cedula, String codigo, String telefono, String correo, Boolean estado) {
 
-		log.info(
-				"Buscando empleados empresa={}, filtros: nombre={}, cedula={}, codigo={}, tel={}, correo={}, estado={}",
-				empresaId, nombreCompleto, cedula, codigo, telefono, correo, estado);
+	    log.info("Buscando empleados empresa={}, filtros: nombre={}, cedula={}, codigo={}, tel={}, correo={}, estado={}",
+	            empresaId, nombreCompleto, cedula, codigo, telefono, correo, estado);
 
-		try {
-			if (empresaId == null) {
-				return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
-						.message("empresaId es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
-			}
+	    try {
+	        if (empresaId == null) {
+	            return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+	                    .message("empresaId es requerido").code(HttpStatus.BAD_REQUEST.value()).build());
+	        }
 
-			Objects.requireNonNull(pageable, "El pageable no debe ser null");
+	        Objects.requireNonNull(pageable, "El pageable no debe ser null");
 
-			/*Boolean estadoBool = null;
-			if (estado != null) {
-				if ("ACTIVO".equalsIgnoreCase(estado)) {
-					estadoBool = Boolean.TRUE;
-				} else if ("INACTIVO".equalsIgnoreCase(estado)) {
-					estadoBool = Boolean.FALSE;
-				}
-			} */
+	        // ── 1. Resolver sort ──────────────────────────────────────────────
+	        Sort jpaSort = resolveJpaSortEmp(pageable.getSort());
 
-			Sort defaultSort = Sort.by(Sort.Order.asc("persona.nombre"), Sort.Order.asc("persona.apellido"),
-					Sort.Order.asc("id"));
+	        Sort defaultSort = Sort.by(
+	                Sort.Order.asc("persona.nombre"),
+	                Sort.Order.asc("persona.apellido"),
+	                Sort.Order.asc("id"));
 
-			Pageable effectivePageable = pageable.getSort().isUnsorted()
-					? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), defaultSort)
-					: pageable;
+	        Sort sortToApply = jpaSort.iterator().hasNext() ? jpaSort : defaultSort;
 
-			Specification<EmpleadoEmpresaEntity> spec = EmpleadoEmpresaSpecification.allOfNonNull(
-					EmpleadoEmpresaSpecification.belongsToEmpresa(empresaId),
-					EmpleadoEmpresaSpecification.personaNombreCompletoLike(nombreCompleto),
-					EmpleadoEmpresaSpecification.personaCedulaEquals(cedula),
-					EmpleadoEmpresaSpecification.personaCodigoLike(codigo),
-					EmpleadoEmpresaSpecification.telefonoLike(telefono),
-					EmpleadoEmpresaSpecification.correoLike(correo),
-					EmpleadoEmpresaSpecification.personaEstadoEquals(estado));
+	        Pageable effectivePageable = PageRequest.of(
+	                pageable.getPageNumber(),
+	                pageable.getPageSize(),
+	                sortToApply);
 
-			Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, effectivePageable);
+	        // ── 2. Specification ──────────────────────────────────────────────
+	        Specification<EmpleadoEmpresaEntity> spec = EmpleadoEmpresaSpecification.allOfNonNull(
+	                EmpleadoEmpresaSpecification.belongsToEmpresa(empresaId),
+	                EmpleadoEmpresaSpecification.personaNombreCompletoLike(nombreCompleto),
+	                EmpleadoEmpresaSpecification.personaCedulaEquals(cedula),
+	                EmpleadoEmpresaSpecification.personaCodigoLike(codigo),
+	                EmpleadoEmpresaSpecification.telefonoLike(telefono),
+	                EmpleadoEmpresaSpecification.correoLike(correo),
+	                EmpleadoEmpresaSpecification.personaEstadoEquals(estado));
 
-			if (page.isEmpty()) {
-				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
-						.message("No se encontraron empleados para la empresa indicada")
-						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(page.getTotalElements()) // 0
-						.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()) // 0
-						.build());
-			}
+	        // ── 3. Query paginada real (repository con Specification + Pageable) ──
+	        Page<EmpleadoEmpresaEntity> page = empleadoEmpresaRepository.findAll(spec, effectivePageable);
 
-			var dtoList = empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
+	        if (page.isEmpty()) {
+	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+	                    .body(ResponseDTO.builder().success(false)
+	                            .message("No se encontraron empleados para la empresa indicada")
+	                            .code(HttpStatus.NOT_FOUND.value()).response(List.of())
+	                            .totalCount(page.getTotalElements())
+	                            .pageSize(page.getSize())
+	                            .currentPage(page.getNumber())
+	                            .totalPages(page.getTotalPages())
+	                            .build());
+	        }
 
-			var personaIds = dtoList.stream().map(EmpleadoEmpresaResponseDTO::getPersonaId).filter(Objects::nonNull)
-					.distinct().toList();
+	        // ── 4. Mapear ─────────────────────────────────────────────────────
+	        var dtoList = empleadoEmpresaMapper.listEntityToResumenDtoList(page.getContent());
 
-			if (!personaIds.isEmpty()) {
-				var correos = correoGeneralRepository.findLatestByPersonaIds(personaIds);
-				var correoByPersona = correos.stream().filter(cg -> cg.getPersona() != null).collect(
-						Collectors.toMap(cg -> cg.getPersona().getId(), CorreoGeneralEntity::getCorreo, (a, b) -> a));
+	        // ── 5. Enriquecer correo / teléfono ───────────────────────────────
+	        var personaIds = dtoList.stream()
+	                .map(EmpleadoEmpresaResponseDTO::getPersonaId)
+	                .filter(Objects::nonNull)
+	                .distinct()
+	                .toList();
 
-				var telefonos = telefonoGeneralRepository.findLatestByPersonaIds(personaIds);
-				var telefonoByPersona = telefonos.stream().filter(tg -> tg.getPersona() != null).collect(
-						Collectors.toMap(tg -> tg.getPersona().getId(), TelefonoGeneralEntity::getNumero, (a, b) -> a));
+	        if (!personaIds.isEmpty()) {
+	            var correos = correoGeneralRepository.findLatestByPersonaIds(personaIds);
+	            var correoByPersona = correos.stream()
+	                    .filter(cg -> cg.getPersona() != null)
+	                    .collect(Collectors.toMap(
+	                            cg -> cg.getPersona().getId(),
+	                            CorreoGeneralEntity::getCorreo,
+	                            (a, b) -> a));
 
-				dtoList.forEach(dto -> {
-					Integer pid = dto.getPersonaId();
-					if (pid != null) {
-						dto.setCorreo(correoByPersona.get(pid));
-						dto.setTelefono(telefonoByPersona.get(pid));
-					}
-				});
-			}
+	            var telefonos = telefonoGeneralRepository.findLatestByPersonaIds(personaIds);
+	            var telefonoByPersona = telefonos.stream()
+	                    .filter(tg -> tg.getPersona() != null)
+	                    .collect(Collectors.toMap(
+	                            tg -> tg.getPersona().getId(),
+	                            TelefonoGeneralEntity::getNumero,
+	                            (a, b) -> a));
 
-			long totalCount = page.getTotalElements();
-			int totalPages = page.getTotalPages();
-			int currentPage = page.getNumber();
-			int pageSize = page.getSize();
+	            dtoList.forEach(dto -> {
+	                Integer pid = dto.getPersonaId();
+	                if (pid != null) {
+	                    dto.setCorreo(correoByPersona.get(pid));
+	                    dto.setTelefono(telefonoByPersona.get(pid));
+	                }
+	            });
+	        }
 
-			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(dtoList).totalCount(totalCount).pageSize(pageSize)
-					.currentPage(currentPage).totalPages(totalPages).build());
+	        return ResponseEntity.ok(ResponseDTO.builder().success(true)
+	                .message(Constantes.CONSULTED_SUCCESSFULLY)
+	                .code(HttpStatus.OK.value()).response(dtoList)
+	                .totalCount(page.getTotalElements())
+	                .pageSize(page.getSize())
+	                .currentPage(page.getNumber())
+	                .totalPages(page.getTotalPages())
+	                .build());
 
-		} catch (Exception e) {
-			log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
+	    } catch (Exception e) {
+	        log.error("Error al consultar empleados por empresaId: {}", empresaId, e);
 
-			Throwable root = e;
-			while (root.getCause() != null && root.getCause() != root) {
-				root = root.getCause();
-			}
+	        Throwable root = e;
+	        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
 
-			String errorMessage = e.getMessage();
-			String rootCauseMessage = root.getMessage();
+	        Map<String, Object> errorInfo = new LinkedHashMap<>();
+	        errorInfo.put("exception", e.getClass().getName());
+	        errorInfo.put("message", e.getMessage());
+	        errorInfo.put("rootCause", root.getMessage());
 
-			Map<String, Object> errorInfo = new LinkedHashMap<>();
-			errorInfo.put("exception", e.getClass().getName());
-			errorInfo.put("message", errorMessage);
-			errorInfo.put("rootCause", rootCauseMessage);
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(ResponseDTO.builder().success(false)
+	                        .message("Error consultando empleados: " +
+	                                (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
+	    }
+	}
 
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(ResponseDTO.builder().success(false)
-							.message("Error consultando empleados: "
-									+ (rootCauseMessage != null ? rootCauseMessage : "ver detalle en 'response'"))
-							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
-		}
+	// ── Helpers sort ───────────────────────────────────────────────────────────
+	private Sort resolveJpaSortEmp(Sort sort) {
+	    if (sort == null || !sort.iterator().hasNext()) return SORT_VACIO_EMP;
+
+	    List<Sort.Order> orders = new ArrayList<>();
+
+	    for (Sort.Order order : sort) {
+	        String prop = order.getProperty().toLowerCase();
+	        if (prop.endsWith("like")) prop = prop.substring(0, prop.length() - 4);
+
+	        if ("nombrecompleto".equals(prop)) {
+	            orders.add(new Sort.Order(order.getDirection(), "persona.nombre"));
+	            orders.add(new Sort.Order(order.getDirection(), "persona.apellido"));
+	        } else if (SORT_ALIAS_EMP.containsKey(prop)) {
+	            String resolved = SORT_ALIAS_EMP.get(prop);
+	            if (resolved != null) {
+	                orders.add(new Sort.Order(order.getDirection(), resolved));
+	            }
+	        } else {
+	            orders.add(new Sort.Order(order.getDirection(), order.getProperty()));
+	        }
+	    }
+
+	    return orders.isEmpty() ? SORT_VACIO_EMP : Sort.by(orders);
 	}
 
 	@Override
