@@ -336,11 +336,9 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 		}
 	}
 
-	// ── Constante sort vacío (compatible todas las versiones) ──────────────────
 	private static final org.springframework.data.domain.Sort SORT_VACIO = org.springframework.data.domain.Sort
 			.by(new java.util.ArrayList<>());
 
-	// ── Alias map ──────────────────────────────────────────────────────────────
 	private static final Map<String, String> SORT_ALIAS = new HashMap<String, String>() {
 		{
 			put("clientenombre", "cliente.nombre");
@@ -436,13 +434,13 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 				row.put("id", dto.getId());
 				row.put("fechaDeuda", d.getFechaCreacion());
 				row.put("descripcion", dto.getDescripcion());
-				row.put("valorTotal", valorTotal);
+				row.put("valor", valorTotal);
 				row.put("totalAbonado", totalAbonado);
 				row.put("saldoPendiente", saldoPendiente);
 				row.put("tipoDeudaNombre", d.getTipoDeuda() != null ? d.getTipoDeuda().getNombre() : null);
 
 				Integer meses = d.getPlazoPago();
-				row.put("meses", meses);
+				row.put("plazoPago", meses);
 				row.put("plazoPagoNombre", meses != null ? (meses + " meses") : null);
 
 				if (meses != null && meses > 0) {
