@@ -4,15 +4,22 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -329,6 +336,21 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 		}
 	}
 
+	private static final org.springframework.data.domain.Sort SORT_VACIO = org.springframework.data.domain.Sort
+			.by(new java.util.ArrayList<>());
+
+	private static final Map<String, String> SORT_ALIAS = new HashMap<String, String>() {
+		{
+			put("clientenombre", "cliente.nombre");
+			put("facturacodigo", "factura.codigo");
+			put("tipodeuanombre", "tipoDeuda.nombre");
+			put("fechadeuda", "fechaCreacion");
+		}
+	};
+
+	private static final Set<String> COMPUTED_FIELDS = new HashSet<>(Arrays.asList("saldopendiente", "totalabonado",
+			"valormes", "clientenombre", "facturacodigo", "tipodeuanombre"));
+
 	@Override
 	@Transactional(readOnly = true)
 	public ResponseEntity<ResponseDTO> findByIdEnterprise(Integer idEmpresa, String clienteNombreLike,
@@ -343,10 +365,19 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 						.message("idEmpresa es obligatorio").code(HttpStatus.BAD_REQUEST.value()).build());
 			}
 
+			Sort[] sorts = resolveSort(pageable != null ? pageable.getSort() : SORT_VACIO);
+			Sort jpaSort = sorts[0];
+			Sort memorySort = sorts[1];
+
+			Pageable pageToUse = pageable == null ? Pageable.unpaged()
+					: (jpaSort.iterator().hasNext()
+							? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), jpaSort)
+							: PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
+
+			// ── 2. Tasa de interés ────────────────────────────────────────────────
 			double tasaInteres = 0.0;
 			var paramInteres = parametrosEmpresaRepository.findByEmpresaIdAndLlaveAndActivoTrue(idEmpresa,
 					"INTERES_DEUDA");
-
 			if (paramInteres.isPresent()) {
 				try {
 					tasaInteres = Double.parseDouble(paramInteres.get().getValorParametro());
@@ -356,7 +387,8 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			}
 			final double tasaFinal = tasaInteres;
 
-			Specification<DeudaClienteEntity> specConSaldo = DeudaClienteSpecifications.allOfNonNull(
+			// ── 3. Specification ──────────────────────────────────────────────────
+			Specification<DeudaClienteEntity> spec = DeudaClienteSpecifications.allOfNonNull(
 					DeudaClienteSpecifications.activoTrue(), DeudaClienteSpecifications.perteneceAEmpresa(idEmpresa),
 					DeudaClienteSpecifications.fechaCreacionIgual(fechaDeuda),
 					DeudaClienteSpecifications.valorIgual(valor),
@@ -367,13 +399,12 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 					DeudaClienteSpecifications.plazoPagoIgual(plazoPago),
 					DeudaClienteSpecifications.conSaldoPendiente());
 
-			Pageable pageToUse = (pageable != null) ? pageable : Pageable.unpaged();
-
+			// ── 4. Query con fetch condicional (evita duplicados en count) ─────────
 			Page<DeudaClienteEntity> page = deudaClienteRepository.findAll((root, cq, cb) -> {
 				if (Long.class != cq.getResultType()) {
 					root.fetch("empresaClienteContador", JoinType.LEFT).fetch("cliente", JoinType.LEFT);
 				}
-				return specConSaldo.toPredicate(root, cq, cb);
+				return spec.toPredicate(root, cq, cb);
 			}, pageToUse);
 
 			List<DeudaClienteEntity> entities = page.getContent();
@@ -385,11 +416,13 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 								.totalCount(page.getTotalElements()).build());
 			}
 
+			// ── 5. Abonos por deuda ───────────────────────────────────────────────
 			List<Integer> deudaIds = entities.stream().map(DeudaClienteEntity::getId).toList();
 			Map<Integer, Double> abonosPorDeuda = abonoRepository.findAllActiveByDeudaIds(deudaIds).stream()
 					.collect(Collectors.groupingBy(a -> a.getDeudaCliente().getId(),
 							Collectors.summingDouble(a -> a.getValor() == null ? 0.0 : a.getValor())));
 
+			// ── 6. Mapear a rows ──────────────────────────────────────────────────
 			List<Map<String, Object>> items = entities.stream().map(d -> {
 				double valorTotal = d.getValor() == null ? 0.0 : d.getValor();
 				double totalAbonado = abonosPorDeuda.getOrDefault(d.getId(), 0.0);
@@ -399,15 +432,15 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 
 				Map<String, Object> row = new LinkedHashMap<>();
 				row.put("id", dto.getId());
-				row.put("fechaDeuda", d.getFechaCreacion() != null ? d.getFechaCreacion() : null);
+				row.put("fechaDeuda", d.getFechaCreacion());
 				row.put("descripcion", dto.getDescripcion());
-				row.put("valorTotal", valorTotal);
+				row.put("valor", valorTotal);
 				row.put("totalAbonado", totalAbonado);
 				row.put("saldoPendiente", saldoPendiente);
 				row.put("tipoDeudaNombre", d.getTipoDeuda() != null ? d.getTipoDeuda().getNombre() : null);
 
 				Integer meses = d.getPlazoPago();
-				row.put("meses", meses);
+				row.put("plazoPago", meses);
 				row.put("plazoPagoNombre", meses != null ? (meses + " meses") : null);
 
 				if (meses != null && meses > 0) {
@@ -415,7 +448,6 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 					BigDecimal capitalMensual = saldoBD.divide(BigDecimal.valueOf(meses), 2, RoundingMode.HALF_UP);
 					BigDecimal interesCuota = saldoBD.multiply(BigDecimal.valueOf(tasaFinal / 100.0)).setScale(2,
 							RoundingMode.HALF_UP);
-
 					row.put("valorMes", capitalMensual.add(interesCuota).doubleValue());
 				} else {
 					row.put("valorMes", null);
@@ -425,10 +457,13 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 				row.put("clienteNombre", dto.getClienteNombre());
 
 				return row;
-			}).toList();
+			}).collect(Collectors.toList());
+
+			// ── 7. Sort en memoria (campos calculados y de relación) ──────────────
+			List<Map<String, Object>> sorted = applyInMemorySort(items, memorySort);
 
 			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
-					.code(HttpStatus.OK.value()).response(items).totalCount(page.getTotalElements())
+					.code(HttpStatus.OK.value()).response(sorted).totalCount(page.getTotalElements())
 					.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
 
 		} catch (Exception e) {
@@ -436,6 +471,80 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 					.body(ResponseDTO.builder().success(false).message(Constantes.ERROR_QUERY_RECORD_BY_ID)
 							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	private Sort[] resolveSort(Sort sort) {
+		if (sort == null || !sort.iterator().hasNext()) {
+			return new Sort[] { SORT_VACIO, SORT_VACIO };
+		}
+
+		List<Sort.Order> jpaOrders = new ArrayList<>();
+		List<Sort.Order> computedOrders = new ArrayList<>();
+
+		for (Sort.Order order : sort) {
+			String prop = order.getProperty().toLowerCase();
+			if (COMPUTED_FIELDS.contains(prop)) {
+				computedOrders.add(order);
+			} else {
+				String resolved = SORT_ALIAS.getOrDefault(prop, order.getProperty());
+				jpaOrders.add(new Sort.Order(order.getDirection(), resolved));
+			}
+		}
+
+		Sort jpaSort = jpaOrders.isEmpty() ? SORT_VACIO : Sort.by(jpaOrders);
+		Sort computedSort = computedOrders.isEmpty() ? SORT_VACIO : Sort.by(computedOrders);
+
+		return new Sort[] { jpaSort, computedSort };
+	}
+
+	@SuppressWarnings("unchecked")
+	private List<Map<String, Object>> applyInMemorySort(List<Map<String, Object>> items, Sort sort) {
+
+		if (sort == null || !sort.iterator().hasNext())
+			return items;
+
+		Comparator<Map<String, Object>> comparator = null;
+
+		for (Sort.Order order : sort) {
+			String key = resolveMemoryKey(order.getProperty());
+
+			Comparator<Map<String, Object>> c = Comparator.comparing((Map<String, Object> row) -> {
+				Object v = row.get(key);
+				if (v instanceof Comparable<?>) {
+					return (Comparable<Object>) v;
+				}
+				return null;
+			}, Comparator.nullsLast(Comparator.naturalOrder()));
+
+			if (order.getDirection() == org.springframework.data.domain.Sort.Direction.DESC)
+				c = c.reversed();
+
+			comparator = (comparator == null) ? c : comparator.thenComparing(c);
+		}
+
+		return comparator == null ? items : items.stream().sorted(comparator).collect(Collectors.toList());
+	}
+
+	private String resolveMemoryKey(String property) {
+		switch (property.toLowerCase()) {
+		case "cliente.nombre":
+		case "clienteNombre":
+			return "clienteNombre";
+		case "factura.codigo":
+		case "facturaCodigo":
+			return "facturaCodigo";
+		case "tipodeuda.nombre":
+		case "tipoDeuaNombre":
+			return "tipoDeudaNombre";
+		case "saldoPendiente":
+			return "saldoPendiente";
+		case "totalAbonado":
+			return "totalAbonado";
+		case "valorMes":
+			return "valorMes";
+		default:
+			return property;
 		}
 	}
 

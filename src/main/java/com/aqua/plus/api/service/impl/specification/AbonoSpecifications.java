@@ -1,9 +1,7 @@
 package com.aqua.plus.api.service.impl.specification;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 import org.springframework.data.jpa.domain.Specification;
 
@@ -16,11 +14,41 @@ public class AbonoSpecifications {
 	private AbonoSpecifications() {
 	}
 
+	@SuppressWarnings("unchecked")
+	private static <X, Y> Join<X, Y> getOrJoin(From<X, ?> from, String attr, JoinType type) {
+		return (Join<X, Y>) from.getJoins().stream().filter(j -> j.getAttribute().getName().equals(attr)).findFirst()
+				.orElseGet(() -> from.join(attr, type));
+	}
+
+	private static Join<AbonoEntity, Object> joinDc(Root<AbonoEntity> root) {
+		return getOrJoin(root, "deudaCliente", JoinType.LEFT);
+	}
+
+	private static <X> Join<X, Object> joinEcc(Join<X, Object> dc) {
+		return getOrJoin(dc, "empresaClienteContador", JoinType.LEFT);
+	}
+
+	private static <X> Join<X, Object> joinEmpresa(Join<X, Object> ecc) {
+		return getOrJoin(ecc, "empresa", JoinType.LEFT);
+	}
+
+	private static <X> Join<X, Object> joinCliente(Join<X, Object> ecc) {
+		return getOrJoin(ecc, "cliente", JoinType.LEFT);
+	}
+
+	private static <X> Join<X, Object> joinFactura(Join<X, Object> dc) {
+		return getOrJoin(dc, "factura", JoinType.LEFT);
+	}
+
+	// ── Specs ──
+
 	public static Specification<AbonoEntity> porIdEmpresa(Integer idEmpresa) {
+		if (idEmpresa == null)
+			return null;
 		return (root, cq, cb) -> {
-			Join<Object, Object> dc = root.join("deudaCliente");
-			Join<Object, Object> ecc = dc.join("empresaClienteContador");
-			Join<Object, Object> emp = ecc.join("empresa");
+			var dc = joinDc(root);
+			var ecc = joinEcc(dc);
+			var emp = joinEmpresa(ecc);
 			return cb.equal(emp.get("id"), idEmpresa);
 		};
 	}
@@ -30,6 +58,57 @@ public class AbonoSpecifications {
 			return null;
 		return (root, cq, cb) -> cb.equal(root.get("activo"), activo);
 	}
+
+	public static Specification<AbonoEntity> fechaIgual(LocalDate fecha) {
+		if (fecha == null)
+			return null;
+		var ini = java.sql.Timestamp.valueOf(fecha.atStartOfDay());
+		var fin = java.sql.Timestamp.valueOf(fecha.plusDays(1).atStartOfDay());
+		return (root, cq, cb) -> cb.and(cb.greaterThanOrEqualTo(root.get("fechaCreacion"), ini),
+				cb.lessThan(root.get("fechaCreacion"), fin));
+	}
+
+	public static Specification<AbonoEntity> valorIgual(Double valor) {
+		if (valor == null)
+			return null;
+		return (root, cq, cb) -> cb.equal(root.get("valor"), valor);
+	}
+
+	public static Specification<AbonoEntity> clienteLike(String texto) {
+		if (texto == null || texto.isBlank())
+			return null;
+		return (root, cq, cb) -> {
+			var dc = joinDc(root);
+			var ecc = joinEcc(dc);
+			var cli = joinCliente(ecc);
+
+			var fullName = cb.function("concat_ws", String.class, cb.literal(" "),
+					cb.function("nullif", String.class, cli.get("nombre"), cb.literal("")),
+					cb.function("nullif", String.class, cli.get("segundoNombre"), cb.literal("")),
+					cb.function("nullif", String.class, cli.get("apellido"), cb.literal("")),
+					cb.function("nullif", String.class, cli.get("segundoApellido"), cb.literal("")));
+
+			var normalizado = cb
+					.lower(cb.function("regexp_replace", String.class, cb.function("btrim", String.class, fullName),
+							cb.literal("\\s+"), cb.literal(" "), cb.literal("g")));
+
+			String pattern = "%" + texto.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
+			return cb.like(normalizado, pattern);
+		};
+	}
+
+	public static Specification<AbonoEntity> codigoFactura(String codigo) {
+		if (codigo == null || codigo.isBlank())
+			return null;
+		String like = "%" + codigo.trim().toLowerCase() + "%";
+		return (root, cq, cb) -> {
+			var dc = joinDc(root);
+			var f = joinFactura(dc);
+			return cb.like(cb.lower(cb.coalesce(f.get("codigo"), "")), like);
+		};
+	}
+
+	// ── Legacy (se conservan) ──
 
 	public static Specification<AbonoEntity> fechaEntre(Date desde, Date hasta) {
 		if (desde == null && hasta == null)
@@ -56,84 +135,4 @@ public class AbonoSpecifications {
 			return cb.lessThanOrEqualTo(campo, max);
 		};
 	}
-
-	public static Specification<AbonoEntity> clienteLike(String texto) {
-		if (texto == null || texto.isBlank())
-			return null;
-
-		return (root, cq, cb) -> {
-			var dc = root.join("deudaCliente");
-			var ecc = dc.join("empresaClienteContador");
-			var cli = ecc.join("cliente");
-
-			var pNombre = cb.function("nullif", String.class, cli.get("nombre"), cb.literal(""));
-			var sNombre = cb.function("nullif", String.class, cli.get("segundoNombre"), cb.literal(""));
-			var pApellido = cb.function("nullif", String.class, cli.get("apellido"), cb.literal(""));
-			var sApellido = cb.function("nullif", String.class, cli.get("segundoApellido"), cb.literal(""));
-
-			var fullName = cb.function("concat_ws", String.class, cb.literal(" "), pNombre, sNombre, pApellido,
-					sApellido);
-
-			var fullNameTrim = cb.function("btrim", String.class, fullName);
-
-			var fullNameSpNorm = cb.function("regexp_replace", String.class, fullNameTrim, cb.literal("\\s+"),
-					cb.literal(" "), cb.literal("g"));
-
-			var fullNameLower = cb.lower(fullNameSpNorm);
-
-			var fullNameNorm = fullNameLower;
-
-			String pattern = "%" + texto.toLowerCase().trim().replaceAll("\\s+", " ") + "%";
-
-			return cb.like(fullNameNorm, pattern);
-		};
-	}
-
-	public static Specification<AbonoEntity> codigoFactura(String codigo) {
-		if (codigo == null || codigo.isBlank())
-			return null;
-		String like = "%" + codigo.trim().toLowerCase() + "%";
-		return (root, cq, cb) -> {
-			Join<Object, Object> dc = root.join("deudaCliente");
-			Join<Object, Object> f = dc.join("factura", JoinType.LEFT);
-			return cb.like(cb.lower(cb.coalesce(f.get("codigo"), "")), like);
-		};
-	}
-
-	/** Combina specs de forma segura, ignorando nulos. */
-	public static Specification<AbonoEntity> build(Integer idEmpresa, Boolean activo, Date fechaDesde, Date fechaHasta,
-			Double valorMin, Double valorMax, String clienteLike, String codigoFacturaLike) {
-
-		List<Specification<AbonoEntity>> specs = new ArrayList<>();
-		specs.add(porIdEmpresa(idEmpresa));
-		specs.add(activoIgual(activo));
-		specs.add(fechaEntre(fechaDesde, fechaHasta));
-		specs.add(valorEntre(valorMin, valorMax));
-		specs.add(clienteLike(clienteLike));
-		specs.add(codigoFactura(codigoFacturaLike));
-
-		Specification<AbonoEntity> result = null;
-		for (Specification<AbonoEntity> s : specs) {
-			if (s == null)
-				continue;
-			result = (result == null) ? s : result.and(s);
-		}
-		return result;
-	}
-
-	public static Specification<AbonoEntity> fechaIgual(LocalDate fecha) {
-		if (fecha == null)
-			return null;
-		var ini = java.sql.Timestamp.valueOf(fecha.atStartOfDay());
-		var fin = java.sql.Timestamp.valueOf(fecha.plusDays(1).atStartOfDay());
-		return (root, cq, cb) -> cb.and(cb.greaterThanOrEqualTo(root.get("fechaCreacion"), ini),
-				cb.lessThan(root.get("fechaCreacion"), fin));
-	}
-
-	public static Specification<AbonoEntity> valorIgual(Double valor) {
-		if (valor == null)
-			return null;
-		return (root, cq, cb) -> cb.equal(root.get("valor"), valor);
-	}
-
 }
