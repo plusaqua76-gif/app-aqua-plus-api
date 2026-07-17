@@ -3,6 +3,7 @@ package com.aqua.plus.api.service.impl.external;
 import java.util.Objects;
 
 import com.aqua.plus.api.service.impl.CorreoGeneralServiceImpl;
+import com.aqua.plus.api.service.impl.EmpresaClienteContadorServiceImpl;
 import com.aqua.plus.api.service.impl.EmpresaServiceImpl;
 import com.aqua.plus.api.service.impl.ParametrosEmpresaServiceImpl;
 import com.aqua.plus.api.service.impl.PersonaServiceImpl;
@@ -29,6 +30,7 @@ import com.aqua.plus.commons.dtos.external.RequestSetPruebaDto;
 import com.aqua.plus.commons.dtos.external.ResponseInvoiceDto;
 import com.aqua.plus.commons.enums.DocumentTypeDianEnum;
 import com.aqua.plus.commons.enums.LegalStatusEnum;
+import com.aqua.plus.commons.exceptions.ProcessGenericException;
 import com.aqua.plus.commons.utils.Constantes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,6 +71,8 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 
 	private final EmpresaServiceImpl empresaService;
 
+	private final EmpresaClienteContadorServiceImpl empresaClienteContadorService;
+
 	@Override
 	public ResponseEntity<ResponseDTO> crearFacturaElectronica(final RequestFacturaDto request) {
 		log.warn("Inicio metodo crearFacturaElectronica: {},{},{} ", request.getIdCliente(), request.getIdEmpresa(),
@@ -85,8 +89,20 @@ public class FacturaDianServiceImpl implements IFacturaDianService {
 			empresa = this.empresaService.getEmpresa(request);
 			numeroFactura = this.resolucionDianService.actualizarResolucion(request, resolucion);
 			resolucion.setNumeroActual(numeroFactura);
+			String direccionContador = this.empresaClienteContadorService.getDireccionContadorCliente(request);
 			rq = FacturaDianMapper.INSTANCE.mapDataFacturaEletronica(resolucion, empresa, persona, request,
-					this.correoGeneralService.getCorreoPersona(request), numeroFactura, this.parametrosEmpresaService.obtenerMesesPeriodo(request.getIdEmpresa()));
+					this.correoGeneralService.getCorreoPersona(request),
+					FacturaDianMapper.INSTANCE.buildDireccionCliente(direccionContador, empresa),
+					numeroFactura, this.parametrosEmpresaService.obtenerMesesPeriodo(request.getIdEmpresa()));
+			log.warn("DIAN customer armado invoiceId={} idCliente={} name={} address={} city={} dept={}",
+					request.getId(), request.getIdCliente(),
+					rq.getCustomer() != null ? rq.getCustomer().getName() : null,
+					rq.getCustomer() != null && rq.getCustomer().getAddress() != null
+							? rq.getCustomer().getAddress().getAddress() : null,
+					rq.getCustomer() != null && rq.getCustomer().getAddress() != null
+							? rq.getCustomer().getAddress().getCity() : null,
+					rq.getCustomer() != null && rq.getCustomer().getAddress() != null
+							? rq.getCustomer().getAddress().getDepartment() : null);
 			HttpEntity<RequestInvoiceDto> entity = new HttpEntity<>(rq, utilsRestemplate.getHeader());
 			print("#############REQUEST ################: {} ", entity.getBody());
 			response = this.restTemplateConfig.restTemplate().exchange(this.url.concat(this.endPointFactura),

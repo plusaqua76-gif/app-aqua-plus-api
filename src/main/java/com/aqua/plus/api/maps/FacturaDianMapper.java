@@ -1,5 +1,7 @@
 package com.aqua.plus.api.maps;
 
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
@@ -29,6 +31,7 @@ import com.aqua.plus.commons.entities.InvoiceEntity;
 import com.aqua.plus.commons.entities.ProductEntity;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Company;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Customer;
+import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Address;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.DiscountsAndCharges;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.InvoicePeriod;
 import com.aqua.plus.commons.dtos.external.RequestInvoiceDto.Item;
@@ -90,14 +93,42 @@ public interface FacturaDianMapper {
 		return TypeDocumentDianEnum.NIT.getId();
 	}
 
+	default String nombreCompleto(PersonaDTO persona) {
+		return Stream.of(persona.getNombre(), persona.getSegundoNombre(), persona.getApellido(), persona.getSegundoApellido())
+				.filter(s -> s != null && !s.isBlank())
+				.map(String::trim)
+				.collect(Collectors.joining(" "));
+	}
+
+	default Address buildDireccionCliente(final String direccionContador, final EmpresaDTO empresa) {
+		String city = null;
+		String department = null;
+		if (empresa != null && empresa.getDireccion() != null) {
+			if (empresa.getDireccion().getCiudad() != null) {
+				city = empresa.getDireccion().getCiudad().getCodigoDian();
+			}
+			if (empresa.getDireccion().getDepartamento() != null) {
+				department = empresa.getDireccion().getDepartamento().getCodigoDian();
+			}
+		}
+		if (direccionContador == null && city == null && department == null) {
+			return null;
+		}
+		return Address.builder().address(direccionContador).city(city).department(department).country("CO").build();
+	}
+
 	default RequestInvoiceDto mapDataFacturaEletronica(ResolutionDto resolucionDto, EmpresaDTO empresa,
-			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona,Long numeroFactura, Integer periodosFacturados) {
+			PersonaDTO persona, RequestFacturaDto factura, CorreoGeneralDTO correoPersona, Address direccionCliente,
+			Long numeroFactura, Integer periodosFacturados) {
 		RequestInvoiceDto rq = new RequestInvoiceDto();
 		rq.setDocumentType(DocumentTypeDianEnum.ESTANDAR.getCodigo());
 		rq.setResolution(resolucionDtoToResolucionDian(resolucionDto));
 		rq.setCompany(empresaDtoToCompanyDian(empresa));
 		persona.setCorreo(correoPersona.getCorreo());
-		rq.setCustomer(clienteDtoToCustomerDian(persona));
+		persona.setNombre(nombreCompleto(persona));
+		Customer customer = clienteDtoToCustomerDian(persona);
+		customer.setAddress(direccionCliente);
+		rq.setCustomer(customer);
 		List<Payment> mediosPagos = new ArrayList<>(0);
 		mediosPagos.add(Payment.builder().paymentForm(factura.getMedioPago().getForma())
 				.paymentMethod(factura.getMedioPago().getMedio()).paymentDueDate(factura.getMedioPago().getFechaFin()).build());
@@ -218,8 +249,27 @@ public interface FacturaDianMapper {
 	default RequestFacturaDto mapFactura(InvoiceDto factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPagoCredito, String formaPagoContado, String usuario, List<TarifaConceptoDianDto> tarifas) {
 		RequestFacturaDto request =RequestFacturaDto.builder().build();
 		request.setId(factura.getId());
-		request.setIdCliente(factura.getCliente().getId());
-		request.setIdEmpresa(factura.getEmpresa().getId());
+		// Preferir cliente/empresa de la ECC congelada en la factura (misma fuente que la dirección del contador).
+		// Fallback a invoice.id_customer / id_company si el grafo ECC no viene cargado.
+		Integer idCliente = null;
+		Integer idEmpresa = null;
+		if (factura.getFactura() != null && factura.getFactura().getEmpresaClienteContador() != null) {
+			var ecc = factura.getFactura().getEmpresaClienteContador();
+			if (ecc.getCliente() != null) {
+				idCliente = ecc.getCliente().getId();
+			}
+			if (ecc.getEmpresa() != null) {
+				idEmpresa = ecc.getEmpresa().getId();
+			}
+		}
+		if (idCliente == null && factura.getCliente() != null) {
+			idCliente = factura.getCliente().getId();
+		}
+		if (idEmpresa == null && factura.getEmpresa() != null) {
+			idEmpresa = factura.getEmpresa().getId();
+		}
+		request.setIdCliente(idCliente);
+		request.setIdEmpresa(idEmpresa);
 		List<Producto> productos = new ArrayList<RequestFacturaDto.Producto>(0);
 		for(TarifaConceptoDianDto item: tarifas){
 			for(TarifaConceptoDianDto.ConceptoDto concepto : item.getConceptos()){
