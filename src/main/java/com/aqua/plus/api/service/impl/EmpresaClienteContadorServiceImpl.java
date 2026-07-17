@@ -46,6 +46,9 @@ import com.aqua.plus.commons.dtos.TipoConceptoDTO;
 import com.aqua.plus.commons.dtos.TipoTarifaDTO;
 import com.aqua.plus.commons.dtos.TipoUsoDTO;
 import com.aqua.plus.commons.dtos.TiposFaltantesDTO;
+import com.aqua.plus.commons.dtos.external.RequestFacturaDto;
+import com.aqua.plus.commons.entities.ContadorEntity;
+import com.aqua.plus.commons.entities.DireccionEntity;
 import com.aqua.plus.commons.entities.CorreoGeneralEntity;
 import com.aqua.plus.commons.entities.EmpleadoEmpresaEntity;
 import com.aqua.plus.commons.entities.EmpresaClienteContadorEntity;
@@ -60,8 +63,11 @@ import com.aqua.plus.commons.maps.TarifaContadorMapper;
 import com.aqua.plus.commons.maps.TipoConceptoMapper;
 import com.aqua.plus.commons.maps.TipoTarifaMapper;
 import com.aqua.plus.commons.repositories.AforoContadorRepository;
+import com.aqua.plus.commons.repositories.ContadorRepository;
 import com.aqua.plus.commons.repositories.CorreoGeneralRepository;
+import com.aqua.plus.commons.repositories.DireccionRepository;
 import com.aqua.plus.commons.repositories.EmpresaClienteContadorRepository;
+import com.aqua.plus.commons.repositories.InvoiceRepository;
 import com.aqua.plus.commons.repositories.RutaEmpleadoRepository;
 import com.aqua.plus.commons.repositories.TarifaContadorRepository;
 import com.aqua.plus.commons.repositories.TelefonoGeneralRepository;
@@ -84,6 +90,9 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
     private String linkRecover;
 
     private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
+    private final ContadorRepository contadorRepository;
+    private final DireccionRepository direccionRepository;
+    private final InvoiceRepository invoiceRepository;
     private final EmpresaClienteContadorMapper empresaClienteContadorMapper;
     private final PersonaMapper personaMapper;
     private final ContadorMapper contadorMapper;
@@ -1094,5 +1103,56 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
             return buildErrorResponse(e);
         }
     }
+
+	@Transactional(readOnly = true)
+	public String getDireccionContadorCliente(final RequestFacturaDto request) {
+		DireccionEntity direccion = resolveDireccionContador(request);
+		return direccion != null ? direccion.getDescripcion() : null;
+	}
+
+	private DireccionEntity resolveDireccionContador(final RequestFacturaDto request) {
+		Integer eccId = resolveEmpresaClienteContadorId(request);
+		DireccionEntity direccion = resolveDireccionByEmpresaClienteContadorId(eccId);
+		if (direccion != null) {
+			return direccion;
+		}
+		// Fallback: ECC activa por empresa+cliente (mismo camino que factura manual)
+		Integer eccActivaId = resolveEccActivaByEmpresaCliente(request.getIdEmpresa(), request.getIdCliente());
+		if (eccActivaId != null && !eccActivaId.equals(eccId)) {
+			return resolveDireccionByEmpresaClienteContadorId(eccActivaId);
+		}
+		return null;
+	}
+
+	private Integer resolveEmpresaClienteContadorId(final RequestFacturaDto request) {
+		if (request.getId() != null) {
+			// Query directa: evita LazyInitializationException en @Async del job
+			Integer eccId = invoiceRepository.findEccIdByInvoiceId(request.getId()).orElse(null);
+			if (eccId != null) {
+				return eccId;
+			}
+		}
+		return resolveEccActivaByEmpresaCliente(request.getIdEmpresa(), request.getIdCliente());
+	}
+
+	private Integer resolveEccActivaByEmpresaCliente(final Integer idEmpresa, final Integer idCliente) {
+		if (idEmpresa == null || idCliente == null) {
+			return null;
+		}
+		return empresaClienteContadorRepository
+				.findByEmpresaIdAndClienteId(idEmpresa, idCliente)
+				.stream()
+				.filter(ecc -> Boolean.TRUE.equals(ecc.getActivo()))
+				.map(EmpresaClienteContadorEntity::getId)
+				.findFirst()
+				.orElse(null);
+	}
+
+	private DireccionEntity resolveDireccionByEmpresaClienteContadorId(final Integer eccId) {
+		if (eccId == null) {
+			return null;
+		}
+		return empresaClienteContadorRepository.findDireccionContadorByEccId(eccId).orElse(null);
+	}
 
 }

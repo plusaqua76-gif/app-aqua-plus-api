@@ -561,7 +561,7 @@ public class EmpresaServiceImpl implements IEmpresaService {
 
 	@Transactional(readOnly = true)
 	public EmpresaDTO getEmpresa(final RequestFacturaDto request) {
-		return EmpresaMapper.INSTANCE.entityToDto(this.empresaRepository.findById(request.getIdEmpresa())
+		return EmpresaMapper.INSTANCE.entityToDto(this.empresaRepository.findByIdWithDireccion(request.getIdEmpresa())
 				.orElseThrow(() -> new ProcessGenericException(Constantes.EMP_NOT_FOUND)));
 	}
 
