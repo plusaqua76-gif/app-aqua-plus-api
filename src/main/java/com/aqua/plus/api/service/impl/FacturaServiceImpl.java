@@ -356,73 +356,52 @@ public class FacturaServiceImpl implements IFacturaService {
 				precioMin, precioMax, corregimientoNombre, nuid, periodo);
 
 		try {
-	        LocalDate emision = parseSingleDateOrNull(fechaEmision);
-	        LocalDate venc = parseSingleDateOrNull(fechaFin);
+			LocalDate emision = parseSingleDateOrNull(fechaEmision);
+			LocalDate venc = parseSingleDateOrNull(fechaFin);
 
-	        Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
-	                emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre,
-	                corregimientoNombre, nuid, periodo).and(FacturaSpecifications.activoTrue());
+			Specification<FacturaEntity> spec = buildFacturaSpec(idEmpresa, codigo, clienteNombreCompleto, emision,
+					emision, venc, venc, estadoNombre, consumoAnormal, consumo, precioMin, precioMax, tipoPagoNombre,
+					corregimientoNombre, nuid, periodo).and(FacturaSpecifications.activoTrue());
 
-	        Page<FacturaEntity> page = facturaRepository.findAll(spec, resolveSort(pageable));
+			Page<FacturaEntity> page = facturaRepository.findAll(spec, resolveSort(pageable));
 
-	        if (page.isEmpty()) {
-	            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-	                    .body(ResponseDTO.builder()
-	                            .success(false)
-	                            .message("No se encontraron facturas para la empresa con id " + idEmpresa)
-	                            .code(HttpStatus.NOT_FOUND.value())
-	                            .response(List.of())
-	                            .totalCount(0L)
-	                            .pageSize(pageable.getPageSize())
-	                            .currentPage(pageable.getPageNumber())
-	                            .totalPages(0)
-	                            .build());
-	        }
+			if (page.isEmpty()) {
+				return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ResponseDTO.builder().success(false)
+						.message("No se encontraron facturas para la empresa con id " + idEmpresa)
+						.code(HttpStatus.NOT_FOUND.value()).response(List.of()).totalCount(0L)
+						.pageSize(pageable.getPageSize()).currentPage(pageable.getPageNumber()).totalPages(0).build());
+			}
 
-	        var items = facturaMapper.listEntityToResponse(page.getContent());
+			var items = facturaMapper.listEntityToResponse(page.getContent());
 
-	        return ResponseEntity.ok(ResponseDTO.builder()
-	                .success(true)
-	                .message(Constantes.CONSULTED_SUCCESSFULLY)
-	                .code(HttpStatus.OK.value())
-	                .response(items)
-	                .totalCount(page.getTotalElements())
-	                .pageSize(page.getSize())
-	                .currentPage(page.getNumber())
-	                .totalPages(page.getTotalPages())
-	                .build());
+			return ResponseEntity.ok(ResponseDTO.builder().success(true).message(Constantes.CONSULTED_SUCCESSFULLY)
+					.code(HttpStatus.OK.value()).response(items).totalCount(page.getTotalElements())
+					.pageSize(page.getSize()).currentPage(page.getNumber()).totalPages(page.getTotalPages()).build());
 
-	    } catch (DateTimeParseException ex) {
-	        log.warn("Formato de fecha inválido para idEmpresa={}: {}", idEmpresa, ex.getMessage());
-	        return ResponseEntity.badRequest()
-	                .body(ResponseDTO.builder()
-	                        .success(false)
-	                        .message("Formato de fecha inválido. Usa yyyy-MM-dd")
-	                        .code(HttpStatus.BAD_REQUEST.value())
-	                        .build());
+		} catch (DateTimeParseException ex) {
+			log.warn("Formato de fecha inválido para idEmpresa={}: {}", idEmpresa, ex.getMessage());
+			return ResponseEntity.badRequest().body(ResponseDTO.builder().success(false)
+					.message("Formato de fecha inválido. Usa yyyy-MM-dd").code(HttpStatus.BAD_REQUEST.value()).build());
 
-	    } catch (Exception e) {
-	        log.error("Error al buscar facturas por id de empresa: {}", idEmpresa, e);
+		} catch (Exception e) {
+			log.error("Error al buscar facturas por id de empresa: {}", idEmpresa, e);
 
-	        Throwable root = e;
-	        while (root.getCause() != null && root.getCause() != root) {
-	            root = root.getCause();
-	        }
+			Throwable root = e;
+			while (root.getCause() != null && root.getCause() != root) {
+				root = root.getCause();
+			}
 
-	        Map<String, Object> errorInfo = new LinkedHashMap<>();
-	        errorInfo.put("exception", e.getClass().getName());
-	        errorInfo.put("message", e.getMessage());
-	        errorInfo.put("rootCause", root.getMessage());
+			Map<String, Object> errorInfo = new LinkedHashMap<>();
+			errorInfo.put("exception", e.getClass().getName());
+			errorInfo.put("message", e.getMessage());
+			errorInfo.put("rootCause", root.getMessage());
 
-	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                .body(ResponseDTO.builder()
-	                        .success(false)
-	                        .message("Error consultando facturas: "
-	                                + (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
-	                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
-	                        .response(errorInfo)
-	                        .build());
-	    }
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(ResponseDTO.builder().success(false)
+							.message("Error consultando facturas: "
+									+ (root.getMessage() != null ? root.getMessage() : "ver detalle en 'response'"))
+							.code(HttpStatus.INTERNAL_SERVER_ERROR.value()).response(errorInfo).build());
+		}
 	}
 
 	/* ====================== Helpers ====================== */
@@ -1547,6 +1526,18 @@ public class FacturaServiceImpl implements IFacturaService {
 		EstadoDTO estadoAnteriorDTO = factura.getEstado() != null ? toEstadoDTO(factura.getEstado()) : null;
 
 		if (diferencia <= TOLERANCIA_PAGO) {
+
+			List<DeudaClienteEntity> deudasFacturaActivas = deudaClienteRepository
+			        .findAllByFacturaIdAndActivoTrue(factura.getId());
+
+			if (!deudasFacturaActivas.isEmpty()) {
+			    deudaClienteRepository.deleteAll(deudasFacturaActivas);
+
+			    log.info("Factura id={} pagada exacto: eliminadas {} deuda(s) asociada(s) a esta factura (ids={})",
+			            factura.getId(), deudasFacturaActivas.size(), 
+			            deudasFacturaActivas.stream().map(DeudaClienteEntity::getId).toList());
+			}
+
 			factura.setEstado(estadoPagada);
 			facturaRepository.save(factura);
 			log.info("Factura id={} actualizada a estado PAGADA", factura.getId());
