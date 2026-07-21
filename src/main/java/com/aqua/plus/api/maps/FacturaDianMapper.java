@@ -135,7 +135,6 @@ public interface FacturaDianMapper {
 		mediosPagos.add(Payment.builder().paymentForm(factura.getMedioPago().getForma())
 				.paymentMethod(factura.getMedioPago().getMedio()).paymentDueDate(factura.getMedioPago().getFechaFin()).build());
 		rq.setPayments(mediosPagos);
-		aplicarAjusteCentena(factura);
 		rq.setItems(mapProductos(factura));
 		rq.setTotalAmounts(mapTotalAmount(factura));
 		rq.setNumber(numeroFactura);
@@ -338,6 +337,7 @@ public interface FacturaDianMapper {
 		request.setUsuario(usuario);
 		request.setFechaUltimoIntento(new Date());
 		request.setFechaEmision(factura.getFactura().getFechaEmision());
+		aplicarAjusteCentena(request);
 		return request;
 	}
 	
