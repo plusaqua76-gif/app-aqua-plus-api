@@ -3,6 +3,7 @@ package com.aqua.plus.api.maps;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ import com.aqua.plus.commons.utils.Constantes;
 public interface FacturaDianMapper {
 
 	FacturaDianMapper INSTANCE = Mappers.getMapper(FacturaDianMapper.class);
+	BigDecimal CIEN = BigDecimal.valueOf(100);
 
 	@Mapping(target = "resolutionNumber", source = "numero")
 	@Mapping(target = "prefix", source = "prefijo")
@@ -145,6 +147,47 @@ public interface FacturaDianMapper {
 		return rq;
 	}
 	
+	default void aplicarAjusteCentena(RequestFacturaDto factura) {
+		if (Objects.isNull(factura) || Objects.isNull(factura.getProductos()) || factura.getProductos().isEmpty()) {
+			return;
+		}
+		BigDecimal totalBruto = calcularTotalBrutoProductos(factura.getProductos());
+		BigDecimal totalCentena = totalBruto.divide(CIEN, 0, RoundingMode.HALF_UP).multiply(CIEN);
+		BigDecimal ajuste = totalCentena.subtract(totalBruto);
+		if (ajuste.compareTo(BigDecimal.ZERO) == 0) {
+			return;
+		}
+		Producto productoAjuste = seleccionarProductoParaAjuste(factura.getProductos());
+		if (Objects.isNull(productoAjuste)) {
+			return;
+		}
+		BigDecimal incrementoPrecio = ajuste.divide(productoAjuste.getCantidad(), 10, RoundingMode.HALF_UP);
+		BigDecimal nuevoPrecio = productoAjuste.getPrecio().add(incrementoPrecio).setScale(2, RoundingMode.HALF_UP);
+		if (nuevoPrecio.compareTo(BigDecimal.ZERO) <= 0) {
+			return;
+		}
+		productoAjuste.setPrecio(nuevoPrecio);
+	}
+
+	default BigDecimal calcularTotalBrutoProductos(List<Producto> productos) {
+		BigDecimal totalBruto = BigDecimal.ZERO;
+		for (Producto producto : productos) {
+			totalBruto = totalBruto.add(producto.getPrecio().multiply(producto.getCantidad()));
+		}
+		return totalBruto;
+	}
+
+	default Producto seleccionarProductoParaAjuste(List<Producto> productos) {
+		return productos.stream()
+				.filter(producto -> Objects.nonNull(producto.getNombre())
+						&& producto.getNombre().toUpperCase().contains("OTROS"))
+				.reduce((first, second) -> second)
+				.orElseGet(() -> productos.stream()
+						.filter(producto -> producto.getCantidad().compareTo(BigDecimal.ONE) == 0)
+						.reduce((first, second) -> second)
+						.orElse(productos.get(productos.size() - 1)));
+	}
+
 	default List<DiscountsAndCharges> aplicarDescuento(RequestFacturaDto factura){
 		List<DiscountsAndCharges> descuentos = new ArrayList<>(0);
 		
@@ -294,6 +337,7 @@ public interface FacturaDianMapper {
 		request.setUsuario(usuario);
 		request.setFechaUltimoIntento(new Date());
 		request.setFechaEmision(factura.getFactura().getFechaEmision());
+		aplicarAjusteCentena(request);
 		return request;
 	}
 	
