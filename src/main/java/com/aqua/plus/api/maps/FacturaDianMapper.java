@@ -245,7 +245,13 @@ public interface FacturaDianMapper {
 				totalPagar = totalPagar.add(precioFinal).add(iva);
 			}
 			if (factura.isAjusteCentena()) {
-				totalPagar = totalPagar.add(calcularAjusteCentena(totalPagar));
+				BigDecimal ajuste = calcularAjusteCentena(totalPagar);
+				totalPagar = totalPagar.add(ajuste);
+				if (ajuste.signum() > 0) {
+					cargoTotal = cargoTotal.add(ajuste);
+				} else if (ajuste.signum() < 0) {
+					descuentoTotal = descuentoTotal.add(ajuste.abs());
+				}
 			}
 			total = TotalAmounts.builder().advanceTotal(factura.getTotalAnticipado()).grossTotal(totalBruto)
 					.taxableTotal(totalImponible).taxTotal(totalImpuesto).discountTotal(descuentoTotal)
