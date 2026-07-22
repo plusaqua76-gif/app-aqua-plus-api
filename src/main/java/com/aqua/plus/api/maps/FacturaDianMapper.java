@@ -147,45 +147,9 @@ public interface FacturaDianMapper {
 		return rq;
 	}
 	
-	default void aplicarAjusteCentena(RequestFacturaDto factura) {
-		if (Objects.isNull(factura) || Objects.isNull(factura.getProductos()) || factura.getProductos().isEmpty()) {
-			return;
-		}
-		BigDecimal totalBruto = calcularTotalBrutoProductos(factura.getProductos());
-		BigDecimal totalCentena = totalBruto.divide(CIEN, 0, RoundingMode.HALF_UP).multiply(CIEN);
-		BigDecimal ajuste = totalCentena.subtract(totalBruto);
-		if (ajuste.compareTo(BigDecimal.ZERO) == 0) {
-			return;
-		}
-		Producto productoAjuste = seleccionarProductoParaAjuste(factura.getProductos());
-		if (Objects.isNull(productoAjuste)) {
-			return;
-		}
-		BigDecimal incrementoPrecio = ajuste.divide(productoAjuste.getCantidad(), 10, RoundingMode.HALF_UP);
-		BigDecimal nuevoPrecio = productoAjuste.getPrecio().add(incrementoPrecio).setScale(2, RoundingMode.HALF_UP);
-		if (nuevoPrecio.compareTo(BigDecimal.ZERO) <= 0) {
-			return;
-		}
-		productoAjuste.setPrecio(nuevoPrecio);
-	}
-
-	default BigDecimal calcularTotalBrutoProductos(List<Producto> productos) {
-		BigDecimal totalBruto = BigDecimal.ZERO;
-		for (Producto producto : productos) {
-			totalBruto = totalBruto.add(producto.getPrecio().multiply(producto.getCantidad()));
-		}
-		return totalBruto;
-	}
-
-	default Producto seleccionarProductoParaAjuste(List<Producto> productos) {
-		return productos.stream()
-				.filter(producto -> Objects.nonNull(producto.getNombre())
-						&& producto.getNombre().toUpperCase().contains("OTROS"))
-				.reduce((first, second) -> second)
-				.orElseGet(() -> productos.stream()
-						.filter(producto -> producto.getCantidad().compareTo(BigDecimal.ONE) == 0)
-						.reduce((first, second) -> second)
-						.orElse(productos.get(productos.size() - 1)));
+	default BigDecimal calcularAjusteCentena(BigDecimal total) {
+		BigDecimal totalCentena = total.divide(CIEN, 0, RoundingMode.HALF_UP).multiply(CIEN);
+		return totalCentena.subtract(total);
 	}
 
 	default List<DiscountsAndCharges> aplicarDescuento(RequestFacturaDto factura){
@@ -280,6 +244,9 @@ public interface FacturaDianMapper {
 				cargoTotal =  cargoTotal.add(cargoDescuento);
 				totalPagar = totalPagar.add(precioFinal).add(iva);
 			}
+			if (factura.isAjusteCentena()) {
+				totalPagar = totalPagar.add(calcularAjusteCentena(totalPagar));
+			}
 			total = TotalAmounts.builder().advanceTotal(factura.getTotalAnticipado()).grossTotal(totalBruto)
 					.taxableTotal(totalImponible).taxTotal(totalImpuesto).discountTotal(descuentoTotal)
 					.chargeTotal(cargoTotal).advanceTotal(totalAnticipado).payableTotal(totalPagar)
@@ -292,8 +259,8 @@ public interface FacturaDianMapper {
 	default RequestFacturaDto mapFactura(InvoiceDto factura, ProductEntity productoMc, ProductEntity productoUnidad, Integer iva, String formaPagoCredito, String formaPagoContado, String usuario, List<TarifaConceptoDianDto> tarifas) {
 		RequestFacturaDto request =RequestFacturaDto.builder().build();
 		request.setId(factura.getId());
-		// Preferir cliente/empresa de la ECC congelada en la factura (misma fuente que la dirección del contador).
-		// Fallback a invoice.id_customer / id_company si el grafo ECC no viene cargado.
+		request.setAjusteCentena(true);
+
 		Integer idCliente = null;
 		Integer idEmpresa = null;
 		if (factura.getFactura() != null && factura.getFactura().getEmpresaClienteContador() != null) {
@@ -337,7 +304,6 @@ public interface FacturaDianMapper {
 		request.setUsuario(usuario);
 		request.setFechaUltimoIntento(new Date());
 		request.setFechaEmision(factura.getFactura().getFechaEmision());
-		aplicarAjusteCentena(request);
 		return request;
 	}
 	
