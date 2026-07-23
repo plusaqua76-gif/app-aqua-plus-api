@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>com.aqua.plus</groupId>
 	<artifactId>app-aqua-plus-api</artifactId>
-	<version>0.0.5</version>
+	<version>0.0.4</version>
 	<name>app-aqua-plus-api</name>
 	<description>App for aqueducts</description>
 	<properties>
