@@ -135,6 +135,9 @@ public interface FacturaDianMapper {
 		mediosPagos.add(Payment.builder().paymentForm(factura.getMedioPago().getForma())
 				.paymentMethod(factura.getMedioPago().getMedio()).paymentDueDate(factura.getMedioPago().getFechaFin()).build());
 		rq.setPayments(mediosPagos);
+		if (factura.isAjusteCentena()) {
+			aplicarAjusteCentenaPositivoEnProductos(factura);
+		}
 		rq.setItems(mapProductos(factura));
 		rq.setTotalAmounts(mapTotalAmount(factura));
 		rq.setNumber(numeroFactura);
@@ -146,10 +149,64 @@ public interface FacturaDianMapper {
 		rq.setIdEmpresa(empresa.getId());
 		return rq;
 	}
-	
+
+	default void aplicarAjusteCentenaPositivoEnProductos(RequestFacturaDto factura) {
+		if (Objects.isNull(factura) || Objects.isNull(factura.getProductos()) || factura.getProductos().isEmpty()) {
+			return;
+		}
+		BigDecimal ajuste = calcularAjusteCentena(calcularTotalPagarProductos(factura.getProductos()));
+		if (ajuste.signum() <= 0) {
+			return;
+		}
+		Producto plantilla = factura.getProductos().stream()
+				.filter(p -> Objects.nonNull(p.getCantidad()) && p.getCantidad().compareTo(BigDecimal.ONE) == 0)
+				.findFirst()
+				.orElse(factura.getProductos().get(0));
+		factura.getProductos().add(Producto.builder()
+				.codigoEstandar(plantilla.getCodigoEstandar())
+				.precio(ajuste)
+				.cantidad(BigDecimal.ONE)
+				.iva(BigDecimal.ZERO)
+				.descuento(BigDecimal.ZERO)
+				.cargo(BigDecimal.ZERO)
+				.nombre("Ajuste a la centena")
+				.codigoUnidadMedida(plantilla.getCodigoUnidadMedida())
+				.build());
+	}
+
+	default BigDecimal calcularTotalPagarProductos(List<Producto> productos) {
+		BigDecimal totalPagar = BigDecimal.ZERO;
+		for (Producto producto : productos) {
+			BigDecimal precio = producto.getPrecio().multiply(producto.getCantidad());
+			BigDecimal descuento = precio.multiply(producto.getDescuento()).divide(BigDecimal.valueOf(100));
+			BigDecimal cargoDescuento = precio.multiply(producto.getCargo()).divide(BigDecimal.valueOf(100));
+			BigDecimal precioFinal = precio.subtract(cargoDescuento).subtract(descuento);
+			BigDecimal iva = precioFinal.multiply(producto.getIva()).divide(BigDecimal.valueOf(100));
+			totalPagar = totalPagar.add(precioFinal).add(iva);
+		}
+		return totalPagar;
+	}
+
 	default BigDecimal calcularAjusteCentena(BigDecimal total) {
 		BigDecimal totalCentena = total.divide(CIEN, 0, RoundingMode.HALF_UP).multiply(CIEN);
 		return totalCentena.subtract(total);
+	}
+
+	default Descuento resolverMetaDescuento(RequestFacturaDto factura, boolean esCargo) {
+		if (Objects.nonNull(factura.getDescuentos()) && !factura.getDescuentos().isEmpty()) {
+			Descuento meta = factura.getDescuentos().stream()
+					.filter(item -> Objects.equals(item.getIndCargo(), esCargo))
+					.findFirst()
+					.orElse(null);
+			if (Objects.nonNull(meta) && Objects.nonNull(meta.getCodigoRazon())) {
+				return meta;
+			}
+		}
+		return Descuento.builder()
+				.indCargo(esCargo)
+				.codigoRazon("01")
+				.razon(esCargo ? "Cargo" : "Descuento")
+				.build();
 	}
 
 	default List<DiscountsAndCharges> aplicarDescuento(RequestFacturaDto factura){
@@ -172,22 +229,44 @@ public interface FacturaDianMapper {
 				descuentoTotal =  descuentoTotal.add(descuento);
 				cargoTotal =  cargoTotal.add(cargoDescuento);
 			}
-			if(Objects.nonNull(factura.getDescuentos()) && !factura.getDescuentos().isEmpty()) {
-				
-				if(Objects.nonNull(cargoTotal) && cargoTotal.intValue()!=0) {
-					Descuento descuento = factura.getDescuentos().stream().filter(item -> item.getIndCargo()).findFirst().orElse(null);
-					DiscountsAndCharges descuentoCargo = DiscountsAndCharges.builder().isCharge(Boolean.TRUE).reasonCode(descuento.getCodigoRazon()).percentageAmount(cantidadCargo).amount(cargoTotal).baseAmount(totalBruto).reason(descuento.getRazon()).build();
-					descuentos.add(descuentoCargo);
-				}
-				
-				if(Objects.nonNull(descuentoTotal) && descuentoTotal.intValue()!=0) {
-					Descuento descuento = factura.getDescuentos().stream().filter(item -> !item.getIndCargo()).findFirst().orElse(null);
-					DiscountsAndCharges descuentoFinal = DiscountsAndCharges.builder().isCharge(Boolean.FALSE).reasonCode(descuento.getCodigoRazon()).percentageAmount(cantidadDescuento).amount(descuentoTotal).baseAmount(totalBruto).reason(descuento.getRazon()).build();
-					descuentos.add(descuentoFinal);
+
+			if (cargoTotal.compareTo(BigDecimal.ZERO) != 0) {
+				Descuento meta = resolverMetaDescuento(factura, true);
+				descuentos.add(DiscountsAndCharges.builder()
+						.isCharge(Boolean.TRUE)
+						.reasonCode(meta.getCodigoRazon())
+						.percentageAmount(cantidadCargo.compareTo(BigDecimal.ZERO) != 0 ? cantidadCargo : CIEN)
+						.amount(cargoTotal)
+						.baseAmount(totalBruto)
+						.reason(meta.getRazon())
+						.build());
+			}
+			if (descuentoTotal.compareTo(BigDecimal.ZERO) != 0) {
+				Descuento meta = resolverMetaDescuento(factura, false);
+				descuentos.add(DiscountsAndCharges.builder()
+						.isCharge(Boolean.FALSE)
+						.reasonCode(meta.getCodigoRazon())
+						.percentageAmount(cantidadDescuento.compareTo(BigDecimal.ZERO) != 0 ? cantidadDescuento : CIEN)
+						.amount(descuentoTotal)
+						.baseAmount(totalBruto)
+						.reason(meta.getRazon())
+						.build());
+			}
+
+			if (factura.isAjusteCentena()) {
+				BigDecimal ajuste = calcularAjusteCentena(calcularTotalPagarProductos(factura.getProductos()));
+				if (ajuste.signum() < 0) {
+					BigDecimal monto = ajuste.abs();
+					descuentos.add(DiscountsAndCharges.builder()
+							.isCharge(Boolean.FALSE)
+							.reasonCode("01")
+							.percentageAmount(CIEN)
+							.amount(monto)
+							.baseAmount(monto)
+							.reason("Ajuste a la centena")
+							.build());
 				}
 			}
-			
-			
 		}
 		
 		return descuentos;
@@ -228,7 +307,6 @@ public interface FacturaDianMapper {
 			BigDecimal totalImpuesto =new BigDecimal(0);
 			BigDecimal descuentoTotal = new BigDecimal(0);
 			BigDecimal cargoTotal = new BigDecimal(0);
-			BigDecimal totalAnticipado =new BigDecimal(0);
 			BigDecimal totalPagar =new BigDecimal(0);
 			for (Producto producto : factura.getProductos()) {
 				BigDecimal precio = producto.getPrecio().multiply(producto.getCantidad());
@@ -246,16 +324,15 @@ public interface FacturaDianMapper {
 			}
 			if (factura.isAjusteCentena()) {
 				BigDecimal ajuste = calcularAjusteCentena(totalPagar);
-				totalPagar = totalPagar.add(ajuste);
-				if (ajuste.signum() > 0) {
-					cargoTotal = cargoTotal.add(ajuste);
-				} else if (ajuste.signum() < 0) {
+				if (ajuste.signum() < 0) {
 					descuentoTotal = descuentoTotal.add(ajuste.abs());
+					totalPagar = totalPagar.add(ajuste);
 				}
 			}
-			total = TotalAmounts.builder().advanceTotal(factura.getTotalAnticipado()).grossTotal(totalBruto)
-					.taxableTotal(totalImponible).taxTotal(totalImpuesto).discountTotal(descuentoTotal)
-					.chargeTotal(cargoTotal).advanceTotal(totalAnticipado).payableTotal(totalPagar)
+			total = TotalAmounts.builder()
+					.advanceTotal(Objects.requireNonNullElse(factura.getTotalAnticipado(), BigDecimal.ZERO))
+					.grossTotal(totalBruto).taxableTotal(totalImponible).taxTotal(totalImpuesto)
+					.discountTotal(descuentoTotal).chargeTotal(cargoTotal).payableTotal(totalPagar)
 					.currencyCode(Constantes.COP).build();
 		}
 
