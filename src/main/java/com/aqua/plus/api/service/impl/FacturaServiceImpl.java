@@ -1589,27 +1589,39 @@ public class FacturaServiceImpl implements IFacturaService {
 
 		for (DeudaClienteEntity deudaActiva : deudasActivasEcc) {
 
-			if (deudaActiva.getValor() == null || deudaActiva.getPlazoPago() == null
-					|| deudaActiva.getPlazoPago() <= 0) {
-				log.warn(
-						"Deuda id={} omitida del abono automático: valor o plazoPago inválido (valor={}, plazoPago={})",
-						deudaActiva.getId(), deudaActiva.getValor(), deudaActiva.getPlazoPago());
-				continue;
-			}
+		    if (deudaActiva.getValor() == null) {
+		        log.warn("Deuda id={} omitida del abono automático: valor nulo", deudaActiva.getId());
+		        continue;
+		    }
 
-			BigDecimal valorCuota = BigDecimal.valueOf(deudaActiva.getValor())
-					.divide(BigDecimal.valueOf(deudaActiva.getPlazoPago()), 2, RoundingMode.HALF_UP);
+		    int plazoPago = (deudaActiva.getPlazoPago() == null || deudaActiva.getPlazoPago() <= 0)
+		            ? 1
+		            : deudaActiva.getPlazoPago();
 
-			AbonoEntity abonoDeuda = new AbonoEntity();
-			abonoDeuda.setDeudaCliente(deudaActiva);
-			abonoDeuda.setValor(valorCuota.doubleValue());
-			abonoDeuda.setActivo(true);
-			abonoDeuda.setUsuarioCreacion(usuarioCreacion);
+		    BigDecimal totalAbonado = abonoRepository.sumValorByDeudaClienteIdAndActivoTrue(deudaActiva.getId()); // nuevo método
+		    BigDecimal valorCuota = BigDecimal.valueOf(deudaActiva.getValor())
+		            .divide(BigDecimal.valueOf(plazoPago), 2, RoundingMode.HALF_UP);
 
-			AbonoEntity abonoGuardado = abonoRepository.save(abonoDeuda);
+		    BigDecimal saldoRestante = BigDecimal.valueOf(deudaActiva.getValor()).subtract(totalAbonado);
+		    if (saldoRestante.compareTo(BigDecimal.ZERO) <= 0) {
+		        log.info("Deuda id={} ya cubierta por abonos previos ({}), se desactiva", deudaActiva.getId(), totalAbonado);
+		        deudaActiva.setActivo(false);
+		        deudaClienteRepository.save(deudaActiva);
+		        continue;
+		    }
 
-			log.info("Abono automático creado: deudaId={} | valorCuota={} | plazoPago={} | abonoId={}",
-					deudaActiva.getId(), valorCuota, deudaActiva.getPlazoPago(), abonoGuardado.getId());
+		    BigDecimal valorAbono = valorCuota.min(saldoRestante);
+
+		    AbonoEntity abonoDeuda = new AbonoEntity();
+		    abonoDeuda.setDeudaCliente(deudaActiva);
+		    abonoDeuda.setValor(valorAbono.doubleValue());
+		    abonoDeuda.setActivo(true);
+		    abonoDeuda.setUsuarioCreacion(usuarioCreacion);
+
+		    AbonoEntity abonoGuardado = abonoRepository.save(abonoDeuda);
+
+		    log.info("Abono automático creado: deudaId={} | valorCuota={} | plazoPago={} | abonoId={}",
+		            deudaActiva.getId(), valorAbono, plazoPago, abonoGuardado.getId());
 		}
 	}
 
