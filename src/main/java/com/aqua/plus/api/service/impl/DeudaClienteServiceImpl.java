@@ -397,7 +397,7 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 					DeudaClienteSpecifications.clienteNombreLike(clienteNombreLike),
 					DeudaClienteSpecifications.tipoDeudaNombreLike(tipoDeudaNombre),
 					DeudaClienteSpecifications.plazoPagoIgual(plazoPago),
-					DeudaClienteSpecifications.conSaldoPendiente());
+					DeudaClienteSpecifications.saldoPendientePorEstado());
 
 			// ── 4. Query con fetch condicional (evita duplicados en count) ─────────
 			Page<DeudaClienteEntity> page = deudaClienteRepository.findAll((root, cq, cb) -> {
