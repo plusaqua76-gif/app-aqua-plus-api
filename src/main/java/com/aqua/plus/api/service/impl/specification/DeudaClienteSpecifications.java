@@ -123,12 +123,15 @@ public class DeudaClienteSpecifications {
 		return (root, cq, cb) -> cb.isTrue(root.get("activo"));
 	}
 
-	public static Specification<DeudaClienteEntity> saldoPendientePorEstado() {
+	private static final List<String> ESTADOS_EXCLUIDOS =
+		    List.of(Constantes.EST_DEU_PAGADA, Constantes.EST_DEU_DEMI);
+
+	public static Specification<DeudaClienteEntity> excluyeEstadosNoCobrables() {
 	    return (root, cq, cb) -> {
 	        var estado = root.join("estado", JoinType.LEFT);
 	        return cb.or(
 	                cb.isNull(estado.get("id")),
-	                cb.notEqual(estado.get("codigo"), Constantes.EST_DEU_PAGADA)
+	                cb.not(estado.get("codigo").in(ESTADOS_EXCLUIDOS))
 	        );
 	    };
 	}
