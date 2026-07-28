@@ -7,12 +7,10 @@ import java.util.Objects;
 
 import org.springframework.data.jpa.domain.Specification;
 
-import com.aqua.plus.commons.entities.AbonoEntity;
 import com.aqua.plus.commons.entities.DeudaClienteEntity;
+import com.aqua.plus.commons.utils.Constantes;
 
 import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Root;
-import jakarta.persistence.criteria.Subquery;
 
 public class DeudaClienteSpecifications {
 
@@ -125,14 +123,17 @@ public class DeudaClienteSpecifications {
 		return (root, cq, cb) -> cb.isTrue(root.get("activo"));
 	}
 
-	public static Specification<DeudaClienteEntity> conSaldoPendiente() {
-		return (root, cq, cb) -> {
-			Subquery<Double> subAbonos = cq.subquery(Double.class);
-			Root<AbonoEntity> abonoRoot = subAbonos.from(AbonoEntity.class);
-			subAbonos.select(cb.coalesce(cb.sum(abonoRoot.get("valor")), 0.0))
-					.where(cb.equal(abonoRoot.get("deudaCliente"), root), cb.equal(abonoRoot.get("activo"), true));
-			return cb.greaterThan(cb.coalesce(root.get("valor"), 0.0), subAbonos);
-		};
+	private static final List<String> ESTADOS_EXCLUIDOS =
+		    List.of(Constantes.EST_DEU_PAGADA, Constantes.EST_DEU_DEMI);
+
+	public static Specification<DeudaClienteEntity> excluyeEstadosNoCobrables() {
+	    return (root, cq, cb) -> {
+	        var estado = root.join("estado", JoinType.LEFT);
+	        return cb.or(
+	                cb.isNull(estado.get("id")),
+	                cb.not(estado.get("codigo").in(ESTADOS_EXCLUIDOS))
+	        );
+	    };
 	}
 
 }
