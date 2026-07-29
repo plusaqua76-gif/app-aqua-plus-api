@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import com.aqua.plus.api.service.IFacturaService;
 import com.aqua.plus.api.service.impl.specification.FacturaSpecifications;
@@ -1362,10 +1363,11 @@ public class FacturaServiceImpl implements IFacturaService {
 		double diferencia = precioFactura - valorPagado;
 
 		if (valorPagado > precioFactura + TOLERANCIA_PAGO) {
-			log.warn("Factura id={} - valorPago {} supera el precio {}", factura.getId(), valorPagado, precioFactura);
-			return buildError(item, idEmpresa, estadoPendiente,
-					"El valorPago %.2f supera el valor de la factura %.2f. Exceso: %.2f".formatted(valorPagado,
-							precioFactura, valorPagado - precioFactura));
+		    log.warn("Factura id={} - valorPago {} supera el precio {}", factura.getId(), valorPagado, precioFactura);
+		    return buildError(item, idEmpresa, estadoPendiente,
+		            "El valorPago %.2f supera el valor de la factura %.2f. Exceso: %.2f".formatted(valorPagado,
+		                    precioFactura, valorPagado - precioFactura),
+		            factura);
 		}
 
 		if (diferencia <= TOLERANCIA_PAGO) {
@@ -1383,15 +1385,30 @@ public class FacturaServiceImpl implements IFacturaService {
 				.valorFactura(precioFactura).valorPago(valorPagado).valorPendiente(diferencia).build();
 	}
 
+	private DetalleValidacionDTO buildError(PagoItemDTO item, Integer idEmpresa, EstadoEntity estado,
+	        String mensaje, FacturaEntity factura) {
+	    log.warn("Error validación - factura id={}, empresa id={}: {}", item.getIdFactura(), idEmpresa, mensaje);
+	    var builder = DetalleValidacionDTO.builder()
+	            .idFactura(item.getIdFactura())
+	            .idEmpresa(idEmpresa)
+	            .estado(toEstadoDTO(estado))
+	            .mensaje(mensaje)
+	            .valorPago(item.getValorPago());
+
+	    if (factura != null) {
+	        builder.codigoFactura(factura.getCodigo())
+	               .valorFactura(factura.getPrecio());
+	    }
+	    return builder.build();
+	}
+	
 	private DetalleValidacionDTO buildError(PagoItemDTO item, Integer idEmpresa, EstadoEntity estado, String mensaje) {
-		log.warn("Error validación - factura id={}, empresa id={}: {}", item.getIdFactura(), idEmpresa, mensaje);
-		return DetalleValidacionDTO.builder().idFactura(item.getIdFactura()).idEmpresa(idEmpresa)
-				.estado(toEstadoDTO(estado)).mensaje(mensaje).valorPago(item.getValorPago()).build();
+	    return buildError(item, idEmpresa, estado, mensaje, null);
 	}
 
 	private ResponseEntity<ResponseDTO> buildErrorResponse(String mensaje, HttpStatus status) {
-		return ResponseEntity.status(status)
-				.body(ResponseDTO.builder().success(false).message(mensaje).code(status.value()).build());
+	    return ResponseEntity.status(status)
+	            .body(ResponseDTO.builder().success(false).message(mensaje).code(status.value()).build());
 	}
 
 	private EstadoEntity cargarEstado(String codigo) {
@@ -1409,6 +1426,9 @@ public class FacturaServiceImpl implements IFacturaService {
 	public ResponseEntity<ResponseDTO> procesarPagos(PagoFacturaRequestDTO request) {
 		log.info("Iniciando procesamiento de pagos - empresa id={}, total registros: {}", request.getIdEmpresa(),
 				request.getPagos().size());
+		
+		int indiceActual = 0;
+		
 		try {
 			if (request.getIdEmpresa() == null) {
 				return buildErrorResponse("idEmpresa es obligatorio", HttpStatus.BAD_REQUEST);
@@ -1429,6 +1449,7 @@ public class FacturaServiceImpl implements IFacturaService {
 			int completos = 0, parciales = 0, errores = 0;
 
 			for (PagoItemDTO item : request.getPagos()) {
+				indiceActual++;
 				DetallePagoDTO resultado = procesarUnPago(item, request.getIdEmpresa(), request.getUsuarioCreacion(),
 						estadoPagada, estadoPagoParcial, estadoPendiente, tipoDeuda);
 
@@ -1465,12 +1486,26 @@ public class FacturaServiceImpl implements IFacturaService {
 			return ResponseEntity.ok(responseDTO);
 
 		} catch (IllegalStateException e) {
-			log.error("Error de configuración en procesamiento de pagos: {}", e.getMessage());
-			return buildErrorResponse(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+		    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+		    log.error("Error de configuración en procesamiento de pagos: {}", e.getMessage());
+		    return buildErrorResponse(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 
 		} catch (Exception e) {
-			log.error("Error inesperado en procesamiento de pagos", e);
-			return buildErrorResponse(Constantes.CONSULTING_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+		    TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+
+		    Integer idFacturaFallida = (indiceActual > 0 && indiceActual <= request.getPagos().size())
+		            ? request.getPagos().get(indiceActual - 1).getIdFactura()
+		            : null;
+
+		    log.error("Error inesperado en procesamiento de pagos, registro #{} (idFactura={})",
+		            indiceActual, idFacturaFallida, e);
+
+		    String detalleError = "Error procesando registro #%d (idFactura=%s): %s".formatted(
+		            indiceActual,
+		            idFacturaFallida,
+		            e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+
+		    return buildErrorResponse(detalleError, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
