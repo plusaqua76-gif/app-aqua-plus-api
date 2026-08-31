@@ -128,7 +128,8 @@ public class WebSecurityConfig {
 	
 	private String[] getOperationAllow() {
 		return new String[] {
-			"/webhook/wompi"
+			"/webhook/wompi",
+			"/api/v1/wompi/webhook"
 		};
 	}
 	
