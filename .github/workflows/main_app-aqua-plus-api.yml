@@ -24,25 +24,69 @@ jobs:
           java-version: '21'
           distribution: 'microsoft'
 
-      - name: Build with Maven
-        run: mvn clean install
+      - name: Configure Maven settings for GitHub Packages
+        run: |
+          mkdir -p ~/.m2
+          echo '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
+              </server>
+            </servers>
+          </settings>' > ~/.m2/settings.xml
 
-      - name: Upload artifact for deployment job
+      - name: Build with Maven
+        run: mvn -B clean package -DskipTests
+
+      - name: List target directory (verificación)
+        run: |
+          echo "🔍 Listando archivos generados en target/"
+          ls -lh target || echo "⚠️ No se encontró el directorio target"
+
+      - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: java-app
-          path: '${{ github.workspace }}/target/*.jar'
+          name: jar-package
+          path: target/*.jar
+          
+      - name: Build with Maven
+        run: mvn clean install -P release
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-      
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: Download artifact from build job
+      - uses: actions/checkout@v4
+
+      - name: Download JAR artifact
         uses: actions/download-artifact@v4
         with:
-          name: java-app
-      
+          name: jar-package
+
+      - name: Verify JAR downloaded
+        run: |
+          echo "🔍 Archivos descargados:"
+          ls -lh || echo "⚠️ No se encontró ningún archivo"
+          echo ""
+          echo "Verificando existencia del .jar..."
+          find . -name "*.jar" || echo "⚠️ No se encontró ningún JAR"
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F854E3D571744A4D8AF8F9707208F8A2   }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_5686DF214EAD4CE49AD85F30624B1D33   }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_305B30EB0A7A473E9CF63BA3BFA91BEB   }}
+
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
@@ -50,4 +94,4 @@ jobs:
           app-name: 'app-aqua-plus-api'
           slot-name: 'Production'
           package: '*.jar'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1F146A27F3054B5E95E70A3E5BCCACEC }}
+          
