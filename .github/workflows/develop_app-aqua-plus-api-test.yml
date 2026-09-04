@@ -1,3 +1,6 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
 name: Build and deploy JAR app to Azure Web App - app-aqua-plus-api-test
 
 on:
@@ -7,66 +10,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     permissions:
-      id-token: write
-      contents: read
-      actions: write   # necesario para limpiar artifacts
+      contents: read #This is required for actions/checkout
 
     steps:
-      # Limpieza automática de artifacts viejos
-      - name: Cleanup old artifacts
-        uses: kolpav/purge-artifacts-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          expire-in: 1days
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java version
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'microsoft'
-          cache: maven   # acelera build y reduce uso de storage
 
-      - name: Configure Maven settings for GitHub Packages
-        run: |
-          mkdir -p ~/.m2
-          cat <<EOF > ~/.m2/settings.xml
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${{ secrets.TOKEN_LIB_AQUA }}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+      - name: Build with Maven
+        run: mvn clean install
 
-      - name: Build project
-        run: mvn -B clean package -DskipTests
-
-      - name: Verify JAR exists
-        run: |
-          echo "Contenido de target:"
-          ls -lh target/
-
-      - name: Login to Azure
-        uses: azure/login@v2
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CCDAD8596A384C279208F464E847227D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F06F5144686A486E9B4969D95899E166 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_27BA111081574C95B6AFB2403A1BBF07 }}
+          name: java-app
+          path: '${{ github.workspace }}/target/*.jar'
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+      
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: java-app
+      
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
-          package: target/*.jar
+          package: '*.jar'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_618E5B071D044A3A91C719D7C65CA86C }}
