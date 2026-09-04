@@ -16,16 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Endpoint legacy público (dashboard Wompi puede apuntar aquí).
- * Preferir {@code POST /api/v1/wompi/webhook}.
- */
 @RestController
-@RequestMapping("/webhook")
-@Tag(name = "Webhook - Controller", description = "Recepción de eventos webhook de Wompi")
+@RequestMapping("/api/v1/wompi")
+@Tag(name = "Wompi Webhook - Controller", description = "Webhook Wompi (ruta versionada)")
 @CrossOrigin(origins = "*", methods = { RequestMethod.POST })
 @RequiredArgsConstructor
-public class WebhookController {
+public class WompiWebhookController {
 
     private final IWebhookService webhookService;
 
@@ -33,7 +29,7 @@ public class WebhookController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Evento procesado"),
             @ApiResponse(responseCode = "401", description = "Checksum inválido") })
-    @PostMapping("/wompi")
+    @PostMapping("/webhook")
     public ResponseEntity<Void> recibirEvento(
             @RequestBody WebhookEventDTO evento,
             @RequestHeader(value = "X-Event-Checksum", required = false) String firma) {

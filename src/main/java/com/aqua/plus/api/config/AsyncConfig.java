@@ -52,22 +52,4 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
-
-    /**
-     * Ejecutor dedicado para la obtención asíncrona de redirect_url de PSE/Bancolombia.
-     * Se lanza una tarea por pago; pool pequeño es suficiente dado el volumen esperado.
-     */
-    @Bean(name = "pagoExecutor")
-    public Executor pagoExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(20);
-        executor.setThreadNamePrefix("Pago-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(60);
-        executor.initialize();
-        return executor;
-    }
 }

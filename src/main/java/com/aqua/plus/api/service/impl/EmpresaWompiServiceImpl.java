@@ -28,10 +28,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class EmpresaWompiServiceImpl implements IEmpresaWompiService {
 
-    private final EmpresaWompiRepository  empresaWompiRepository;
-    private final EmpresaRepository       empresaRepository;
-    private final EmpresaWompiMapper      empresaWompiMapper;
-    private final EncriptarDesencriptar   encriptarDesencriptar;
+    private final EmpresaWompiRepository empresaWompiRepository;
+    private final EmpresaRepository empresaRepository;
+    private final EmpresaWompiMapper empresaWompiMapper;
+    private final EncriptarDesencriptar encriptarDesencriptar;
 
     @Override
     @Transactional
@@ -61,14 +61,15 @@ public class EmpresaWompiServiceImpl implements IEmpresaWompiService {
 
         entity.setEmpresa(empresa);
         entity.setWompiClavePublica(dto.getWompiClavePublica());
-        entity.setWompiClavePrivada(encriptarDesencriptar.encriptar(dto.getWompiClavePrivada()));
         entity.setWompiSecretoIntegridad(encriptarDesencriptar.encriptar(dto.getWompiSecretoIntegridad()));
         entity.setWompiSecretoEventos(encriptarDesencriptar.encriptar(dto.getWompiSecretoEventos()));
+        entity.setCheckoutUrl(dto.getCheckoutUrl());
+        entity.setRedirectUrl(dto.getRedirectUrl());
 
         empresaWompiRepository.save(entity);
 
-        String message  = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
-        int    status   = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
+        String message = isUpdate ? Constantes.UPDATED_SUCCESSFULLY : Constantes.SAVED_SUCCESSFULLY;
+        int status = isUpdate ? HttpStatus.OK.value() : HttpStatus.CREATED.value();
 
         return ResponseEntity.status(status).body(ResponseDTO.builder()
                 .success(true).message(message).code(status)
@@ -85,7 +86,6 @@ public class EmpresaWompiServiceImpl implements IEmpresaWompiService {
                         "No se encontraron credenciales Wompi para la empresa id: " + idEmpresa));
 
         EmpresaWompiDTO response = empresaWompiMapper.entityToDto(entity);
-        response.setWompiClavePrivada("***");
         response.setWompiSecretoIntegridad("***");
         response.setWompiSecretoEventos("***");
 
