@@ -63,5 +63,5 @@ jobs:
         with:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1F146A27F3054B5E95E70A3E5BCCACEC }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_618E5B071D044A3A91C719D7C65CA86C }}
           package: target/*.jar
