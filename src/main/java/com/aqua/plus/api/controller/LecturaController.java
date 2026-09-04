@@ -27,6 +27,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -158,6 +160,24 @@ public class LecturaController {
 		Map<String, Object> resp = lecturaServiceImpl.metricasLecturasMes(empresaId, anio, mes, idCiudad,
 				idCorregimiento);
 		return ResponseEntity.ok(resp);
+	}
+
+	@Operation(summary = "Obtener facturas pendientes de lectura", description = "Invoca la función public.fn_facturas_pendientes_lectura para obtener el listado paginado de facturas pendientes por empresa y periodo.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos (idEmpresa, periodo, page o size)", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/facturas-pendientes")
+	public ResponseEntity<Map<String, Object>> facturasPendientesLectura(
+			@Parameter(description = "ID de la empresa", required = true, example = "1") @RequestParam @NotNull @Min(1) Integer idEmpresa,
+
+			@Parameter(description = "Periodo de lectura (ej. YYYYMM)", required = true, example = "202609") @RequestParam @NotNull String periodo,
+
+			@Parameter(description = "Número de página", example = "1") @RequestParam(defaultValue = "1") @Min(1) Integer page,
+
+			@Parameter(description = "Tamaño de página", example = "20") @RequestParam(defaultValue = "20") @Min(1) Integer size) {
+
+		return lecturaServiceImpl.facturasPendientesLectura(idEmpresa, periodo, page, size);
 	}
 
 }

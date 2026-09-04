@@ -1,5 +1,7 @@
 package com.aqua.plus.api.service;
 
+import java.util.Map;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
@@ -28,5 +30,7 @@ public interface ILecturaService {
 	ResponseEntity<ResponseDTO> findAll();
 
 	ResponseEntity<ResponseDTO> deleteById(Integer id);
+	
+	ResponseEntity<Map<String, Object>> facturasPendientesLectura(Integer idEmpresa, String periodo, Integer page, Integer size);
 
 }
