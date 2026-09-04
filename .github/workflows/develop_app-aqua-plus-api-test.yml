@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write
       contents: read
       actions: write   # necesario para limpiar artifacts
 
@@ -22,6 +21,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           expire-in: 1days
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -57,16 +57,11 @@ jobs:
           echo "Contenido de target:"
           ls -lh target/
 
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CCDAD8596A384C279208F464E847227D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F06F5144686A486E9B4969D95899E166 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_27BA111081574C95B6AFB2403A1BBF07 }}
-
+      # Despliegue usando el Publish Profile ya guardado en tus secrets de GitHub
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-aqua-plus-api-test'
           slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1F146A27F3054B5E95E70A3E5BCCACEC }}
           package: target/*.jar
