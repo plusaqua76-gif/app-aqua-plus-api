@@ -1,6 +1,7 @@
 package com.aqua.plus.api.service;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -27,4 +28,6 @@ public interface IDeudaClienteService {
 	ResponseEntity<ResponseDTO> findByEmpresaClienteContadorId(Integer eccId);
 
 	ResponseEntity<ResponseDTO> findConsolidadoByEmpresaClienteContadorId(Integer eccId);
+	
+	ResponseEntity<Map<String, Object>> metricaDeudasCategoriaMensual(Integer empresaId, Integer anio, Integer mes);
 }
