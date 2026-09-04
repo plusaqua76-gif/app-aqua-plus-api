@@ -1,6 +1,7 @@
 package com.aqua.plus.api.controller;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -118,8 +122,8 @@ public class DeudaClienteController {
 			@Parameter(description = "Filtrar por nombre del tipo de deuda (LIKE), opcional", example = "Factura Vencida") @RequestParam(required = false) String tipoDeudaNombre,
 			@Parameter(description = "Filtrar por plazo pago, opcional", example = "2") @RequestParam(required = false) Integer plazoPago,
 			@ParameterObject Pageable pageable) {
-		return deudaClienteServiceImpl.findByIdEnterprise(idEmpresa, clienteNombre, facturaCodigo,
-				descripcion, fechaDeuda, valor, tipoDeudaNombre, plazoPago, pageable);
+		return deudaClienteServiceImpl.findByIdEnterprise(idEmpresa, clienteNombre, facturaCodigo, descripcion,
+				fechaDeuda, valor, tipoDeudaNombre, plazoPago, pageable);
 	}
 
 	@Operation(summary = "Listar todos las deudas del cliente")
@@ -165,4 +169,36 @@ public class DeudaClienteController {
 		return deudaClienteServiceImpl.updateDeuda(deudaClienteDTO);
 	}
 
+	@Operation(summary = "Métrica mensual de deudas y abonos", description = "Invoca el SP public.fn_metrica_deudas_abonos_mensual para obtener el resumen de deudas activas y abonos aplicados en el mes, agregado por cliente.")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos (empresaId, anio o mes)", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/deudas-abonos-mes")
+	public ResponseEntity<Map<String, Object>> metricaDeudasAbonosMensual(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam @NotNull @Min(1) Integer empresaId,
+
+			@Parameter(description = "Año", required = true, example = "2025") @RequestParam @NotNull @Min(2000) @Max(2100) Integer anio,
+
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam @NotNull @Min(1) @Max(12) Integer mes) {
+
+		return deudaClienteServiceImpl.metricaDeudasAbonosMensual(empresaId, anio, mes);
+	}
+
+	@Operation(summary = "Métrica mensual de deudas por categoría", description = "Invoca el SP public.fn_metrica_deudas_categoria_mensual para obtener el total de deudas activas del mes, agrupado por tipo de deuda. "
+			+ "Nota: deudas con id_tipo_deuda nulo o huérfano quedan excluidas del total (INNER JOIN a configuracion.tipo_deuda).")
+	@ApiResponses(value = {
+			@ApiResponse(responseCode = "200", description = "Operación completada exitosamente", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "400", description = "Parámetros inválidos (empresaId, anio o mes)", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))),
+			@ApiResponse(responseCode = "500", description = "Se presentó una condición inesperada", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Map.class))) })
+	@GetMapping("/deudas-categoria-mes")
+	public ResponseEntity<Map<String, Object>> metricaDeudasCategoriaMensual(
+			@Parameter(description = "ID de la empresa", required = true, example = "14") @RequestParam @NotNull @Min(1) Integer empresaId,
+
+			@Parameter(description = "Año", required = true, example = "2025") @RequestParam @NotNull @Min(2000) @Max(2100) Integer anio,
+
+			@Parameter(description = "Mes (1..12)", required = true, example = "9") @RequestParam @NotNull @Min(1) @Max(12) Integer mes) {
+
+		return deudaClienteServiceImpl.metricaDeudasCategoriaMensual(empresaId, anio, mes);
+	}
 }

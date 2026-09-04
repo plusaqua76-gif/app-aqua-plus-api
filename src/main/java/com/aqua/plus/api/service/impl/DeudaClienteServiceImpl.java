@@ -2,6 +2,7 @@ package com.aqua.plus.api.service.impl;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +25,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +47,9 @@ import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.repositories.ParametrosEmpresaRepository;
 import com.aqua.plus.commons.repositories.TipoDeudaRepository;
 import com.aqua.plus.commons.utils.Constantes;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +68,8 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 	private final TipoDeudaRepository tipoDeudaRepository;
 	private final EmpresaClienteContadorRepository empresaClienteContadorRepository;
 	private final ParametrosEmpresaRepository parametrosEmpresaRepository;
+	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+	private final ObjectMapper objectMapper;
 
 	@Override
 	@Transactional
@@ -647,6 +656,88 @@ public class DeudaClienteServiceImpl implements IDeudaClienteService {
 			log.error("Error actualizando Deuda de Cliente", e);
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseDTO.builder().success(false)
 					.message(Constantes.UPDATE_ERROR).code(HttpStatus.INTERNAL_SERVER_ERROR.value()).build());
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public ResponseEntity<Map<String, Object>> metricaDeudasAbonosMensual(Integer empresaId, Integer anio,
+			Integer mes) {
+
+		final String sql = """
+				    SELECT public.fn_metrica_deudas_abonos_mensual(:idEmpresa, :anio, :mes)::text AS payload
+				""";
+
+		MapSqlParameterSource params = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+				.addValue("anio", anio).addValue("mes", mes);
+
+		try {
+			String payload = namedParameterJdbcTemplate.queryForObject(sql, params, String.class);
+
+			Map<String, Object> body = objectMapper.readValue(payload, new TypeReference<Map<String, Object>>() {
+			});
+
+			return ResponseEntity.ok(body);
+
+		} catch (DataAccessException ex) {
+			Throwable root = ex.getRootCause();
+			if (root instanceof SQLException sqlEx && "22023".equals(sqlEx.getSQLState())) {
+				log.warn("Validación de parámetros fallida en fn_metrica_deudas_abonos_mensual: {}",
+						sqlEx.getMessage());
+				return ResponseEntity.badRequest()
+						.body(Map.of("success", false, "code", 400, "message", sqlEx.getMessage()));
+			}
+
+			log.error("Error de acceso a datos en fn_metrica_deudas_abonos_mensual", ex);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("success", false, "code", 500, "message",
+							"Error consultando la métrica de deudas y abonos", "detalle",
+							ex.getMostSpecificCause().getMessage()));
+
+		} catch (JsonProcessingException ex) {
+			log.error("JSON inválido devuelto por fn_metrica_deudas_abonos_mensual", ex);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "code", 500,
+					"message", "JSON inválido desde la función", "detalle", ex.getMessage()));
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public ResponseEntity<Map<String, Object>> metricaDeudasCategoriaMensual(Integer empresaId, Integer anio,
+			Integer mes) {
+
+		final String sql = """
+				    SELECT public.fn_metrica_deudas_categoria_mensual(:idEmpresa, :anio, :mes)::text AS payload
+				""";
+
+		MapSqlParameterSource params = new MapSqlParameterSource().addValue("idEmpresa", empresaId)
+				.addValue("anio", anio).addValue("mes", mes);
+
+		try {
+			String payload = namedParameterJdbcTemplate.queryForObject(sql, params, String.class);
+
+			Map<String, Object> body = objectMapper.readValue(payload, new TypeReference<Map<String, Object>>() {
+			});
+
+			return ResponseEntity.ok(body);
+
+		} catch (DataAccessException ex) {
+			Throwable root = ex.getRootCause();
+			if (root instanceof SQLException sqlEx && "22023".equals(sqlEx.getSQLState())) {
+				log.warn("Validación de parámetros fallida en fn_metrica_deudas_categoria_mensual: {}",
+						sqlEx.getMessage());
+				return ResponseEntity.badRequest()
+						.body(Map.of("success", false, "code", 400, "message", sqlEx.getMessage()));
+			}
+
+			log.error("Error de acceso a datos en fn_metrica_deudas_categoria_mensual", ex);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("success", false, "code", 500, "message",
+							"Error consultando la métrica de deudas por categoría", "detalle",
+							ex.getMostSpecificCause().getMessage()));
+
+		} catch (JsonProcessingException ex) {
+			log.error("JSON inválido devuelto por fn_metrica_deudas_categoria_mensual", ex);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "code", 500,
+					"message", "JSON inválido desde la función", "detalle", ex.getMessage()));
 		}
 	}
 
