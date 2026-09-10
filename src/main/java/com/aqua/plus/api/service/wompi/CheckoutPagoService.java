@@ -5,6 +5,8 @@ import com.aqua.plus.api.wompi.WompiEmpresaConfig;
 import com.aqua.plus.api.wompi.WompiFeeCalculator;
 import com.aqua.plus.api.wompi.WompiReferenceGenerator;
 import com.aqua.plus.api.wompi.WompiSignatureService;
+import com.aqua.plus.api.wompi.WompiTransaction;
+import com.aqua.plus.api.wompi.WompiTransactionClient;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.CheckoutPagoRequest;
 import com.aqua.plus.commons.dtos.external.CheckoutPagoResponse;
@@ -30,7 +32,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -47,6 +48,8 @@ public class CheckoutPagoService {
     private final EncriptarDesencriptar encriptarDesencriptar;
     private final WompiSignatureService signatureService;
     private final WompiReferenceGenerator referenceGenerator;
+    private final WompiTransactionClient wompiTransactionClient;
+    private final WompiPagoConfirmacionService confirmacionService;
 
     @Transactional
     public ResponseEntity<ResponseDTO> crearCheckout(CheckoutPagoRequest request) {
@@ -120,8 +123,8 @@ public class CheckoutPagoService {
                 .build());
     }
 
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> consultarEstado(Integer facturaId) {
+    @Transactional
+    public ResponseEntity<ResponseDTO> consultarEstado(Integer facturaId, String idTransaccion) {
         String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
         UsuarioEntity usuario = usuarioRepository.findByNombre(usuarioActual)
                 .orElseThrow(() -> new SecurityException("Usuario no encontrado: " + usuarioActual));
@@ -132,10 +135,20 @@ public class CheckoutPagoService {
         Integer idEmpresa = factura.getEmpresaClienteContador().getEmpresa().getId();
         validarAccesoFactura(usuario, factura, idEmpresa);
 
-        String estadoPago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId)
-                .map(PagoEntity::getEstado)
+        PagoEntity pago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId)
                 .orElse(null);
 
+        if (pago != null) {
+            boolean yaAprobado = Constantes.PAGO_ESTADO_APPROVED.equals(pago.getEstado());
+            reconciliarConWompiSiPendiente(pago, idEmpresa, idTransaccion);
+            if (yaAprobado) {
+                confirmacionService.asegurarFacturaPagada(pago, "WOMPI_REDIRECT");
+            }
+            pago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId).orElse(pago);
+            factura = facturaRepository.findActivaByIdWithRelations(facturaId).orElse(factura);
+        }
+
+        String estadoPago = pago != null ? pago.getEstado() : null;
         String estadoFactura = factura.getEstado() != null ? factura.getEstado().getCodigo() : null;
 
         EstadoPagoResponse response = EstadoPagoResponse.builder()
@@ -150,6 +163,42 @@ public class CheckoutPagoService {
                 .message(Constantes.CONSULTED_SUCCESSFULLY)
                 .response(response)
                 .build());
+    }
+
+    /**
+     * Al volver del Web Checkout, Wompi agrega {@code id} (UUID de la transacción).
+     * Si el webhook aún no llegó, consultamos la API pública y aplicamos el mismo cierre.
+     */
+    private void reconciliarConWompiSiPendiente(PagoEntity pago, Integer idEmpresa, String idTransaccion) {
+        if (idTransaccion == null || idTransaccion.isBlank()) {
+            return;
+        }
+        if (pago.getEstado() != null
+                && !Constantes.PAGO_ESTADO_PENDING.equalsIgnoreCase(pago.getEstado())) {
+            return;
+        }
+
+        WompiEmpresaConfig config = cargarConfigEmpresa(idEmpresa);
+        WompiTransaction tx = wompiTransactionClient.consultar(config.publicKey(), idTransaccion.trim())
+                .orElse(null);
+        if (tx == null) {
+            return;
+        }
+
+        if (tx.reference() == null || !tx.reference().equals(pago.getReferencia())) {
+            log.warn("Transacción Wompi no corresponde al pago — factura={} esperado={} recibido={}",
+                    pago.getIdFactura(), pago.getReferencia(), tx.reference());
+            return;
+        }
+
+        confirmacionService.aplicar(
+                pago,
+                tx.status(),
+                tx.id(),
+                tx.paymentMethodType(),
+                tx.amountInCents(),
+                tx.currency(),
+                "WOMPI_REDIRECT");
     }
 
     public WompiEmpresaConfig cargarConfigEmpresa(Integer idEmpresa) {
