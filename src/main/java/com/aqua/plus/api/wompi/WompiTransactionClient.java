@@ -23,8 +23,9 @@ public class WompiTransactionClient {
 
     static final String API_SANDBOX = "https://sandbox.wompi.co/v1";
     static final String API_PRODUCCION = "https://production.wompi.co/v1";
+    /** UUID o el id clásico de Wompi: {@code 12033747-1789087241-15025} */
     private static final Pattern ID_TRANSACCION = Pattern.compile(
-            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+            "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\\d{1,12}-\\d{6,16}-\\d{1,12})$");
 
     private final RestTemplate restTemplate;
 
