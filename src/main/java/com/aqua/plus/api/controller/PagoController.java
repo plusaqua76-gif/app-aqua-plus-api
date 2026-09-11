@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -45,7 +46,7 @@ public class PagoController {
         return checkoutPagoService.crearCheckout(request);
     }
 
-    @Operation(summary = "Consultar estado de pago de una factura (solo BD, sin llamar a Wompi)")
+    @Operation(summary = "Consultar estado de pago. Si llega idTransaccion (redirect de Wompi) y sigue PENDING, concilia con Wompi")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Consulta exitosa", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }),
@@ -54,7 +55,9 @@ public class PagoController {
             @ApiResponse(responseCode = "500", description = "Error interno", content = {
                     @Content(mediaType = "application/json", schema = @Schema(implementation = ResponseDTO.class)) }), })
     @GetMapping("/{facturaId}/estado")
-    public ResponseEntity<ResponseDTO> estado(@PathVariable Integer facturaId) {
-        return checkoutPagoService.consultarEstado(facturaId);
+    public ResponseEntity<ResponseDTO> estado(
+            @PathVariable Integer facturaId,
+            @RequestParam(required = false) String idTransaccion) {
+        return checkoutPagoService.consultarEstado(facturaId, idTransaccion);
     }
 }

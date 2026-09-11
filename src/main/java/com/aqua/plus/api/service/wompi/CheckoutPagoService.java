@@ -5,6 +5,8 @@ import com.aqua.plus.api.wompi.WompiEmpresaConfig;
 import com.aqua.plus.api.wompi.WompiFeeCalculator;
 import com.aqua.plus.api.wompi.WompiReferenceGenerator;
 import com.aqua.plus.api.wompi.WompiSignatureService;
+import com.aqua.plus.api.wompi.WompiTransaction;
+import com.aqua.plus.api.wompi.WompiTransactionClient;
 import com.aqua.plus.commons.dtos.ResponseDTO;
 import com.aqua.plus.commons.dtos.external.CheckoutPagoRequest;
 import com.aqua.plus.commons.dtos.external.CheckoutPagoResponse;
@@ -30,7 +32,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -47,6 +48,8 @@ public class CheckoutPagoService {
     private final EncriptarDesencriptar encriptarDesencriptar;
     private final WompiSignatureService signatureService;
     private final WompiReferenceGenerator referenceGenerator;
+    private final WompiTransactionClient wompiTransactionClient;
+    private final WompiPagoConfirmacionService confirmacionService;
 
     @Transactional
     public ResponseEntity<ResponseDTO> crearCheckout(CheckoutPagoRequest request) {
@@ -120,8 +123,8 @@ public class CheckoutPagoService {
                 .build());
     }
 
-    @Transactional(readOnly = true)
-    public ResponseEntity<ResponseDTO> consultarEstado(Integer facturaId) {
+    @Transactional
+    public ResponseEntity<ResponseDTO> consultarEstado(Integer facturaId, String idTransaccion) {
         String usuarioActual = SecurityContextHolder.getContext().getAuthentication().getName();
         UsuarioEntity usuario = usuarioRepository.findByNombre(usuarioActual)
                 .orElseThrow(() -> new SecurityException("Usuario no encontrado: " + usuarioActual));
@@ -132,10 +135,17 @@ public class CheckoutPagoService {
         Integer idEmpresa = factura.getEmpresaClienteContador().getEmpresa().getId();
         validarAccesoFactura(usuario, factura, idEmpresa);
 
-        String estadoPago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId)
-                .map(PagoEntity::getEstado)
-                .orElse(null);
+        String codigoActual = factura.getEstado() != null ? factura.getEstado().getCodigo() : null;
+        if (!Constantes.ESTADO_PAGADA.equalsIgnoreCase(codigoActual)
+                && !Constantes.ESTADO_PAGO_PARCIAL.equalsIgnoreCase(codigoActual)) {
+            reconciliarConWompi(factura, idEmpresa, idTransaccion);
+        }
 
+        PagoEntity pago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId)
+                .orElse(null);
+        factura = facturaRepository.findActivaByIdWithRelations(facturaId).orElse(factura);
+
+        String estadoPago = pago != null ? pago.getEstado() : null;
         String estadoFactura = factura.getEstado() != null ? factura.getEstado().getCodigo() : null;
 
         EstadoPagoResponse response = EstadoPagoResponse.builder()
@@ -150,6 +160,23 @@ public class CheckoutPagoService {
                 .message(Constantes.CONSULTED_SUCCESSFULLY)
                 .response(response)
                 .build());
+    }
+
+    /**
+     * Al volver del checkout, Wompi agrega {@code id}. Se consulta GET /v1/transactions/{id}
+     * (no se confía en ?status= de la URL) y solo entonces se intenta procesarPagos.
+     */
+    private void reconciliarConWompi(FacturaEntity factura, Integer idEmpresa, String idTransaccion) {
+        if (idTransaccion == null || idTransaccion.isBlank()) {
+            return;
+        }
+        WompiEmpresaConfig config = cargarConfigEmpresa(idEmpresa);
+        WompiTransaction tx = wompiTransactionClient.consultar(config.publicKey(), idTransaccion.trim())
+                .orElse(null);
+        if (tx == null) {
+            return;
+        }
+        confirmacionService.confirmar(factura, tx, "WOMPI_REDIRECT");
     }
 
     public WompiEmpresaConfig cargarConfigEmpresa(Integer idEmpresa) {
