@@ -1,6 +1,8 @@
 package com.aqua.plus.api.service.wompi;
 
 import com.aqua.plus.api.wompi.WompiEmpresaConfig;
+import com.aqua.plus.api.wompi.WompiTransaction;
+import com.aqua.plus.api.wompi.WompiTransactionClient;
 import com.aqua.plus.api.wompi.WompiWebhookSecurityService;
 import com.aqua.plus.commons.dtos.external.WebhookEventDTO;
 import com.aqua.plus.commons.entities.PagoEntity;
@@ -20,36 +22,30 @@ import java.util.Map;
 public class WompiWebhookService {
 
     private static final String EVENTO_TRANSACCION_ACTUALIZADA = "transaction.updated";
-    private static final String KEY_STATUS = "status";
-    private static final String KEY_PAYMENT_METHOD_TYPE = "payment_method_type";
     private static final String ORIGEN = "WOMPI_WEBHOOK";
 
     private final PagoRepository pagoRepository;
     private final CheckoutPagoService checkoutPagoService;
     private final WompiWebhookSecurityService webhookSecurityService;
+    private final WompiTransactionClient wompiTransactionClient;
     private final WompiPagoConfirmacionService confirmacionService;
 
     @Transactional
-    @SuppressWarnings("unchecked")
     public void procesar(WebhookEventDTO evento, String firmaRecibida) {
-        if (evento == null || !EVENTO_TRANSACCION_ACTUALIZADA.equals(evento.getEvent())) {
+        if (evento == null || !"transaction.updated".equals(evento.getEvent())) {
             log.info("Webhook ignorado — evento: {}", evento != null ? evento.getEvent() : null);
             return;
         }
 
         Map<String, Object> data = evento.getData();
-        if (data == null || !(data.get("transaction") instanceof Map<?, ?>)) {
+        if (data == null || !(data.get("transaction") instanceof Map<?, ?> rawTx)) {
             log.warn("Webhook sin data.transaction — se ignora");
             return;
         }
 
-        Map<String, Object> tx = (Map<String, Object>) data.get("transaction");
-        String idWompi = asString(tx.get("id"));
-        String estado = asString(tx.get(KEY_STATUS));
-        String referencia = asString(tx.get("reference"));
-        String metodoPago = asString(tx.get(KEY_PAYMENT_METHOD_TYPE));
-        Long amountInCents = asLong(tx.get("amount_in_cents"));
-        String currency = asString(tx.get("currency"));
+        Map<?, ?> txMap = rawTx;
+        String idWompi = txMap.get("id") != null ? String.valueOf(txMap.get("id")) : null;
+        String referencia = txMap.get("reference") != null ? String.valueOf(txMap.get("reference")) : null;
 
         if (referencia == null || referencia.isBlank()) {
             log.warn("Webhook sin reference — se ignora");
@@ -69,24 +65,17 @@ public class WompiWebhookService {
             throw new SecureRequestException("Firma de webhook inválida", HttpStatus.UNAUTHORIZED);
         }
 
-        confirmacionService.aplicar(pago, estado, idWompi, metodoPago, amountInCents, currency, ORIGEN);
-    }
+        if (idWompi == null || idWompi.isBlank()) {
+            log.warn("Webhook sin id de transacción — se ignora");
+            return;
+        }
 
-    private String asString(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
+        WompiTransaction tx = wompiTransactionClient.consultar(config.publicKey(), idWompi).orElse(null);
+        if (tx == null) {
+            log.warn("No se pudo consultar GET /v1/transactions/{} — no se marca PAG", idWompi);
+            return;
+        }
 
-    private Long asLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number n) {
-            return n.longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        confirmacionService.confirmar(pago.getIdFactura(), tx, ORIGEN);
     }
 }

@@ -1,12 +1,16 @@
 package com.aqua.plus.api.service.wompi;
 
 import com.aqua.plus.api.service.IFacturaService;
-import com.aqua.plus.commons.dtos.EstadoDTO;
-import com.aqua.plus.commons.dtos.FacturaDTO;
+import com.aqua.plus.api.wompi.WompiFeeCalculator;
+import com.aqua.plus.api.wompi.WompiReferenceRules;
+import com.aqua.plus.api.wompi.WompiTransaction;
+import com.aqua.plus.commons.dtos.PagoFacturaRequestDTO;
+import com.aqua.plus.commons.dtos.PagoItemDTO;
+import com.aqua.plus.commons.dtos.ProcesoPagoResponseDTO;
 import com.aqua.plus.commons.dtos.ResponseDTO;
-import com.aqua.plus.commons.entities.EstadoEntity;
+import com.aqua.plus.commons.entities.FacturaEntity;
 import com.aqua.plus.commons.entities.PagoEntity;
-import com.aqua.plus.commons.repositories.EstadoRepository;
+import com.aqua.plus.commons.repositories.FacturaRepository;
 import com.aqua.plus.commons.repositories.PagoRepository;
 import com.aqua.plus.commons.utils.Constantes;
 import lombok.RequiredArgsConstructor;
@@ -15,149 +19,128 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Set;
+import java.util.List;
 
 /**
- * Aplica un estado terminal de Wompi al pago y, si fue aprobado, marca la factura como PAGADA.
+ * Wompi solo informa el estado. La factura se marca pagada únicamente con {@code procesarPagos}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class WompiPagoConfirmacionService {
 
-    private static final Set<String> ESTADOS_TERMINALES = Set.of(
-            Constantes.PAGO_ESTADO_APPROVED,
-            Constantes.PAGO_ESTADO_DECLINED,
-            Constantes.PAGO_ESTADO_ERROR,
-            Constantes.PAGO_ESTADO_VOIDED
-    );
-
+    private final FacturaRepository facturaRepository;
     private final PagoRepository pagoRepository;
-    private final EstadoRepository estadoRepository;
     private final IFacturaService facturaService;
 
     @Transactional
-    public void aplicar(PagoEntity pago,
-                        String estado,
-                        String idWompi,
-                        String metodoPago,
-                        Long amountInCents,
-                        String currency,
-                        String origen) {
-        if (pago == null || pago.getReferencia() == null) {
+    public void confirmar(Integer facturaId, WompiTransaction tx, String origen) {
+        if (facturaId == null || tx == null) {
             return;
         }
-
-        String referencia = pago.getReferencia();
-        String estadoNormalizado = estado != null ? estado.trim().toUpperCase() : null;
-
-        if (!ESTADOS_TERMINALES.contains(estadoNormalizado)) {
-            log.info("Estado Wompi no terminal {} referencia={}", estadoNormalizado, referencia);
+        FacturaEntity factura = facturaRepository.findActivaByIdWithRelations(facturaId).orElse(null);
+        if (factura == null) {
+            log.warn("No se encontró factura id={} para confirmar Wompi", facturaId);
             return;
         }
-
-        if (amountInCents == null || !amountInCents.equals(pago.getMontoCentavos())
-                || currency == null || !currency.equalsIgnoreCase(pago.getMoneda())) {
-            log.warn("Monto/currency Wompi no coinciden — referencia={} esperado={} {} recibido={} {}",
-                    referencia, pago.getMontoCentavos(), pago.getMoneda(), amountInCents, currency);
-            return;
-        }
-
-        if (ESTADOS_TERMINALES.contains(pago.getEstado())
-                && pago.getEstado().equals(estadoNormalizado)
-                && idWompi != null
-                && idWompi.equals(pago.getIdTransaccionWompi())) {
-            if (Constantes.PAGO_ESTADO_APPROVED.equals(estadoNormalizado)) {
-                actualizarFacturaAlAprobado(referencia, origen);
-            }
-            log.info("Confirmación idempotente — referencia={} estado={} origen={}",
-                    referencia, estadoNormalizado, origen);
-            return;
-        }
-
-        if (ESTADOS_TERMINALES.contains(pago.getEstado())
-                && !Constantes.PAGO_ESTADO_PENDING.equals(pago.getEstado())) {
-            if (Constantes.PAGO_ESTADO_APPROVED.equals(pago.getEstado())) {
-                actualizarFacturaAlAprobado(referencia, origen);
-            }
-            log.info("Pago ya procesado — referencia={} estadoActual={} evento={} origen={}",
-                    referencia, pago.getEstado(), estadoNormalizado, origen);
-            return;
-        }
-
-        String metodo = metodoPago != null ? metodoPago : pago.getMetodoPago();
-        int updated = pagoRepository.actualizarEstadoSiPendiente(
-                referencia, estadoNormalizado, idWompi, metodo, origen);
-
-        if (updated == 0) {
-            log.info("No se actualizó pago PENDING — posible carrera/idempotencia referencia={} origen={}",
-                    referencia, origen);
-            if (Constantes.PAGO_ESTADO_APPROVED.equals(estadoNormalizado)) {
-                actualizarFacturaAlAprobado(referencia, origen);
-            }
-            return;
-        }
-
-        log.info("Pago actualizado — referencia={} estado={} origen={}", referencia, estadoNormalizado, origen);
-
-        if (Constantes.PAGO_ESTADO_APPROVED.equals(estadoNormalizado)) {
-            actualizarFacturaAlAprobado(referencia, origen);
-        }
+        confirmar(factura, tx, origen);
     }
 
-    /**
-     * Reintenta marcar la factura PAGADA si el pago ya está APPROVED (p. ej. falló el update anterior).
-     */
     @Transactional
-    public void asegurarFacturaPagada(PagoEntity pago, String origen) {
-        if (pago == null || !Constantes.PAGO_ESTADO_APPROVED.equals(pago.getEstado())) {
+    public void confirmar(FacturaEntity factura, WompiTransaction tx, String origen) {
+        if (factura == null || tx == null) {
             return;
         }
-        actualizarFacturaAlAprobado(pago.getReferencia(), origen);
+
+        String codigoEstado = codigoEstado(factura);
+        if (Constantes.ESTADO_PAGADA.equalsIgnoreCase(codigoEstado)
+                || Constantes.ESTADO_PAGO_PARCIAL.equalsIgnoreCase(codigoEstado)) {
+            log.info("Factura id={} ya está {} — no se toca", factura.getId(), codigoEstado);
+            return;
+        }
+
+        if (!WompiReferenceRules.perteneceAFactura(tx.reference(), factura.getId())) {
+            log.warn("Reference Wompi no es de la factura — factura={} reference={}",
+                    factura.getId(), tx.reference());
+            return;
+        }
+
+        String status = tx.status() != null ? tx.status().trim().toUpperCase() : "";
+        if (!Constantes.PAGO_ESTADO_APPROVED.equals(status)) {
+            registrarEstadoPago(factura.getId(), status, tx, origen);
+            log.info("Wompi status={} — no se marca PAG factura={}", status, factura.getId());
+            return;
+        }
+
+        long esperado;
+        try {
+            esperado = WompiFeeCalculator.calcular(factura.getPrecio()).getTotalAmountInCents();
+        } catch (IllegalArgumentException e) {
+            log.warn("No se pudo recalcular fee Wompi factura={}: {}", factura.getId(), e.getMessage());
+            return;
+        }
+
+        if (tx.amountInCents() == null || tx.amountInCents() != esperado
+                || tx.currency() == null || !Constantes.COP.equalsIgnoreCase(tx.currency())) {
+            log.warn("Monto/currency Wompi no cuadran — factura={} esperado={} COP recibido={} {}",
+                    factura.getId(), esperado, tx.amountInCents(), tx.currency());
+            return;
+        }
+
+        Integer idEmpresa = factura.getEmpresaClienteContador().getEmpresa().getId();
+        PagoItemDTO item = new PagoItemDTO();
+        item.setIdFactura(factura.getId());
+        item.setValorPago(factura.getPrecio());
+
+        PagoFacturaRequestDTO request = new PagoFacturaRequestDTO();
+        request.setIdEmpresa(idEmpresa);
+        request.setUsuarioCreacion(origenUsuario(factura, origen));
+        request.setPagos(List.of(item));
+
+        ResponseEntity<ResponseDTO> respuesta = facturaService.procesarPagos(request);
+        ResponseDTO body = respuesta.getBody();
+        if (body == null || !(body.getResponse() instanceof ProcesoPagoResponseDTO proceso)
+                || proceso.getPagosCompletos() <= 0) {
+            log.error("procesarPagos no dejó la factura en PAG — factura={} success={}",
+                    factura.getId(), body != null ? body.getSuccess() : null);
+            return;
+        }
+
+        FacturaEntity recargada = facturaRepository.findById(factura.getId()).orElse(factura);
+        if (!Constantes.ESTADO_PAGADA.equalsIgnoreCase(codigoEstado(recargada))) {
+            log.error("Factura id={} no quedó en PAG después de procesarPagos — no se asume pagada",
+                    factura.getId());
+            return;
+        }
+
+        registrarEstadoPago(factura.getId(), Constantes.PAGO_ESTADO_APPROVED, tx, origen);
+        log.info("Factura id={} marcada PAG vía procesarPagos — transacción={} origen={}",
+                factura.getId(), tx.id(), origen);
     }
 
-    private void actualizarFacturaAlAprobado(String referencia, String origen) {
-        try {
-            PagoEntity pago = pagoRepository.findByReferencia(referencia)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Pago no encontrado para referencia: " + referencia));
-
-            if (pago.getIdFactura() == null) {
-                log.warn("Pago referencia: {} sin idFactura — se omite actualización de factura", referencia);
-                return;
-            }
-
-            EstadoEntity estadoPagada = estadoRepository
-                    .findByCodigoIgnoreCaseAndActivoTrue(Constantes.ESTADO_PAGADA)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Estado PAG no encontrado en configuracion.estado"));
-
-            EstadoDTO estadoDto = EstadoDTO.builder()
-                    .id(estadoPagada.getId())
-                    .codigo(estadoPagada.getCodigo())
-                    .nombre(estadoPagada.getNombre())
-                    .build();
-
-            FacturaDTO facturaDTO = new FacturaDTO();
-            facturaDTO.setId(pago.getIdFactura());
-            facturaDTO.setEstado(estadoDto);
-            facturaDTO.setUsuarioModificacion(
-                    pago.getUsuarioCreacion() != null ? pago.getUsuarioCreacion() : origen);
-
-            ResponseEntity<ResponseDTO> respuesta = facturaService.update(facturaDTO);
-            ResponseDTO body = respuesta.getBody();
-
-            if (body != null && Boolean.TRUE.equals(body.getSuccess())) {
-                log.info("Factura id={} marcada como PAGADA — referencia: {} origen={}",
-                        pago.getIdFactura(), referencia, origen);
-            } else {
-                String msg = body != null ? body.getMessage() : "sin respuesta";
-                log.error("Error al marcar factura como PAGADA — referencia: {} factura id={} motivo: {}",
-                        referencia, pago.getIdFactura(), msg);
-            }
-        } catch (Exception e) {
-            log.error("Error inesperado actualizando factura — referencia: {} — {}",
-                    referencia, e.getMessage(), e);
+    private void registrarEstadoPago(Integer facturaId, String estado, WompiTransaction tx, String origen) {
+        if (estado == null || estado.isBlank()) {
+            return;
         }
+        pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId).ifPresent(pago -> {
+            if (Constantes.PAGO_ESTADO_PENDING.equalsIgnoreCase(pago.getEstado())) {
+                String metodo = tx.paymentMethodType() != null ? tx.paymentMethodType() : pago.getMetodoPago();
+                pagoRepository.actualizarEstadoSiPendiente(
+                        pago.getReferencia(), estado, tx.id(), metodo, origen);
+            }
+        });
+    }
+
+    private String origenUsuario(FacturaEntity factura, String origen) {
+        return pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(factura.getId())
+                .map(PagoEntity::getUsuarioCreacion)
+                .filter(u -> u != null && !u.isBlank())
+                .orElse(origen);
+    }
+
+    private String codigoEstado(FacturaEntity factura) {
+        return factura.getEstado() != null && factura.getEstado().getCodigo() != null
+                ? factura.getEstado().getCodigo().trim()
+                : "";
     }
 }

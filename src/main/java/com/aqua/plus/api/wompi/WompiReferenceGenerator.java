@@ -20,12 +20,12 @@ public class WompiReferenceGenerator {
     private final SecureRandom random = new SecureRandom();
 
     /**
-     * Genera referencia única: FAC-{facturaId}-{yyyyMMdd}-{5 hex}
+     * Genera referencia única: FLU-{facturaId}-{yyyyMMdd}-{5 hex}
      */
     public String generar(Integer facturaId) {
         String dia = LocalDate.now().format(DIA);
         for (int i = 0; i < MAX_INTENTOS; i++) {
-            String referencia = "FAC-" + facturaId + "-" + dia + "-" + randomHex(5);
+            String referencia = WompiReferenceRules.PREFIJO + "-" + facturaId + "-" + dia + "-" + randomHex(5);
             if (!pagoRepository.existsByReferencia(referencia)) {
                 return referencia;
             }

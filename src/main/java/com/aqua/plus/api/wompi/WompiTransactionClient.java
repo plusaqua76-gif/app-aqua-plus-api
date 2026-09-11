@@ -2,6 +2,9 @@ package com.aqua.plus.api.wompi;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -11,7 +14,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Consulta una transacción Wompi por id (endpoint público, no requiere clave privada).
+ * Consulta {@code GET /v1/transactions/{id}} con {@code Authorization: Bearer} (prv_ o pub_).
  */
 @Slf4j
 @Component
@@ -25,15 +28,22 @@ public class WompiTransactionClient {
 
     private final RestTemplate restTemplate;
 
-    public Optional<WompiTransaction> consultar(String publicKey, String transactionId) {
+    public Optional<WompiTransaction> consultar(String bearerKey, String transactionId) {
         if (!esIdValido(transactionId)) {
             log.warn("Id de transacción Wompi inválido: {}", transactionId);
             return Optional.empty();
         }
+        if (bearerKey == null || bearerKey.isBlank()) {
+            log.warn("Sin llave Wompi para consultar transacción id={}", transactionId);
+            return Optional.empty();
+        }
 
-        String url = resolverApiBase(publicKey) + "/transactions/" + transactionId;
+        String url = resolverApiBase(bearerKey) + "/transactions/" + transactionId.trim();
         try {
-            ResponseEntity<Map> respuesta = restTemplate.getForEntity(url, Map.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(bearerKey.trim());
+            ResponseEntity<Map> respuesta = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
             Map<?, ?> body = respuesta.getBody();
             if (body == null || !(body.get("data") instanceof Map<?, ?> data)) {
                 log.warn("Respuesta Wompi sin data — id={}", transactionId);
@@ -46,8 +56,8 @@ public class WompiTransactionClient {
         }
     }
 
-    static String resolverApiBase(String publicKey) {
-        if (publicKey != null && publicKey.startsWith("pub_prod_")) {
+    static String resolverApiBase(String key) {
+        if (key != null && (key.startsWith("pub_prod_") || key.startsWith("prv_prod_"))) {
             return API_PRODUCCION;
         }
         return API_SANDBOX;

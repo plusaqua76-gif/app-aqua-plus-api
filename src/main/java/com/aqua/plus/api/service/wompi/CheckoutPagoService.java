@@ -135,18 +135,15 @@ public class CheckoutPagoService {
         Integer idEmpresa = factura.getEmpresaClienteContador().getEmpresa().getId();
         validarAccesoFactura(usuario, factura, idEmpresa);
 
+        String codigoActual = factura.getEstado() != null ? factura.getEstado().getCodigo() : null;
+        if (!Constantes.ESTADO_PAGADA.equalsIgnoreCase(codigoActual)
+                && !Constantes.ESTADO_PAGO_PARCIAL.equalsIgnoreCase(codigoActual)) {
+            reconciliarConWompi(factura, idEmpresa, idTransaccion);
+        }
+
         PagoEntity pago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId)
                 .orElse(null);
-
-        if (pago != null) {
-            boolean yaAprobado = Constantes.PAGO_ESTADO_APPROVED.equals(pago.getEstado());
-            reconciliarConWompiSiPendiente(pago, idEmpresa, idTransaccion);
-            if (yaAprobado) {
-                confirmacionService.asegurarFacturaPagada(pago, "WOMPI_REDIRECT");
-            }
-            pago = pagoRepository.findTopByIdFacturaOrderByFechaCreacionDesc(facturaId).orElse(pago);
-            factura = facturaRepository.findActivaByIdWithRelations(facturaId).orElse(factura);
-        }
+        factura = facturaRepository.findActivaByIdWithRelations(facturaId).orElse(factura);
 
         String estadoPago = pago != null ? pago.getEstado() : null;
         String estadoFactura = factura.getEstado() != null ? factura.getEstado().getCodigo() : null;
@@ -166,39 +163,20 @@ public class CheckoutPagoService {
     }
 
     /**
-     * Al volver del Web Checkout, Wompi agrega {@code id} (UUID de la transacción).
-     * Si el webhook aún no llegó, consultamos la API pública y aplicamos el mismo cierre.
+     * Al volver del checkout, Wompi agrega {@code id}. Se consulta GET /v1/transactions/{id}
+     * (no se confía en ?status= de la URL) y solo entonces se intenta procesarPagos.
      */
-    private void reconciliarConWompiSiPendiente(PagoEntity pago, Integer idEmpresa, String idTransaccion) {
+    private void reconciliarConWompi(FacturaEntity factura, Integer idEmpresa, String idTransaccion) {
         if (idTransaccion == null || idTransaccion.isBlank()) {
             return;
         }
-        if (pago.getEstado() != null
-                && !Constantes.PAGO_ESTADO_PENDING.equalsIgnoreCase(pago.getEstado())) {
-            return;
-        }
-
         WompiEmpresaConfig config = cargarConfigEmpresa(idEmpresa);
         WompiTransaction tx = wompiTransactionClient.consultar(config.publicKey(), idTransaccion.trim())
                 .orElse(null);
         if (tx == null) {
             return;
         }
-
-        if (tx.reference() == null || !tx.reference().equals(pago.getReferencia())) {
-            log.warn("Transacción Wompi no corresponde al pago — factura={} esperado={} recibido={}",
-                    pago.getIdFactura(), pago.getReferencia(), tx.reference());
-            return;
-        }
-
-        confirmacionService.aplicar(
-                pago,
-                tx.status(),
-                tx.id(),
-                tx.paymentMethodType(),
-                tx.amountInCents(),
-                tx.currency(),
-                "WOMPI_REDIRECT");
+        confirmacionService.confirmar(factura, tx, "WOMPI_REDIRECT");
     }
 
     public WompiEmpresaConfig cargarConfigEmpresa(Integer idEmpresa) {
