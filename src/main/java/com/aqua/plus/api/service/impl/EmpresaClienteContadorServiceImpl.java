@@ -163,7 +163,150 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
                     .message(Constantes.SAVE_ERROR).code(HttpStatus.BAD_REQUEST.value()).build());
         }
     }
-
+    
+    @Transactional
+    public Map<String, Object> saveClient(Map<String, Object> jsonParams) {
+        log.info("[saveClient] INICIO keys={} correo={} usuario={}",
+                jsonParams.keySet(), maskEmail((String) jsonParams.get("correo")), jsonParams.get("usuario"));
+        try {
+            String jsonString = objectMapper.writeValueAsString(jsonParams);
+ 
+            String sql = "SELECT * FROM public.guardar_cliente_completo(CAST(:jsonData AS jsonb))";
+            MapSqlParameterSource parameters = new MapSqlParameterSource().addValue("jsonData", jsonString);
+ 
+            Map<String, Object> rawResult = namedParameterJdbcTemplate.queryForMap(sql, parameters);
+            Object wrappedValue = rawResult.get("guardar_cliente_completo");
+ 
+            if (wrappedValue instanceof org.postgresql.util.PGobject pgObject && "jsonb".equals(pgObject.getType())) {
+                String jsonValue = pgObject.getValue();
+                Map<String, Object> response = objectMapper.readValue(jsonValue,
+                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {
+                        });
+ 
+                Object statusCode = response.get("statusCode");
+                String statusStr = String.valueOf(statusCode);
+ 
+                log.info("[saveClient] Respuesta SP guardar_cliente_completo: statusCode={} response={}",
+                        statusStr, response);
+ 
+                if (!"200".equals(statusStr)) {
+                    HttpStatus httpStatus = switch (statusStr) {
+                        case "409" -> HttpStatus.CONFLICT;
+                        case "404" -> HttpStatus.NOT_FOUND;
+                        case "400" -> HttpStatus.BAD_REQUEST;
+                        case "500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+                        default -> HttpStatus.BAD_REQUEST;
+                    };
+                    log.warn("[saveClient] SP NO retornó 200 (statusCode={}). NO se envía correo. httpStatus={}",
+                            statusStr, httpStatus.value());
+                    response.put("_httpStatus", httpStatus.value());
+                    return response;
+                }
+ 
+                String primerNombre = (String) jsonParams.get("primerNombre");
+                String segundoNombre = (String) jsonParams.get("segundoNombre");
+                String primerApellido = (String) jsonParams.get("primerApellido");
+                String segundoApellido = (String) jsonParams.get("segundoApellido");
+                String correo = (String) jsonParams.get("correo");
+                String usuario = (String) response.get("usuario");
+                boolean usuarioCreado = Boolean.TRUE.equals(response.get("usuarioCreado"));
+ 
+                String nombre = String
+                        .join(" ", java.util.Optional.ofNullable(primerNombre).orElse(""),
+                                java.util.Optional.ofNullable(segundoNombre).orElse(""),
+                                java.util.Optional.ofNullable(primerApellido).orElse(""),
+                                java.util.Optional.ofNullable(segundoApellido).orElse(""))
+                        .replaceAll("\\s+", " ").trim();
+ 
+                log.info("[saveClient] Evaluando envío de correo: correo='{}' usuario='{}' nombre='{}'",
+                        maskEmail(correo), usuario, nombre);
+ 
+                if (usuarioCreado && correo != null && !correo.isBlank() && usuario != null && !usuario.isBlank()) {
+                    String tiempoLegible = notificacionServiceImpl
+                            .obtenerTiempoVigenciaLegible(Constantes.TIEMPO_VIGENCIA_EXTERNO);
+ 
+                    String token = jwtUtil.generateToken(usuario, Constantes.KEY_TOKEN_EXTERNO,
+                            Constantes.TIEMPO_VIGENCIA_EXTERNO);
+ 
+                    String encodedToken = java.net.URLEncoder.encode(token,
+                            java.nio.charset.StandardCharsets.UTF_8);
+ 
+                    String baseRecover = (this.linkRecover == null) ? "" : this.linkRecover;
+                    if (baseRecover.isBlank()) {
+                        log.warn("[saveClient] ATENCIÓN: link.recover está vacío/nulo, el link del correo quedará roto");
+                    }
+ 
+                    String recoverLink;
+                    if (baseRecover.endsWith("?") || baseRecover.endsWith("&")) {
+                        recoverLink = baseRecover + encodedToken;
+                    } else if (baseRecover.contains("?")) {
+                        recoverLink = baseRecover + "&" + encodedToken;
+                    } else {
+                        recoverLink = baseRecover + "?" + encodedToken;
+                    }
+ 
+                    String recoverLinkMasked = recoverLink.replaceAll("([?&])[^#]*", "$1***");
+                    log.info(
+                            "[saveClient] Info data notificacion: [nameUser={}, user={}, linkRecover={}, hours={}]",
+                            nombre, usuario, recoverLinkMasked, tiempoLegible);
+ 
+                    Map<String, Object> data = new HashMap<>();
+                    data.put(Constantes.PARAMETRO_NAME_USER, nombre);
+                    data.put(Constantes.PARAMETRO_USER, usuario);
+                    data.put(Constantes.PARAMETRO_LINK_RECOVER, recoverLink);
+                    data.put(Constantes.PARAMETRO_HOURS, tiempoLegible);
+ 
+                    try {
+                        String codigoPlantilla = Constantes.CREATE_PASSWORD;
+                        log.info("[saveClient] Llamando enviarNotificacion: plantilla={} destino={}",
+                                codigoPlantilla, maskEmail(correo));
+                        notificacionServiceImpl.enviarNotificacion(correo, codigoPlantilla, data);
+                        log.info("[saveClient] enviarNotificacion terminó SIN excepción para {}", maskEmail(correo));
+                        response.put("emailSent", true);
+                        response.put("emailTo", correo);
+                    } catch (Exception mailEx) {
+                        log.error("[saveClient] Fallo enviando notificación a {}", maskEmail(correo), mailEx);
+                        response.put("emailSent", false);
+                        response.put("emailError", mailEx.getMessage());
+                    }
+                } else if (correo == null || correo.isBlank()) {
+                    log.warn("[saveClient] NO se envía correo: 'correo' vacío o nulo. keys recibidas={}",
+                            jsonParams.keySet());
+                    response.put("notice", "El cliente no tiene un correo válido; no se envió notificación.");
+                } else {
+                    log.info("[saveClient] No se envía correo: usuarioCreado={} usuario={}", usuarioCreado, usuario);
+                }
+ 
+                log.info("[saveClient] FIN OK emailSent={} notice={} emailError={}",
+                        response.get("emailSent"), response.get("notice"), response.get("emailError"));
+                return response;
+            }
+ 
+            log.error("[saveClient] El SP devolvió un tipo inesperado: {}",
+                    wrappedValue == null ? "null" : wrappedValue.getClass().getName());
+            return Map.of("error", "El resultado no pudo ser procesado correctamente.");
+ 
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.error("[saveClient] Error de procesamiento JSON", e);
+            return Map.of("error", "Error de procesamiento JSON: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("[saveClient] Error inesperado", e);
+            return Map.of("error", "Error inesperado: " + e.getMessage());
+        }
+    }
+ 
+    // Helper: enmascara el correo para no dejarlo completo en los logs (ej: ca***@gmail.com)
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return String.valueOf(email);
+        }
+        int at = email.indexOf('@');
+        if (at <= 2) {
+            return "***" + (at >= 0 ? email.substring(at) : "");
+        }
+        return email.substring(0, 2) + "***" + email.substring(at);
+    }
+/*
     @Transactional
     public Map<String, Object> saveClient(Map<String, Object> jsonParams) {
         try {
@@ -275,7 +418,7 @@ public class EmpresaClienteContadorServiceImpl implements IEmpresaClienteContado
             log.error("Error inesperado en saveClient", e);
             return Map.of("error", "Error inesperado: " + e.getMessage());
         }
-    }
+    }*/
 
     @Transactional
     public Map<String, Object> updateClient(Map<String, Object> jsonParams) {
