@@ -89,7 +89,25 @@ public class EncriptarDesencriptar {
 	
 	public static void main(String[] args) throws Exception {
 		EncriptarDesencriptar ed = new EncriptarDesencriptar();
-		System.out.println("clave " + ed.desencriptar("ZTIQeAQExg+wWhOssC20rA=="));
-		//System.out.println("clave " + ed.encriptar("f3K7ipsBmYA30vhXYFsGJaGc5Bd+gymC9DkNT9RLTO2/r0HTNMp0gV45FDT65ASCnM6zOFnNy19qPeIfoNU6mA=="));
+	    //System.out.println("clave " + ed.desencriptar("ZTIQeAQExg+wWhOssC20rA=="));
+		System.out.println("clave " + ed.encriptar("xnot axdq dgqd afsz"));
 	}
+	/*public static void main(String[] args) throws Exception {
+	    String llave = "keyacuaplus";
+	    String textoAEncriptar = "xnot axdq dgqd afsz";
+
+	    MessageDigest md = MessageDigest.getInstance("MD5");
+	    byte[] digestOfPassword = md.digest(llave.getBytes("utf-8"));
+	    byte[] keyBytes = Arrays.copyOf(digestOfPassword, 24);
+
+	    SecretKey key = new SecretKeySpec(keyBytes, "DESede");
+	    Cipher cipher = Cipher.getInstance("DESede");
+	    cipher.init(Cipher.ENCRYPT_MODE, key);
+
+	    byte[] plainTextBytes = textoAEncriptar.getBytes("utf-8");
+	    byte[] buf = cipher.doFinal(plainTextBytes);
+	    byte[] base64Bytes = Base64.encodeBase64(buf);
+
+	    System.out.println("Texto encriptado: " + new String(base64Bytes));
+	}*/
 }
