@@ -87,14 +87,14 @@ public class EncriptarDesencriptar {
 		return base64EncryptedString;
 	}
 	
-	public static void main(String[] args) throws Exception {
+	/*public static void main(String[] args) throws Exception {
 		EncriptarDesencriptar ed = new EncriptarDesencriptar();
-	    //System.out.println("clave " + ed.desencriptar("ZTIQeAQExg+wWhOssC20rA=="));
+	    System.out.println("clave " + ed.desencriptar("ZTIQeAQExg+wWhOssC20rA=="));
 		System.out.println("clave " + ed.encriptar("xnot axdq dgqd afsz"));
-	}
+	}*/
 	/*public static void main(String[] args) throws Exception {
 	    String llave = "keyacuaplus";
-	    String textoAEncriptar = "xnot axdq dgqd afsz";
+	    String textoAEncriptar = "irrfnklvjcsqsyjt";
 
 	    MessageDigest md = MessageDigest.getInstance("MD5");
 	    byte[] digestOfPassword = md.digest(llave.getBytes("utf-8"));
@@ -109,5 +109,44 @@ public class EncriptarDesencriptar {
 	    byte[] base64Bytes = Base64.encodeBase64(buf);
 
 	    System.out.println("Texto encriptado: " + new String(base64Bytes));
+	}*/
+	/*public static void main(String[] args) throws Exception {
+
+	    String llave = "keyacuaplus";
+
+	    // Texto encriptado en Base64
+	    String textoEncriptado = "ji62inmB2Ps5L4zcJE84lw==";
+
+	    // 1. Generar la misma llave MD5
+	    MessageDigest md = MessageDigest.getInstance("MD5");
+
+	    byte[] digestOfPassword = md.digest(
+	        llave.getBytes("utf-8")
+	    );
+
+	    // 2. Obtener los 24 bytes para DESede
+	    byte[] keyBytes = Arrays.copyOf(digestOfPassword, 24);
+
+	    SecretKey key = new SecretKeySpec(keyBytes, "DESede");
+
+	    // 3. Crear Cipher
+	    Cipher cipher = Cipher.getInstance("DESede");
+
+	    // 4. Modo DESENCRIPTAR
+	    cipher.init(Cipher.DECRYPT_MODE, key);
+
+	    // 5. Decodificar Base64
+	    byte[] encryptedTextBytes = Base64.decodeBase64(textoEncriptado);
+
+	    // 6. Desencriptar
+	    byte[] decryptedBytes = cipher.doFinal(encryptedTextBytes);
+
+	    // 7. Convertir a texto
+	    String textoDesencriptado = new String(
+	        decryptedBytes,
+	        "utf-8"
+	    );
+
+	    System.out.println("Texto desencriptado: " + textoDesencriptado);
 	}*/
 }
