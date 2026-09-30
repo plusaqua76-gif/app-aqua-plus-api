@@ -6,16 +6,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
-import com.aqua.plus.api.utils.EncriptarDesencriptar;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Properties;
 
 @Configuration
-@RequiredArgsConstructor
-@Slf4j
 public class MailConfig {
 
     @Value("${mail.host}")
@@ -36,8 +30,6 @@ public class MailConfig {
     @Value("${mail.properties.mail.smtp.starttls.enable}")
     private String enable;
     
-    private final EncriptarDesencriptar encriptarDesencriptar;
-    
     @Bean
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
@@ -46,8 +38,8 @@ public class MailConfig {
         mailSender.setPort(this.port);
         mailSender.setUsername(this.user);
         
-        String passDesencriptada = this.encriptarDesencriptar.desencriptar(this.password);
-        mailSender.setPassword(passDesencriptada);
+        // Asignación directa en texto plano
+        mailSender.setPassword(this.password);
         
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.smtp.auth", this.auth);
